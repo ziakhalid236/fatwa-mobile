@@ -18,12 +18,41 @@
     "android": {
       "package": "com.fatwa.mobile",
       "versionCode": 1,
-      "supportsTablet": false
+      "supportsTablet": false,
+      "permissions": ["android.permission.SCHEDULE_EXACT_ALARM", "android.permission.USE_EXACT_ALARM", "android.permission.VIBRATE"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#04382D"
+      }
     },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Fatwa uses your location to show the Qibla direction and prayer times."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0B6B53",
+          "defaultChannel": "adhan-alarms",
+          "sounds": ["./assets/audio/adhan_notification.wav"]
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": true
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
