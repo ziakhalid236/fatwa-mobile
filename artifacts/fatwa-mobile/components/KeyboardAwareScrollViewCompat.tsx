@@ -1,32 +1,24 @@
-import { Platform, ScrollView, ScrollViewProps } from 'react-native';
-import {
-  KeyboardAwareScrollView,
-  KeyboardAwareScrollViewProps,
-} from 'react-native-keyboard-controller';
+import { ScrollView, ScrollViewProps } from 'react-native';
 
-type Props = KeyboardAwareScrollViewProps & ScrollViewProps;
+type Props = ScrollViewProps & { enabled?: boolean };
 
+/**
+ * Keep the initial route on React Native's built-in scroll view. This avoids
+ * mounting an optional native keyboard-controller view during app startup.
+ */
 export function KeyboardAwareScrollViewCompat({
   children,
   keyboardShouldPersistTaps = 'handled',
+  enabled = true,
   ...props
 }: Props) {
-  if (Platform.OS === 'web') {
-    return (
-      <ScrollView
-        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
-        {...props}
-      >
-        {children}
-      </ScrollView>
-    );
-  }
   return (
-    <KeyboardAwareScrollView
+    <ScrollView
       keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+      scrollEnabled={enabled}
       {...props}
     >
       {children}
-    </KeyboardAwareScrollView>
+    </ScrollView>
   );
 }
