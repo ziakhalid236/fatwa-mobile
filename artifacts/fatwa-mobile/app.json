@@ -4,7 +4,7 @@
     "slug": "fatwa-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon-adaptive.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "fatwa-mobile",
     "userInterfaceStyle": "light",
     "ios": {

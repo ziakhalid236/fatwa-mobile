@@ -1,0 +1,15 @@
+.logo-image {
+  display: block;
+  width: 35px;
+  height: 35px;
+  object-fit: cover;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.login-card .logo-image {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 17px;
+  border-radius: 15px;
+}

@@ -126,21 +126,73 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return fallback;
           }
         };
-        setProfileState(parse<Profile>(STORE_KEYS.profile, emptyProfile));
-        setQuestions(parse<UserQuestion[]>(STORE_KEYS.questions, []));
-        setLikedPostIds(parse<string[]>(STORE_KEYS.likedPosts, []));
-        setSavedPostIds(parse<string[]>(STORE_KEYS.savedPosts, []));
-        setViewedPostIds(parse<string[]>(STORE_KEYS.viewedPosts, []));
-        setNotifications(parse<AppNotification[]>(STORE_KEYS.notifications, []));
-        setAlarmsState(parse<AdhanAlarm[]>(STORE_KEYS.alarms, []));
-        setSettingsState(
-          parse<Settings>(STORE_KEYS.settings, { notificationsEnabled: true, adhanSound: true }),
+        const isRecord = (value: unknown): value is Record<string, unknown> =>
+          value !== null && typeof value === 'object' && !Array.isArray(value);
+        const parseArray = <T,>(key: string, isValid: (value: unknown) => value is T): T[] => {
+          const value = parse<unknown>(key, []);
+          return Array.isArray(value) ? value.filter(isValid) : [];
+        };
+        const profileValue = parse<unknown>(STORE_KEYS.profile, emptyProfile);
+        setProfileState(
+          isRecord(profileValue)
+            ? {
+                name: typeof profileValue.name === 'string' ? profileValue.name : '',
+                city: typeof profileValue.city === 'string' ? profileValue.city : '',
+              }
+            : emptyProfile,
         );
+        setQuestions(
+          parseArray<UserQuestion>(STORE_KEYS.questions, (value): value is UserQuestion =>
+            isRecord(value) &&
+            typeof value.id === 'string' &&
+            typeof value.name === 'string' &&
+            typeof value.question === 'string' &&
+            typeof value.category === 'string' &&
+            typeof value.status === 'string',
+          ),
+        );
+        const stringArray = (key: string) =>
+          parseArray<string>(key, (value): value is string => typeof value === 'string');
+        setLikedPostIds(stringArray(STORE_KEYS.likedPosts));
+        setSavedPostIds(stringArray(STORE_KEYS.savedPosts));
+        setViewedPostIds(stringArray(STORE_KEYS.viewedPosts));
+        setNotifications(
+          parseArray<AppNotification>(STORE_KEYS.notifications, (value): value is AppNotification =>
+            isRecord(value) &&
+            typeof value.id === 'string' &&
+            typeof value.kind === 'string' &&
+            typeof value.title === 'string' &&
+            typeof value.body === 'string' &&
+            typeof value.createdAt === 'string' &&
+            typeof value.read === 'boolean',
+          ),
+        );
+        setAlarmsState(
+          parseArray<AdhanAlarm>(STORE_KEYS.alarms, (value): value is AdhanAlarm =>
+            isRecord(value) &&
+            typeof value.prayer === 'string' &&
+            typeof value.time === 'string' &&
+            typeof value.enabled === 'boolean',
+          ),
+        );
+        const settingsValue = parse<unknown>(STORE_KEYS.settings, {});
+        setSettingsState({
+          notificationsEnabled:
+            isRecord(settingsValue) && typeof settingsValue.notificationsEnabled === 'boolean'
+              ? settingsValue.notificationsEnabled
+              : true,
+          adhanSound:
+            isRecord(settingsValue) && typeof settingsValue.adhanSound === 'boolean'
+              ? settingsValue.adhanSound
+              : true,
+        });
         const cityName = data[STORE_KEYS.cityName];
-        if (cityName) {
+        if (typeof cityName === 'string') {
           const match = prayerCities.find((city) => city.name === cityName);
           if (match) setPrayerCityState(match);
         }
+      } catch (error) {
+        console.error('Unable to restore saved Fatwa data', error);
       } finally {
         if (active) setHydrated(true);
       }
