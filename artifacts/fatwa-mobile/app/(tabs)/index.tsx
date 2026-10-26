@@ -9,6 +9,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StatusBar,
   StyleSheet,
   Switch,
@@ -63,6 +64,7 @@ const STORE_KEYS = {
   questions: '@fatwa/questions',
   saved: '@fatwa/saved',
   helpful: '@fatwa/helpful',
+  notifications: '@fatwa/notifications',
 };
 
 const categories: Category[] = [
@@ -212,6 +214,7 @@ export default function HomeScreen() {
         setQuestions(data[STORE_KEYS.questions] ? JSON.parse(data[STORE_KEYS.questions]!) as UserQuestion[] : []);
         setSavedIds(data[STORE_KEYS.saved] ? JSON.parse(data[STORE_KEYS.saved]!) as string[] : []);
         setHelpfulIds(data[STORE_KEYS.helpful] ? JSON.parse(data[STORE_KEYS.helpful]!) as string[] : []);
+        setNotifications(data[STORE_KEYS.notifications] ? JSON.parse(data[STORE_KEYS.notifications]!) as boolean : true);
       } catch {
         Alert.alert('Could not load saved data', 'Your app will still work, but locally saved changes may not be available.');
       } finally {
@@ -233,13 +236,14 @@ export default function HomeScreen() {
           [STORE_KEYS.questions, JSON.stringify(questions)],
           [STORE_KEYS.saved, JSON.stringify(savedIds)],
           [STORE_KEYS.helpful, JSON.stringify(helpfulIds)],
+          [STORE_KEYS.notifications, JSON.stringify(notifications)],
         ]);
       } catch {
         Alert.alert('Could not save changes', 'Check your device storage and try again.');
       }
     };
     void saveLocalData();
-  }, [hydrated, name, city, questions, savedIds, helpfulIds]);
+  }, [hydrated, name, city, questions, savedIds, helpfulIds, notifications]);
 
   const allAnswers = useMemo(() => {
     return seedAnswers.map((answer) => ({
@@ -269,6 +273,7 @@ export default function HomeScreen() {
     setTab(next);
     setScreen('tabs');
     setSearch('');
+    if (next === 'explore') setSelectedCategory('All');
   };
 
   const openCategory = (category: string) => {
@@ -293,6 +298,40 @@ export default function HomeScreen() {
     void Haptics.selectionAsync();
     setHelpfulIds((current) =>
       current.includes(id) ? current.filter((helpful) => helpful !== id) : [...current, id],
+    );
+  };
+
+  const shareAnswer = async (answer: Answer) => {
+    try {
+      await Share.share({
+        title: answer.title,
+        message: `${answer.title}\n\n${answer.excerpt}\n\nShared from Fatwa. This sample content is for preview only.`,
+      });
+    } catch {
+      Alert.alert('Unable to share', 'Please try again from your device.');
+    }
+  };
+
+  const clearLocalData = () => {
+    Alert.alert(
+      'Clear local data?',
+      'This removes your profile, saved answers, helpful votes, and submitted questions from this device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear data',
+          style: 'destructive',
+          onPress: () => {
+            setName('');
+            setCity('');
+            setQuestions([]);
+            setSavedIds([]);
+            setHelpfulIds([]);
+            setNotifications(true);
+            Alert.alert('Data cleared', 'Your local Fatwa preview data has been removed.');
+          },
+        },
+      ],
     );
   };
 
@@ -844,6 +883,10 @@ export default function HomeScreen() {
               <Feather name="bookmark" size={17} color={savedIds.includes(answer.id) ? colors.primary : colors.foreground} />
               <Text style={[styles.detailActionText, { color: colors.foreground }]}>{savedIds.includes(answer.id) ? 'Saved' : 'Save'}</Text>
             </Pressable>
+            <Pressable onPress={() => void shareAnswer(answer)} style={[styles.detailActionButton, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityRole="button" accessibilityLabel="Share answer">
+              <Feather name="share-2" size={17} color={colors.foreground} />
+              <Text style={[styles.detailActionText, { color: colors.foreground }]}>Share</Text>
+            </Pressable>
           </View>
         </View>
       </>
@@ -876,7 +919,13 @@ export default function HomeScreen() {
     <>
       {header('Settings', () => { setScreen('tabs'); setTab('profile'); })}
       <View style={styles.pagePadding}>
-        <View style={[styles.settingRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.settingsSectionTitle, { color: colors.foreground }]}>Profile</Text>
+        <Text style={[styles.formHelper, { color: colors.mutedForeground }]}>These details are stored only on this device until a scholar service is connected.</Text>
+        <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Full name</Text>
+        <TextInput value={name} onChangeText={setName} placeholder="Enter your name" placeholderTextColor={colors.mutedForeground} style={[styles.input, styles.settingInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]} autoCapitalize="words" />
+        <Text style={[styles.fieldLabel, { color: colors.foreground }]}>City / country</Text>
+        <TextInput value={city} onChangeText={setCity} placeholder="Enter your city or country" placeholderTextColor={colors.mutedForeground} style={[styles.input, styles.settingInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]} autoCapitalize="words" />
+        <View style={[styles.settingRow, { backgroundColor: colors.card, borderColor: colors.border }]}> 
           <View style={[styles.quickIcon, { backgroundColor: colors.mint }]}><Feather name="bell" size={18} color={colors.primary} /></View>
           <View style={styles.settingText}>
             <Text style={[styles.quickTitle, { color: colors.foreground }]}>Question notifications</Text>
@@ -884,10 +933,15 @@ export default function HomeScreen() {
           </View>
           <Switch value={notifications} onValueChange={setNotifications} trackColor={{ false: colors.border, true: colors.teal }} thumbColor="#FFFFFF" accessibilityLabel="Question notifications" />
         </View>
-        <View style={[styles.privacyNote, { backgroundColor: colors.mint }]}>
+        <View style={[styles.privacyNote, { backgroundColor: colors.mint }]}> 
           <Feather name="shield" size={17} color={colors.primary} />
           <Text style={[styles.privacyText, { color: colors.secondaryForeground }]}>This preview keeps your profile, saved answers, and questions on this device. No account or scholar service is connected yet.</Text>
         </View>
+        <Text style={[styles.settingsSectionTitle, { color: colors.foreground, marginTop: 8 }]}>Data controls</Text>
+        <Pressable onPress={clearLocalData} style={[styles.dangerButton, { borderColor: colors.border }]} accessibilityRole="button">
+          <Feather name="trash-2" size={17} color={colors.coral} />
+          <Text style={[styles.detailActionText, { color: colors.coral }]}>Clear local data</Text>
+        </Pressable>
       </View>
     </>
   );
@@ -1136,8 +1190,11 @@ const styles = StyleSheet.create({
   detailActionButton: { flex: 1, minHeight: 45, borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 8 },
   detailActionText: { fontSize: 11, fontWeight: '600' },
   answerDetailContent: { paddingTop: 4, paddingBottom: 28 },
+  settingsSectionTitle: { fontSize: 16, fontWeight: '700', marginTop: 7, marginBottom: 7 },
+  settingInput: { marginBottom: 14 },
   settingRow: { borderRadius: 16, borderWidth: 1, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   settingText: { flex: 1 },
+  dangerButton: { minHeight: 46, borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 24 },
   tabBar: { minHeight: 62, paddingTop: 9, paddingHorizontal: 13, borderTopWidth: 1, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around' },
   tabItem: { minWidth: 66, alignItems: 'center', justifyContent: 'center', gap: 4 },
   tabLabel: { fontSize: 9, fontWeight: '600' },

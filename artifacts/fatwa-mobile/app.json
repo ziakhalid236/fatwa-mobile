@@ -15,7 +15,11 @@
     "ios": {
       "supportsTablet": false
     },
-    "android": {},
+    "android": {
+      "package": "com.fatwa.mobile",
+      "versionCode": 1,
+      "supportsTablet": false
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
