@@ -22,6 +22,7 @@ import type {
 
 const STORE_KEYS = {
   profile: '@fatwa/profile',
+  deviceId: '@fatwa/device-id',
   questions: '@fatwa/questions',
   likedPosts: '@fatwa/likedPosts',
   savedPosts: '@fatwa/savedPosts',
@@ -32,7 +33,7 @@ const STORE_KEYS = {
   settings: '@fatwa/settings',
 };
 
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
+export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'https://fatwa-api.ziakhalid236.workers.dev').replace(/\/$/, '');
 
 type Settings = { notificationsEnabled: boolean; adhanSound: boolean };
 
@@ -161,8 +162,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ]);
         if (!active) return;
         if (postsResponse.ok) {
-          const payload = (await postsResponse.json()) as { posts?: Post[] };
-          if (Array.isArray(payload.posts) && payload.posts.length) setRemotePosts(payload.posts);
+          const payload = (await postsResponse.json()) as { posts?: Array<Record<string, unknown>> };
+          if (Array.isArray(payload.posts) && payload.posts.length) {
+            const mapCategory = (value: unknown): Post['category'] => {
+              const category = String(value ?? '').toLowerCase();
+              if (category.includes('history')) return 'History';
+              if (category.includes('poetry')) return 'Poetry';
+              if (category.includes('reflection')) return 'Reflection';
+              if (category.includes('seerah')) return 'Seerah';
+              return 'Islamic';
+            };
+            setRemotePosts(
+              payload.posts.map((item) => ({
+                id: String(item.id),
+                title: String(item.title ?? 'Untitled post'),
+                body: String(item.body ?? ''),
+                category: mapCategory(item.category),
+                author: String(item.author ?? 'Fatwa editorial team'),
+                source: typeof item.source === 'string' ? item.source : undefined,
+                views: Number(item.views ?? 0),
+                likes: Number(item.likes ?? 0),
+                date: String(item.date ?? item.createdAt ?? 'Recently'),
+                accent: String(item.accent ?? 'teal'),
+                icon: String(item.icon ?? 'book-open-outline'),
+              })),
+            );
+          }
         }
         if (fatwasResponse.ok) {
           const payload = (await fatwasResponse.json()) as { fatwas?: Array<Record<string, unknown>> };
@@ -356,10 +381,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (API_BASE_URL) {
         try {
+          const storedDeviceId = await AsyncStorage.getItem(STORE_KEYS.deviceId);
+          const deviceId = storedDeviceId ?? `fatwa-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+          if (!storedDeviceId) await AsyncStorage.setItem(STORE_KEYS.deviceId, deviceId);
           const response = await fetch(`${API_BASE_URL}/api/questions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              deviceId,
               name: input.name,
               city: input.city,
               question: input.question,

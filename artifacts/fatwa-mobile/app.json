@@ -4,24 +4,18 @@
     "slug": "fatwa-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon-adaptive.png",
     "scheme": "fatwa-mobile",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F7FAF8"
-    },
     "ios": {
       "supportsTablet": false
     },
     "android": {
       "package": "com.fatwa.mobile",
       "versionCode": 1,
-      "supportsTablet": false,
       "permissions": ["android.permission.SCHEDULE_EXACT_ALARM", "android.permission.USE_EXACT_ALARM", "android.permission.VIBRATE"],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
+        "foregroundImage": "./assets/images/icon-adaptive.png",
         "backgroundColor": "#04382D"
       }
     },
@@ -42,6 +36,14 @@
           "color": "#0B6B53",
           "defaultChannel": "adhan-alarms",
           "sounds": ["./assets/audio/adhan_notification.wav"]
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F7FAF8"
         }
       ],
       [
