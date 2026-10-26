@@ -49,6 +49,7 @@ type Answer = {
   body: string;
   date: string;
   helpful: number;
+  sourceUrl?: string;
 };
 
 type UserQuestion = {
@@ -57,6 +58,8 @@ type UserQuestion = {
   category: string;
   submittedAt: string;
   status: 'Submitted' | 'Under review' | 'Answered';
+  answer?: string;
+  answeredBy?: string;
 };
 
 const STORE_KEYS = {
@@ -66,6 +69,8 @@ const STORE_KEYS = {
   helpful: '@fatwa/helpful',
   notifications: '@fatwa/notifications',
 };
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
 
 const categories: Category[] = [
   { name: 'Aqeedah', subtitle: 'Faith & beliefs', icon: 'star-crescent', color: 'forest', tint: 'mint' },
@@ -200,6 +205,7 @@ export default function HomeScreen() {
   const [notifications, setNotifications] = useState(true);
   const [hydrated, setHydrated] = useState(false);
   const [submittedQuestion, setSubmittedQuestion] = useState<UserQuestion | null>(null);
+  const [remoteAnswers, setRemoteAnswers] = useState<Answer[] | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -228,6 +234,37 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    if (!API_BASE_URL) return;
+    let active = true;
+    const loadRemoteFatwas = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/fatwas`);
+        if (!response.ok) return;
+        const payload = await response.json() as { fatwas?: Array<Record<string, unknown>> };
+        const answers = (payload.fatwas ?? []).map((item) => ({
+          id: String(item.id),
+          title: String(item.title),
+          category: String(item.category),
+          scholar: String(item.scholar),
+          institution: String(item.institution),
+          excerpt: String(item.answer),
+          body: String(item.answer),
+          date: String(item.publishedAt ?? 'Recently'),
+          helpful: 0,
+          sourceUrl: typeof item.sourceUrl === 'string' ? item.sourceUrl : undefined,
+        })) as Answer[];
+        if (active && answers.length) setRemoteAnswers(answers);
+      } catch {
+        // Keep bundled sample content available when the backend is offline.
+      }
+    };
+    void loadRemoteFatwas();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!hydrated) return;
     const saveLocalData = async () => {
       try {
@@ -246,11 +283,11 @@ export default function HomeScreen() {
   }, [hydrated, name, city, questions, savedIds, helpfulIds, notifications]);
 
   const allAnswers = useMemo(() => {
-    return seedAnswers.map((answer) => ({
+    return (remoteAnswers ?? seedAnswers).map((answer) => ({
       ...answer,
       helpful: answer.helpful + (helpfulIds.includes(answer.id) ? 1 : 0),
     }));
-  }, [helpfulIds]);
+  }, [helpfulIds, remoteAnswers]);
 
   const visibleAnswers = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -360,7 +397,7 @@ export default function HomeScreen() {
     setAskStep(2);
   };
 
-  const submitQuestion = () => {
+  const submitQuestion = async () => {
     const entry: UserQuestion = {
       id: `FAT-${Date.now().toString().slice(-8)}`,
       title: questionText.trim(),
@@ -372,6 +409,27 @@ export default function HomeScreen() {
     setSubmittedQuestion(entry);
     setAskStep(3);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (API_BASE_URL) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/questions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, city, question: questionText.trim(), category: questionCategory }),
+        });
+        if (response.ok) {
+          const remote = await response.json() as { id?: string; status?: string; answer?: string; answeredBy?: string };
+          setQuestions((current) => current.map((item) => item.id === entry.id ? {
+            ...item,
+            id: remote.id ?? item.id,
+            status: remote.status === 'answered' ? 'Answered' : remote.status === 'under_review' ? 'Under review' : 'Submitted',
+            answer: remote.answer,
+            answeredBy: remote.answeredBy,
+          } : item));
+        }
+      } catch {
+        // Keep the local submission if the API is temporarily unavailable.
+      }
+    }
   };
 
   const header = (title?: string, backAction?: () => void) => (
@@ -666,6 +724,7 @@ export default function HomeScreen() {
               <Text style={[styles.submissionDate, { color: colors.mutedForeground }]}>{question.submittedAt}</Text>
             </View>
             <Text style={[styles.submissionTitle, { color: colors.foreground }]} numberOfLines={3}>{question.title}</Text>
+            {question.answer ? <View style={[styles.questionAnswer, { backgroundColor: colors.mint }]}><Text style={[styles.answerBodyLabel, { color: colors.primary }]}>ANSWER FROM {question.answeredBy?.toUpperCase() ?? 'SCHOLAR'}</Text><Text style={[styles.questionAnswerText, { color: colors.foreground }]}>{question.answer}</Text></View> : null}
             <View style={styles.submissionBottom}>
               <Text style={[styles.categoryMiniLabel, { color: colors.mutedForeground }]}>{question.category}</Text>
               <Text style={[styles.submissionId, { color: colors.mutedForeground }]}>ID {question.id}</Text>
@@ -874,6 +933,7 @@ export default function HomeScreen() {
             <Feather name="book-open" size={17} color={colors.primary} />
             <Text style={[styles.referenceText, { color: colors.secondaryForeground }]}>A real answer should include the scholar’s references and context. Ask a qualified scholar for guidance specific to you.</Text>
           </View>
+          {answer.sourceUrl ? <Text style={[styles.sourceText, { color: colors.mutedForeground }]}>Source: {answer.institution} · {answer.sourceUrl}</Text> : null}
           <View style={styles.detailActions}>
             <Pressable onPress={() => toggleHelpful(answer.id)} style={[styles.detailActionButton, { backgroundColor: liked ? colors.mint : colors.card, borderColor: colors.border }]} accessibilityRole="button" testID="helpful-answer">
               <Feather name="thumbs-up" size={17} color={liked ? colors.primary : colors.foreground} />
@@ -925,7 +985,7 @@ export default function HomeScreen() {
         <TextInput value={name} onChangeText={setName} placeholder="Enter your name" placeholderTextColor={colors.mutedForeground} style={[styles.input, styles.settingInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]} autoCapitalize="words" />
         <Text style={[styles.fieldLabel, { color: colors.foreground }]}>City / country</Text>
         <TextInput value={city} onChangeText={setCity} placeholder="Enter your city or country" placeholderTextColor={colors.mutedForeground} style={[styles.input, styles.settingInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]} autoCapitalize="words" />
-        <View style={[styles.settingRow, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+        <View style={[styles.settingRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.quickIcon, { backgroundColor: colors.mint }]}><Feather name="bell" size={18} color={colors.primary} /></View>
           <View style={styles.settingText}>
             <Text style={[styles.quickTitle, { color: colors.foreground }]}>Question notifications</Text>
@@ -933,7 +993,7 @@ export default function HomeScreen() {
           </View>
           <Switch value={notifications} onValueChange={setNotifications} trackColor={{ false: colors.border, true: colors.teal }} thumbColor="#FFFFFF" accessibilityLabel="Question notifications" />
         </View>
-        <View style={[styles.privacyNote, { backgroundColor: colors.mint }]}> 
+        <View style={[styles.privacyNote, { backgroundColor: colors.mint }]}>
           <Feather name="shield" size={17} color={colors.primary} />
           <Text style={[styles.privacyText, { color: colors.secondaryForeground }]}>This preview keeps your profile, saved answers, and questions on this device. No account or scholar service is connected yet.</Text>
         </View>
@@ -1130,6 +1190,8 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: '600', flex: 1 },
   submissionDate: { fontSize: 10 },
   submissionTitle: { fontSize: 14, fontWeight: '600', lineHeight: 20, marginBottom: 12 },
+  questionAnswer: { borderRadius: 12, padding: 11, marginBottom: 12 },
+  questionAnswerText: { fontSize: 12, lineHeight: 18 },
   submissionBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   submissionId: { fontSize: 10 },
   profileBanner: { borderRadius: 21, minHeight: 110, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 7 },
@@ -1186,6 +1248,7 @@ const styles = StyleSheet.create({
   answerBody: { fontSize: 14, lineHeight: 23 },
   referenceCard: { borderRadius: 14, padding: 13, flexDirection: 'row', gap: 9, alignItems: 'flex-start', marginBottom: 18 },
   referenceText: { fontSize: 11, lineHeight: 17, flex: 1 },
+  sourceText: { fontSize: 10, lineHeight: 15, marginBottom: 16 },
   detailActions: { flexDirection: 'row', gap: 9, marginBottom: 25 },
   detailActionButton: { flex: 1, minHeight: 45, borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 8 },
   detailActionText: { fontSize: 11, fontWeight: '600' },
