@@ -123,18 +123,18 @@ export function QuestionCard({
 }
 
 const styles = StyleSheet.create({
-  fatwaCard: { borderRadius: 22, borderWidth: 1, padding: 16, marginBottom: 14 },
+  fatwaCard: { borderRadius: 24, borderWidth: 1, padding: 17, marginBottom: 14 },
   fatwaHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 },
   meta: { fontSize: 10.5, fontWeight: '500' },
   questionBlock: { flexDirection: 'row', gap: 10 },
   qBadge: { width: 24, height: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   qBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
-  questionText: { flex: 1, fontSize: 15, lineHeight: 21, fontWeight: '700', letterSpacing: -0.2 },
+  questionText: { flex: 1, fontSize: 15.5, lineHeight: 23, fontWeight: '700', letterSpacing: -0.2 },
   divider: { height: 1, marginVertical: 13, marginLeft: 34 },
   answerBlock: { flexDirection: 'row', gap: 10 },
   aBadge: { width: 24, height: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   aBadgeText: { fontSize: 12, fontWeight: '800' },
-  answerText: { flex: 1, fontSize: 12.5, lineHeight: 19 },
+  answerText: { flex: 1, fontSize: 13, lineHeight: 20 },
   fatwaFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -147,8 +147,8 @@ const styles = StyleSheet.create({
   scholarText: { fontSize: 11.5, fontWeight: '600', flex: 1 },
   readButton: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   readText: { fontSize: 12.5, fontWeight: '700' },
-  questionCard: { borderRadius: 20, borderWidth: 1, padding: 15, marginBottom: 12 },
-  questionTitle: { fontSize: 14, lineHeight: 20, fontWeight: '600', marginTop: 3, marginBottom: 12 },
+  questionCard: { borderRadius: 22, borderWidth: 1, padding: 16, marginBottom: 12 },
+  questionTitle: { fontSize: 14.5, lineHeight: 21, fontWeight: '700', marginTop: 4, marginBottom: 13 },
   answerBox: { borderRadius: 14, padding: 12, marginBottom: 12 },
   answerLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.8, marginBottom: 6 },
   answerBody: { fontSize: 12.5, lineHeight: 19 },

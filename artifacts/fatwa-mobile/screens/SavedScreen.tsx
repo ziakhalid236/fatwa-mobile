@@ -65,8 +65,8 @@ export default function SavedScreen() {
 }
 
 const styles = StyleSheet.create({
-  head: { marginTop: 8, marginBottom: 16 },
-  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.3, marginBottom: 6 },
-  title: { fontSize: 23, fontWeight: '700', letterSpacing: -0.5 },
-  subtitle: { fontSize: 12.5, lineHeight: 19, marginTop: 6 },
+  head: { marginTop: 10, marginBottom: 18 },
+  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 },
+  title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.6 },
+  subtitle: { fontSize: 13, lineHeight: 20, marginTop: 7 },
 });

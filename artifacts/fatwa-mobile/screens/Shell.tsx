@@ -122,7 +122,7 @@ function Shell() {
           </Pressable>
         ) : (
           <View style={styles.brandLockup}>
-            <LogoMark size={32} />
+            <LogoMark size={36} />
             <View>
               <Text style={[styles.brandName, { color: colors.forest }]}>Fatwa</Text>
               <Text style={[styles.hijriDate, { color: colors.mutedForeground }]}>{formatIslamicDate(new Date(), settings.language)}</Text>
@@ -221,8 +221,10 @@ function Shell() {
                         styles.tabLabel,
                         { color: selected ? colors.primaryForeground : colors.mutedForeground },
                       ]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
                     >
-                      {item.label}
+                      {item.key === 'alarm' ? 'Alerts' : item.label}
                     </Text>
                     {selected ? (
                       <LinearGradient
@@ -274,40 +276,40 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingBottom: 12 },
   topBar: {
-    minHeight: 56,
-    paddingHorizontal: 18,
+    minHeight: 60,
+    paddingHorizontal: 20,
     paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  brandName: { fontSize: 21, fontWeight: '700', letterSpacing: -0.7 },
-  hijriDate: { fontSize: 9.5, fontWeight: '600', marginTop: 1 },
+  brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brandName: { fontSize: 23, fontWeight: '800', letterSpacing: -0.6 },
+  hijriDate: { fontSize: 10.5, fontWeight: '500', marginTop: 2 },
   topBarTitle: { position: 'absolute', left: 70, right: 66, textAlign: 'center', fontSize: 16, fontWeight: '700' },
   headerSide: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   notificationDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 9, right: 9 },
   tabBar: {
-    minHeight: 82,
-    paddingTop: 9,
-    paddingHorizontal: 12,
-    borderTopWidth: 1,
-    borderRadius: 24,
-    marginHorizontal: 10,
+    minHeight: 80,
+    paddingTop: 8,
+    paddingHorizontal: 10,
+    borderTopWidth: 0,
+    borderRadius: 25,
+    marginHorizontal: 12,
     marginBottom: 8,
     shadowColor: '#0D594B',
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 7,
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-around',
   },
-  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 61, borderWidth: 1, borderColor: 'transparent', borderRadius: 18, marginHorizontal: 2, paddingVertical: 4 },
-  tabIcon: { width: 42, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  tabLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.1 },
-  activeDot: { height: 3, width: 16, borderRadius: 2 },
+  tabItem: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 58, borderWidth: 1, borderColor: 'transparent', borderRadius: 18, marginHorizontal: 2, paddingHorizontal: 2, paddingVertical: 4 },
+  tabIcon: { width: 38, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  tabLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.05 },
+  activeDot: { height: 3, width: 12, borderRadius: 2 },
   tabBadge: {
     position: 'absolute',
     top: -5,

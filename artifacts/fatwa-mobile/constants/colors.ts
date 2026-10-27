@@ -7,119 +7,121 @@
 
 const light = {
   // Legacy aliases (kept for backward compatibility)
-  text: '#0B1F1A',
-  tint: '#0B6B53',
+  text: '#172920',
+  tint: '#126447',
 
   // Core surfaces
-  background: '#F4F8F5',
-  backgroundElevated: '#FFFFFF',
-  foreground: '#0B1F1A',
+  background: '#F4F0E5',
+  backgroundElevated: '#FFFDF8',
+  foreground: '#172920',
 
   // Cards / elevated surfaces
-  card: '#FFFFFF',
-  cardForeground: '#0B1F1A',
-  cardMuted: '#F8FBF9',
+  card: '#FFFEFA',
+  cardForeground: '#172920',
+  cardMuted: '#F0F1E8',
 
   // Primary action color (buttons, links, active states)
-  primary: '#0B6B53',
+  primary: '#0B6048',
   primaryForeground: '#FFFFFF',
-  primarySoft: '#E3F2EC',
+  primarySoft: '#DFEEE4',
 
   // Secondary / less-emphasis interactive surfaces
-  secondary: '#EAF4F0',
-  secondaryForeground: '#12463A',
+  secondary: '#E9EEE3',
+  secondaryForeground: '#244B3B',
 
   // Muted / subdued elements (dividers, timestamps, placeholders)
-  muted: '#EEF4F1',
-  mutedForeground: '#6E817B',
+  muted: '#EFEEE6',
+  mutedForeground: '#6D766E',
 
   // Accent highlights (badges, selected items, focus rings)
-  accent: '#DCEEE7',
-  accentForeground: '#08503F',
+  accent: '#F0E5CB',
+  accentForeground: '#5A4726',
 
   // Destructive actions (delete, error states)
-  destructive: '#C0453F',
+  destructive: '#A94C43',
   destructiveForeground: '#FFFFFF',
 
   // Borders and input outlines
-  border: '#DFE9E4',
-  borderStrong: '#C9DAD3',
-  input: '#DFE9E4',
+  border: '#DEDCCF',
+  borderStrong: '#C7C4B5',
+  input: '#DEDCCF',
 
   // Fatwa brand accents
-  forest: '#04382D',
-  forestDeep: '#02261F',
-  green: '#0E7A5F',
-  teal: '#3E9C8C',
-  mint: '#E1F3ED',
-  gold: '#C99A3F',
-  goldSoft: '#F6EBD6',
-  coral: '#D98066',
+  forest: '#082F23',
+  forestDeep: '#05261C',
+  green: '#0E7151',
+  teal: '#559878',
+  mint: '#E5F0E5',
+  gold: '#A8782E',
+  goldSoft: '#F3E8CF',
+  coral: '#C45E53',
+  coralSoft: '#F8E7E1',
   blue: '#4C9BC0',
   purple: '#8F72BE',
   pink: '#CE6791',
   orange: '#BE7048',
-  slate: '#4F6E65',
-  ivory: '#FBFDFB',
+  slate: '#586B61',
+  ivory: '#FBF9F1',
 
   // Effects
-  shadow: '#0B2E24',
-  overlay: 'rgba(4, 32, 25, 0.55)',
+  shadow: '#1B382B',
+  overlay: 'rgba(8, 38, 29, 0.52)',
   onHero: '#FFFFFF',
-  onHeroMuted: '#DCEFE7',
+  onHeroMuted: '#DDE9DF',
 };
 
 const dark: typeof light = {
-  text: '#EAF3EF',
-  tint: '#4FC3A1',
+  text: '#EAF1EB',
+  tint: '#78CBA2',
 
-  background: '#07120F',
-  backgroundElevated: '#0D1C18',
-  foreground: '#EAF3EF',
+  background: '#0B1511',
+  backgroundElevated: '#111F19',
+  foreground: '#EAF1EB',
 
-  card: '#0F2019',
-  cardForeground: '#EAF3EF',
-  cardMuted: '#122620',
+  card: '#14231B',
+  cardForeground: '#EAF1EB',
+  cardMuted: '#172820',
 
-  primary: '#3FB08D',
-  primaryForeground: '#04231B',
-  primarySoft: '#11332A',
+  primary: '#69C299',
+  primaryForeground: '#08271B',
+  primarySoft: '#17372A',
 
-  secondary: '#153029',
-  secondaryForeground: '#C9E6DB',
+  secondary: '#1A3025',
+  secondaryForeground: '#D2E7D8',
 
-  muted: '#132924',
-  mutedForeground: '#8AA69D',
+  muted: '#1B2D23',
+  mutedForeground: '#9AAC9F',
 
-  accent: '#17352D',
-  accentForeground: '#B9E2D3',
+  accent: '#20392B',
+  accentForeground: '#C2E4CE',
 
   destructive: '#E0706A',
   destructiveForeground: '#1A0B0A',
 
-  border: '#1D3730',
-  borderStrong: '#2A4A41',
-  input: '#1D3730',
+  border: '#293D31',
+  borderStrong: '#3A5243',
+  input: '#293D31',
 
-  forest: '#0B2A22',
-  forestDeep: '#051B16',
-  green: '#2E9C7C',
-  teal: '#4FB3A1',
-  mint: '#12332A',
-  gold: '#D9B264',
-  goldSoft: '#2C2415',
-  coral: '#E08C72',
+  forest: '#102D21',
+  forestDeep: '#0A2118',
+  green: '#2E8B68',
+  teal: '#65AF91',
+  mint: '#19372A',
+  gold: '#D4B36E',
+  goldSoft: '#302817',
+  coral: '#E08A73',
+  coralSoft: '#38251F',
   blue: '#63B2D4',
   purple: '#A48CD1',
   pink: '#E084AB',
   orange: '#D0855C',
-  slate: '#8FB0A7',
-  ivory: '#07120F',
+  slate: '#A1B6A8',
+  ivory: '#0B1511',
 
   shadow: '#000000',
   overlay: 'rgba(0, 0, 0, 0.62)',
   onHero: '#FFFFFF',
-  onHeroMuted: '#CFE7DE',
+  onHeroMuted: '#D5E7DB',
 };
 
 const colors = {

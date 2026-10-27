@@ -104,17 +104,17 @@ function TextInputField({ label, value, onChangeText, placeholder, colors }: { l
 }
 
 const styles = StyleSheet.create({
-  head: { marginTop: 8, marginBottom: 18 },
-  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.3, marginBottom: 6 },
+  head: { marginTop: 10, marginBottom: 20 },
+  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 },
   title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.6 },
-  subtitle: { fontSize: 12.5, lineHeight: 19, marginTop: 6 },
+  subtitle: { fontSize: 13, lineHeight: 20, marginTop: 7 },
   field: { flex: 1, marginBottom: 12 },
   twoCol: { flexDirection: 'row', gap: 10 },
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
-  input: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, fontSize: 13 },
-  textarea: { minHeight: 160, borderWidth: 1, borderRadius: 16, padding: 14, fontSize: 14, lineHeight: 21, marginBottom: 16 },
+  input: { minHeight: 50, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, fontSize: 13 },
+  textarea: { minHeight: 160, borderWidth: 1, borderRadius: 18, padding: 15, fontSize: 14, lineHeight: 22, marginBottom: 17 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 15 },
-  chip: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 13, paddingVertical: 9 },
+  chip: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
   chipText: { fontSize: 11.5, fontWeight: '700' },
   note: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', marginTop: 15 },
   noteText: { fontSize: 11, textAlign: 'center' },

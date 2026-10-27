@@ -55,7 +55,12 @@ export function PostCard({
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          borderTopColor: colors.gold,
+          shadowColor: colors.shadow,
+        },
       ]}
       testID={`post-card-${post.id}`}
     >
@@ -98,12 +103,24 @@ export function PostCard({
               void Haptics.selectionAsync();
               onToggleLike();
             }}
-            style={[styles.action, { backgroundColor: liked ? colors.primarySoft : colors.background }]}
+            style={({ pressed }) => [
+              styles.action,
+              {
+                 backgroundColor: liked ? colors.coralSoft : colors.cardMuted,
+                opacity: pressed ? 0.72 : 1,
+                transform: [{ scale: pressed ? 0.97 : 1 }],
+              },
+            ]}
             accessibilityRole="button"
             accessibilityLabel={liked ? 'Unlike post' : 'Like post'}
+            accessibilityState={{ selected: liked }}
             testID={`like-${post.id}`}
           >
-            <Feather name="heart" size={16} color={liked ? colors.coral : colors.mutedForeground} />
+            <MaterialCommunityIcons
+              name={liked ? 'heart' : 'heart-outline'}
+              size={17}
+              color={liked ? colors.coral : colors.mutedForeground}
+            />
             <Text style={[styles.actionText, { color: liked ? colors.coral : colors.mutedForeground }]}>
               {formatCount(post.likes + (liked ? 1 : 0))}
             </Text>
@@ -114,7 +131,14 @@ export function PostCard({
               void Haptics.selectionAsync();
               onToggleSave();
             }}
-            style={[styles.action, { backgroundColor: saved ? colors.primarySoft : colors.background }]}
+            style={({ pressed }) => [
+              styles.action,
+              {
+                backgroundColor: saved ? colors.primarySoft : colors.cardMuted,
+                opacity: pressed ? 0.72 : 1,
+                transform: [{ scale: pressed ? 0.97 : 1 }],
+              },
+            ]}
             accessibilityRole="button"
             accessibilityLabel={saved ? 'Remove from saved' : 'Save post'}
             testID={`save-${post.id}`}
@@ -133,7 +157,10 @@ export function PostCard({
 
           <Pressable
             onPress={onOpen}
-            style={[styles.action, { backgroundColor: colors.background }]}
+            style={({ pressed }) => [
+              styles.action,
+              { backgroundColor: colors.cardMuted, opacity: pressed ? 0.72 : 1 },
+            ]}
             accessibilityRole="button"
             accessibilityLabel={`${formatCount(views)} views`}
             testID={`views-${post.id}`}
@@ -152,7 +179,10 @@ export function PostCard({
                 message: `${post.title}\n\n${post.body}\n\nShared from Fatwa.`,
               }).catch(() => undefined);
             }}
-            style={[styles.action, { backgroundColor: colors.background }]}
+            style={({ pressed }) => [
+              styles.action,
+              { backgroundColor: colors.cardMuted, opacity: pressed ? 0.72 : 1 },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Share post"
             testID={`share-${post.id}`}
@@ -169,35 +199,36 @@ export function PostCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
+    borderTopWidth: 3,
     marginBottom: 14,
     overflow: 'hidden',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.065,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 5 },
     elevation: 2,
   },
-  body: { padding: 20 },
-  authorHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 15 },
+  body: { padding: 17 },
+  authorHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   authorMeta: { flex: 1 },
   metaLine: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
   metaDot: { fontSize: 12 },
   date: { fontSize: 10.5, fontWeight: '500' },
-  title: { fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.4, marginBottom: 11 },
-  excerpt: { fontSize: 14, lineHeight: 22, marginBottom: 18 },
+  title: { fontSize: 20, lineHeight: 29, fontWeight: '800', letterSpacing: -0.2, marginBottom: 9 },
+  excerpt: { fontSize: 14, lineHeight: 23, marginBottom: 15 },
   author: { fontSize: 13, fontWeight: '700' },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    marginTop: 11,
+    marginTop: 9,
     paddingTop: 10,
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-    gap: 7,
+    marginHorizontal: -17,
+    paddingHorizontal: 17,
+    gap: 6,
   },
-  action: { flex: 1, minHeight: 38, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 5 },
-  actionText: { fontSize: 11.5, fontWeight: '800' },
+  action: { flex: 1, minWidth: 0, minHeight: 40, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4 },
+  actionText: { fontSize: 11, fontWeight: '800' },
 });

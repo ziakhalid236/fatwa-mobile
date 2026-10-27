@@ -126,10 +126,10 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  head: { marginTop: 8, marginBottom: 16 },
-  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.3, marginBottom: 6 },
-  title: { fontSize: 23, fontWeight: '700', letterSpacing: -0.5 },
-  subtitle: { fontSize: 12.5, lineHeight: 19, marginTop: 6 },
+  head: { marginTop: 10, marginBottom: 18 },
+  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 },
+  title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.6 },
+  subtitle: { fontSize: 13, lineHeight: 20, marginTop: 7 },
   toolbar: { flexDirection: 'row', gap: 9, marginBottom: 14 },
   toolButton: {
     borderWidth: 1,
@@ -142,17 +142,17 @@ const styles = StyleSheet.create({
   },
   toolText: { fontSize: 11.5, fontWeight: '700' },
   noteCard: {
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
-    padding: 14,
+    padding: 15,
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 11,
+    marginBottom: 12,
   },
-  noteIcon: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  noteIcon: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   noteTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  noteTitle: { fontSize: 13.5, fontWeight: '700', flex: 1 },
+  noteTitle: { fontSize: 14, fontWeight: '800', flex: 1 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  noteBody: { fontSize: 12, lineHeight: 18, marginTop: 4 },
-  noteTime: { fontSize: 10.5, marginTop: 7, fontWeight: '600' },
+  noteBody: { fontSize: 12.5, lineHeight: 19, marginTop: 5 },
+  noteTime: { fontSize: 10.5, marginTop: 8, fontWeight: '600' },
 });
