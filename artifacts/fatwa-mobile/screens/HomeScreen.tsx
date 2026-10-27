@@ -45,8 +45,8 @@ export default function HomeScreen() {
           returnKeyType="search"
           accessibilityLabel="Search posts"
         />
-        <Pressable accessibilityRole="button" accessibilityLabel="Search filters" hitSlop={8}>
-          <Feather name="sliders" size={22} color={colors.primary} />
+        <Pressable onPress={() => nav.push({ name: 'postSubmit' })} accessibilityRole="button" accessibilityLabel="Share a community post" hitSlop={8}>
+          <Feather name="upload-cloud" size={22} color={colors.primary} />
         </Pressable>
       </View>
 

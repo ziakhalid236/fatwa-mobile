@@ -46,11 +46,34 @@ router.get("/questions/:id", async (req, res) => {
   return res.json(question);
 });
 
+router.post("/post-submissions", async (req, res) => {
+  const { name, country, city, title, body, category, language } = req.body ?? {};
+  if (typeof name !== "string" || name.trim().length < 2 || typeof body !== "string" || body.trim().length < 20 || typeof category !== "string") {
+    return res.status(400).json({ error: "name, post text, and category are required" });
+  }
+  const saved = await contentStore.createSubmission({
+    name: name.trim(), country: typeof country === "string" ? country.trim() : undefined,
+    city: typeof city === "string" ? city.trim() : undefined,
+    title: typeof title === "string" && title.trim().length >= 3 ? title.trim() : body.trim().slice(0, 80),
+    body: body.trim(), category, language: language === "ur" ? "ur" : language === "ar" ? "ar" : "en",
+  });
+  return res.status(201).json(saved);
+});
+
 router.use("/admin", adminOnly);
 
 router.get("/admin/stats", async (_req, res) => res.json(await contentStore.stats()));
 router.get("/admin/fatwas", async (_req, res) => res.json({ fatwas: await contentStore.listAllFatwas() }));
 router.get("/admin/questions", async (_req, res) => res.json({ questions: await contentStore.listQuestions() }));
+router.get("/admin/post-submissions", async (_req, res) => res.json({ submissions: await contentStore.listSubmissions() }));
+
+router.patch("/admin/post-submissions/:id", async (req, res) => {
+  const action = req.body?.action === "approve" ? "approved" : req.body?.action === "reject" ? "rejected" : undefined;
+  if (!action) return res.status(400).json({ error: "action must be approve or reject" });
+  const submission = await contentStore.reviewSubmission(req.params.id, action, typeof req.body?.reason === "string" ? req.body.reason.trim() : undefined);
+  if (!submission) return res.status(404).json({ error: "Submission not found or already reviewed" });
+  return res.json({ ok: true, status: submission.status, submission });
+});
 
 router.post("/admin/fatwas", async (req, res) => {
   const body = req.body ?? {};

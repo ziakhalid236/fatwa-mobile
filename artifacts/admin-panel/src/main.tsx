@@ -48,6 +48,20 @@ type Question = {
   answeredBy?: string;
 };
 
+type PostSubmission = {
+  id: string;
+  name: string;
+  country?: string;
+  city?: string;
+  title: string;
+  body: string;
+  category: Category;
+  language: "en" | "ur" | "ar";
+  status: "pending" | "approved" | "rejected";
+  rejectionReason?: string;
+  createdAt: string;
+};
+
 type Stats = {
   publishedFatwas: number;
   draftPosts: number;
@@ -97,23 +111,27 @@ function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [fatwas, setFatwas] = useState<Fatwa[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [tab, setTab] = useState<"overview" | "fatwas" | "questions">("overview");
+  const [tab, setTab] = useState<"overview" | "fatwas" | "questions" | "submissions">("overview");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [submissions, setSubmissions] = useState<PostSubmission[]>([]);
 
   const load = useCallback(async () => {
     try {
+      setLoading(true);
       setError("");
-      const [nextStats, nextFatwas, nextQuestions] = await Promise.all([
-        request<Stats>("/admin/stats", {}, token),
+      const nextStats = await request<Stats>("/admin/stats", {}, token);
+      setStats(nextStats);
+      const [fatwaResult, questionResult, submissionResult] = await Promise.allSettled([
         request<{ fatwas: Fatwa[] }>("/admin/fatwas", {}, token),
         request<{ questions: Question[] }>("/admin/questions", {}, token),
+        request<{ submissions: PostSubmission[] }>("/admin/post-submissions", {}, token),
       ]);
-      setStats(nextStats);
-      setFatwas(nextFatwas.fatwas);
-      setQuestions(nextQuestions.questions);
+      if (fatwaResult.status === "fulfilled") setFatwas(fatwaResult.value.fatwas);
+      if (questionResult.status === "fulfilled") setQuestions(questionResult.value.questions);
+      if (submissionResult.status === "fulfilled") setSubmissions(submissionResult.value.submissions);
       sessionStorage.setItem("fatwa-admin-token", token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load dashboard");
@@ -192,6 +210,9 @@ function App() {
           <button className={tab === "questions" ? "active" : ""} onClick={() => setTab("questions")}>
             <MessageSquare size={18} /> Questions <b>{pendingQuestions.length}</b>
           </button>
+          <button className={tab === "submissions" ? "active" : ""} onClick={() => setTab("submissions")}>
+            <ClipboardList size={18} /> Submissions <b>{submissions.filter((item) => item.status === "pending").length}</b>
+          </button>
         </nav>
         <button
           className="logout"
@@ -215,7 +236,9 @@ function App() {
                 ? "Good morning, editor"
                 : tab === "fatwas"
                   ? "Fatwa library"
-                  : "Questions inbox"}
+                  : tab === "questions"
+                    ? "Questions inbox"
+                    : "Community submissions"}
             </h1>
             <p className="subtitle">Review, publish and maintain traceable scholarly guidance.</p>
           </div>
@@ -333,6 +356,29 @@ function App() {
             {questions.length === 0 && <div className="empty">No questions have been submitted.</div>}
           </section>
         )}
+
+        {tab === "submissions" && (
+          <section className="panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Community submissions</h2>
+                <p>Approve a post to publish it, or reject it without making it public.</p>
+              </div>
+            </div>
+            {submissions.map((submission) => (
+              <SubmissionRow
+                key={submission.id}
+                submission={submission}
+                token={token}
+                afterReview={async (message) => {
+                  await load();
+                  setNotice(message);
+                }}
+              />
+            ))}
+            {submissions.length === 0 && <div className="empty">No community submissions yet.</div>}
+          </section>
+        )}
       </main>
 
       {showForm && (
@@ -444,6 +490,47 @@ function QuestionRow({
           <p>{question.answer}</p>
         </div>
       )}
+    </article>
+  );
+}
+
+function SubmissionRow({
+  submission,
+  token,
+  afterReview,
+}: {
+  submission: PostSubmission;
+  token: string;
+  afterReview: (message: string) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const review = async (action: "approve" | "reject") => {
+    setBusy(true);
+    try {
+      await request(`/admin/post-submissions/${submission.id}`, { method: "PATCH", body: JSON.stringify({ action }) }, token);
+      await afterReview(action === "approve" ? "Post approved and published." : "Post rejected and kept private.");
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Unable to review submission");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <article className="question-card">
+      <div className="row-meta">
+        <span className="tag">{submission.category}</span>
+        <span className={`status ${submission.status}`}>{submission.status}</span>
+        <span>{submission.language.toUpperCase()}</span>
+      </div>
+      <h3>{submission.title}</h3>
+      <p className="questioner">By {submission.name}{submission.city ? ` · ${submission.city}` : ""}{submission.country ? `, ${submission.country}` : ""}</p>
+      <p className="submission-body">{submission.body}</p>
+      {submission.status === "pending" ? (
+        <div className="answer-footer">
+          <button className="primary small" disabled={busy} onClick={() => void review("approve")}><CheckCircle2 size={15} /> Approve & publish</button>
+          <button className="icon-button danger" disabled={busy} onClick={() => void review("reject")} title="Reject submission">Reject</button>
+        </div>
+      ) : null}
     </article>
   );
 }

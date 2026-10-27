@@ -17,6 +17,7 @@ import FatwaScreen from '@/screens/FatwaScreen';
 import HomeScreen from '@/screens/HomeScreen';
 import NotificationsScreen from '@/screens/NotificationsScreen';
 import PostDetailScreen from '@/screens/PostDetailScreen';
+import PostSubmissionScreen from '@/screens/PostSubmissionScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import QuestionsScreen from '@/screens/QuestionsScreen';
 import SavedScreen from '@/screens/SavedScreen';
@@ -32,6 +33,7 @@ const tabs: Array<{ key: TabKey; label: string; icon: keyof typeof Feather.glyph
 
 const titles: Record<string, string> = {
   post: 'Post',
+  postSubmit: 'Share a reminder',
   fatwa: 'Fatwa',
   notifications: 'Notifications',
   saved: 'Saved posts',
@@ -116,6 +118,7 @@ function Shell() {
 
   let content: React.ReactNode;
   if (route.name === 'post') content = <PostDetailScreen postId={route.postId} />;
+  else if (route.name === 'postSubmit') content = <PostSubmissionScreen />;
   else if (route.name === 'fatwa') content = <FatwaDetailScreen fatwaId={route.fatwaId} />;
   else if (route.name === 'notifications') content = <NotificationsScreen />;
   else if (route.name === 'saved') content = <SavedScreen />;

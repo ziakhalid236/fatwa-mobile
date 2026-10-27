@@ -4,6 +4,7 @@ import type { TabKey } from '@/lib/types';
 export type Route =
   | { name: 'tabs' }
   | { name: 'post'; postId: string }
+  | { name: 'postSubmit' }
   | { name: 'fatwa'; fatwaId: string }
   | { name: 'ask' }
   | { name: 'notifications' }

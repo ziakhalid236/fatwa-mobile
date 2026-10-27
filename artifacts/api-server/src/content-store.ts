@@ -43,7 +43,22 @@ export type UserQuestion = {
   updatedAt: string;
 };
 
-type Database = { fatwas: Fatwa[]; questions: UserQuestion[] };
+export type PostSubmission = {
+  id: string;
+  name: string;
+  country?: string;
+  city?: string;
+  title: string;
+  body: string;
+  category: string;
+  language: 'en' | 'ur' | 'ar';
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type Database = { fatwas: Fatwa[]; questions: UserQuestion[]; submissions: PostSubmission[] };
 
 const now = new Date().toISOString();
 const seedFatwas: Fatwa[] = [
@@ -98,7 +113,7 @@ const seedFatwas: Fatwa[] = [
 ];
 
 export class ContentStore {
-  private data: Database = { fatwas: seedFatwas, questions: [] };
+  private data: Database = { fatwas: seedFatwas, questions: [], submissions: [] };
   private readonly filePath: string;
   private ready: Promise<void>;
 
@@ -110,7 +125,12 @@ export class ContentStore {
   private async load() {
     try {
       const raw = await fs.readFile(this.filePath, "utf8");
-      this.data = JSON.parse(raw) as Database;
+      const parsed = JSON.parse(raw) as Partial<Database>;
+      this.data = {
+        fatwas: Array.isArray(parsed.fatwas) ? parsed.fatwas : seedFatwas,
+        questions: Array.isArray(parsed.questions) ? parsed.questions : [],
+        submissions: Array.isArray(parsed.submissions) ? parsed.submissions : [],
+      };
     } catch {
       await this.persist();
     }
@@ -194,6 +214,31 @@ export class ContentStore {
     Object.assign(question, { answer, answeredBy, answeredAt: timestamp, status: "answered", updatedAt: timestamp });
     await this.persist();
     return question;
+  }
+
+  async createSubmission(input: Omit<PostSubmission, 'id' | 'status' | 'createdAt' | 'updatedAt'>) {
+    await this.ready;
+    const timestamp = new Date().toISOString();
+    const submission: PostSubmission = { ...input, id: `submission-${randomUUID()}`, status: 'pending', createdAt: timestamp, updatedAt: timestamp };
+    this.data.submissions.unshift(submission);
+    await this.persist();
+    return submission;
+  }
+
+  async listSubmissions() {
+    await this.ready;
+    return this.data.submissions;
+  }
+
+  async reviewSubmission(id: string, action: 'approved' | 'rejected', rejectionReason?: string) {
+    await this.ready;
+    const submission = this.data.submissions.find((item) => item.id === id);
+    if (!submission || submission.status !== 'pending') return undefined;
+    submission.status = action;
+    submission.rejectionReason = rejectionReason;
+    submission.updatedAt = new Date().toISOString();
+    await this.persist();
+    return submission;
   }
 
   async stats() {
