@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Fatwa Mobile",
+    "name": "Fatwa App",
     "slug": "fatwa-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,7 +13,11 @@
     "android": {
       "package": "com.fatwa.mobile",
       "versionCode": 1,
-      "permissions": ["android.permission.SCHEDULE_EXACT_ALARM", "android.permission.USE_EXACT_ALARM", "android.permission.VIBRATE"],
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.VIBRATE"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon-adaptive.png",
         "backgroundColor": "#013A2D"
@@ -35,16 +39,19 @@
         {
           "color": "#0B6B53",
           "defaultChannel": "adhan-alarms",
-          "sounds": ["./assets/audio/adhan_drive.mp3", "./assets/audio/adhan_notification.wav"]
+          "sounds": [
+            "./assets/audio/adhan_drive.mp3",
+            "./assets/audio/adhan_notification.wav"
+          ]
         }
       ],
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash.png",
-          "imageWidth": 420,
-          "resizeMode": "cover",
-          "backgroundColor": "#00533F"
+          "image": "./assets/images/icon.png",
+          "imageWidth": 96,
+          "resizeMode": "contain",
+          "backgroundColor": "#013A2D"
         }
       ],
       [

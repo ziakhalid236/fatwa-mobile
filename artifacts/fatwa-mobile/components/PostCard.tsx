@@ -4,6 +4,7 @@ import React from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { Avatar, Pill } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
+import { cleanPostBody, containsArabic } from '@/lib/post-text';
 import type { Post } from '@/lib/types';
 
 export const POST_CARD_BODY_LINES = 5;
@@ -48,8 +49,10 @@ export function PostCard({
   onToggleSave: () => void;
   onOpen: () => void;
   onShare: () => void;
-  }) {
+}) {
   const colors = useColors();
+  const excerpt = cleanPostBody(post.title, post.body);
+  const isRtl = containsArabic(`${post.title}\n${excerpt}`);
 
   return (
     <View
@@ -86,14 +89,17 @@ export function PostCard({
         </View>
 
         <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={post.title}>
-          <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
+          <Text
+            style={[styles.title, isRtl && styles.rtlTitle, { color: colors.foreground }]}
+            numberOfLines={isRtl ? 3 : 2}
+          >
             {post.title}
           </Text>
           <Text
-            style={[styles.excerpt, { color: colors.mutedForeground }]}
-            numberOfLines={POST_CARD_BODY_LINES}
+            style={[styles.excerpt, isRtl && styles.rtlExcerpt, { color: colors.mutedForeground }]}
+            numberOfLines={isRtl ? 6 : POST_CARD_BODY_LINES}
           >
-            {post.body}
+            {excerpt}
           </Text>
         </Pressable>
 
@@ -176,7 +182,7 @@ export function PostCard({
               void Haptics.selectionAsync();
               void Share.share({
                 title: post.title,
-                message: `${post.title}\n\n${post.body}\n\nShared from Fatwa.`,
+                message: `${post.title}\n\n${excerpt}\n\nShared from Fatwa App.`,
               }).catch(() => undefined);
             }}
             style={({ pressed }) => [
@@ -216,7 +222,9 @@ const styles = StyleSheet.create({
   metaDot: { fontSize: 12 },
   date: { fontSize: 10.5, fontWeight: '500' },
   title: { fontSize: 20, lineHeight: 29, fontWeight: '800', letterSpacing: -0.2, marginBottom: 9 },
+  rtlTitle: { fontSize: 20, lineHeight: 34, letterSpacing: 0, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   excerpt: { fontSize: 14, lineHeight: 23, marginBottom: 15 },
+  rtlExcerpt: { fontSize: 16, lineHeight: 30, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   author: { fontSize: 13, fontWeight: '700' },
   footer: {
     flexDirection: 'row',
