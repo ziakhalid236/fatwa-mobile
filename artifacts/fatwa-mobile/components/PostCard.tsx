@@ -48,9 +48,8 @@ export function PostCard({
   onToggleSave: () => void;
   onOpen: () => void;
   onShare: () => void;
-}) {
+  }) {
   const colors = useColors();
-  const accent = (colors as unknown as Record<string, string>)[post.accent] ?? colors.primary;
 
   return (
     <View
@@ -60,15 +59,24 @@ export function PostCard({
       ]}
       testID={`post-card-${post.id}`}
     >
-      <View style={[styles.accentBar, { backgroundColor: accent }]} />
       <View style={styles.body}>
-        <View style={styles.topRow}>
+        <View style={styles.authorHeader}>
+          <Avatar size={38} icon="user" />
+          <View style={styles.authorMeta}>
+            <Text style={[styles.author, { color: colors.foreground }]} numberOfLines={1}>
+              {post.author}
+            </Text>
+            <View style={styles.metaLine}>
+              <Text style={[styles.date, { color: colors.mutedForeground }]}>{post.date}</Text>
+              <Text style={[styles.metaDot, { color: colors.mutedForeground }]}>•</Text>
+              <Feather name="globe" size={11} color={colors.mutedForeground} />
+            </View>
+          </View>
           <Pill
             label={post.category}
             icon={categoryIcon[post.category]}
             tone={categoryTone[post.category]}
           />
-          <Text style={[styles.date, { color: colors.mutedForeground }]}>{post.date}</Text>
         </View>
 
         <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={post.title}>
@@ -83,14 +91,7 @@ export function PostCard({
           </Text>
         </Pressable>
 
-        <View style={[styles.authorRow, { borderTopColor: colors.border }]}>
-          <Avatar size={26} icon="user" />
-          <Text style={[styles.author, { color: colors.foreground }]} numberOfLines={1}>
-            {post.author}
-          </Text>
-        </View>
-
-        <View style={[styles.footer, { borderTopColor: colors.border }]}>
+        <View style={[styles.footer, { borderTopColor: colors.border }]}> 
           <Pressable
             onPress={() => {
               void Haptics.selectionAsync();
@@ -177,20 +178,15 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  accentBar: { height: 4, width: '100%' },
-  body: { padding: 18, flex: 1 },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 },
+  body: { padding: 17, flex: 1 },
+  authorHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 15 },
+  authorMeta: { flex: 1 },
+  metaLine: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
+  metaDot: { fontSize: 12 },
   date: { fontSize: 10.5, fontWeight: '500' },
   title: { fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.3, marginBottom: 9 },
-  excerpt: { fontSize: 13, lineHeight: 20, marginBottom: 14 },
-  authorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingTop: 11,
-    borderTopWidth: 1,
-  },
-  author: { fontSize: 11.5, fontWeight: '600', flex: 1 },
+  excerpt: { fontSize: 13, lineHeight: 20, marginBottom: 15 },
+  author: { fontSize: 13, fontWeight: '700' },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -201,6 +197,6 @@ const styles = StyleSheet.create({
     marginHorizontal: -16,
     paddingHorizontal: 16,
   },
-  action: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 3 },
-  actionText: { fontSize: 11.5, fontWeight: '600' },
+  action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 5 },
+  actionText: { fontSize: 11.5, fontWeight: '700' },
 });
