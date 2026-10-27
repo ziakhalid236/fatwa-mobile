@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import { AppState as NativeAppState } from 'react-native';
 import { defaultCity, fatwas as seedFatwas, posts as seedPosts, prayerCities } from '@/data/content';
+import { notifyNow } from '@/lib/adhan';
 import type {
   AdhanAlarm,
   AppNotification,
@@ -265,6 +266,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }))
           : [];
         setNotifications((current) => {
+          const currentIds = new Set(current.map((item) => item.id));
+          const fresh = remote.filter((item) => !currentIds.has(item.id));
+          if (fresh.length) void notifyNow(fresh[0].title, fresh[0].body);
           const local = current.filter((item) => !item.id.startsWith('remote-'));
           const next = [...remote, ...local].slice(0, 60);
           persist([[STORE_KEYS.notifications, next]]);
