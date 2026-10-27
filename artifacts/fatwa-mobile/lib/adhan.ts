@@ -88,13 +88,13 @@ export async function syncAdhanAlarms(
 }
 
 /** Posts an immediate local notification for app events such as a published answer. */
-export async function notifyNow(title: string, body: string) {
+export async function notifyNow(title: string, body: string, data?: Record<string, unknown>) {
   if (Platform.OS === 'web') return;
   const permitted = await ensureNotificationPermissions();
   if (!permitted) return;
   await ensureChannels(true);
   await Notifications.scheduleNotificationAsync({
-    content: { title, body, sound: UPDATE_SOUND },
+    content: { title, body, sound: UPDATE_SOUND, data },
     trigger: null,
   });
 }

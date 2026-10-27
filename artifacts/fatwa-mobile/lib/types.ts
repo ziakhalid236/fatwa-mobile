@@ -13,6 +13,7 @@ export type Post = {
   author: string;
   city?: string;
   source?: string;
+  imageUrl?: string;
   views: number;
   likes: number;
   date: string;

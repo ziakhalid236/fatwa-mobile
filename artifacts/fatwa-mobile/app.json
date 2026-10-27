@@ -46,6 +46,12 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Fatwa App uses your photos when you attach an image to a community post."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/icon.png",

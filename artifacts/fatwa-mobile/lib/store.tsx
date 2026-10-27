@@ -278,7 +278,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setNotifications((current) => {
           const currentIds = new Set(current.map((item) => item.id));
           const fresh = remote.filter((item) => !currentIds.has(item.id));
-          if (fresh.length) void notifyNow(fresh[0].title, fresh[0].body);
+          if (fresh.length) void notifyNow(fresh[0].title, fresh[0].body, { kind: fresh[0].kind, refId: fresh[0].refId });
           const local = current.filter((item) => !item.id.startsWith('remote-'));
           const next = [...remote, ...local].slice(0, 60);
           persist([[STORE_KEYS.notifications, next]]);
@@ -344,6 +344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 id: String(item.id),
                 title: String(item.title ?? 'Untitled post'),
                 body: String(item.body ?? ''),
+                imageUrl: typeof item.imageUrl === 'string' ? item.imageUrl : undefined,
                 category: mapCategory(item.category),
                 author: String(item.author ?? 'Fatwa editorial team'),
                 city: typeof item.city === 'string' ? item.city : undefined,

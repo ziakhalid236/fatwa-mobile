@@ -1,7 +1,8 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useMemo } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { Avatar, Pill, PrimaryButton, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
@@ -19,16 +20,41 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
     toggleLike,
     toggleSaved,
     registerView,
+    refreshContent,
   } = useApp();
 
   const post = useMemo(() => posts.find((item) => item.id === postId), [posts, postId]);
+  const [checkingPost, setCheckingPost] = useState(!post);
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    if (post) {
+      setCheckingPost(false);
+      return;
+    }
+    setCheckingPost(true);
+    refreshContent();
+    const timeout = setTimeout(() => setCheckingPost(false), 2500);
+    return () => clearTimeout(timeout);
+  }, [post, refreshContent, retryCount]);
 
   if (!post) {
     return (
-      <View style={uiStyles.screenPadding}>
-        <Text style={[styles.missing, { color: colors.mutedForeground }]}>
-          This post is no longer available.
-        </Text>
+      <View style={[uiStyles.screenPadding, styles.missingState]}>
+        {checkingPost ? (
+          <>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={[styles.missing, { color: colors.mutedForeground }]}>Finding this post…</Text>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.missing, { color: colors.mutedForeground }]}>This post could not be loaded.</Text>
+            <Pressable onPress={() => setRetryCount((value) => value + 1)} style={[styles.retryButton, { borderColor: colors.border }]} accessibilityRole="button">
+              <Feather name="refresh-cw" size={15} color={colors.primary} />
+              <Text style={[styles.retryText, { color: colors.primary }]}>Try again</Text>
+            </Pressable>
+          </>
+        )}
       </View>
     );
   }
@@ -44,7 +70,6 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
       <View style={[styles.hero, { backgroundColor: colors.forest }]}>
         <View style={[styles.heroAccent, { backgroundColor: accent }]} />
         <Pill label={post.category} tone="primary" />
-        <Text style={styles.heroTitle}>{post.title}</Text>
         <View style={styles.heroMeta}>
           <Avatar size={30} />
           <View>
@@ -56,6 +81,8 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
 
       <View style={uiStyles.screenPadding}>
         <View style={[styles.bodyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.contentTitle, { color: colors.foreground }]}>{post.title}</Text>
+          {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} contentFit="cover" /> : null}
           <Text style={[styles.bodyText, { color: colors.foreground }]}>{post.body}</Text>
           {post.source ? (
             <View style={[styles.source, { borderTopColor: colors.border }]}>
@@ -178,14 +205,18 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
 }
 
 const styles = StyleSheet.create({
-  missing: { fontSize: 14, textAlign: 'center', marginTop: 40 },
+  missingState: { alignItems: 'center', justifyContent: 'center', minHeight: 220, gap: 12 },
+  missing: { fontSize: 14, textAlign: 'center' },
+  retryButton: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  retryText: { fontSize: 12, fontWeight: '800' },
   hero: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28, overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   heroAccent: { position: 'absolute', top: 0, left: 0, right: 0, height: 5 },
-  heroTitle: { fontSize: 25, lineHeight: 33, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5, marginTop: 15 },
   heroMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
   heroAuthor: { fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' },
   heroDate: { fontSize: 11.5, color: '#D5E7DB', marginTop: 3 },
   bodyCard: { borderRadius: 24, borderWidth: 1, padding: 19, marginTop: -16 },
+  contentTitle: { fontSize: 23, lineHeight: 31, fontWeight: '800', letterSpacing: -0.35, marginBottom: 14 },
+  postImage: { width: '100%', height: 240, borderRadius: 18, marginBottom: 16 },
   bodyText: { fontSize: 15.5, lineHeight: 27, letterSpacing: 0.05 },
   source: { flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, marginTop: 16, paddingTop: 13 },
   sourceText: { fontSize: 11.5, fontWeight: '600', flex: 1 },

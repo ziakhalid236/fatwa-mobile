@@ -1,5 +1,6 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { Avatar, Pill } from '@/components/ui';
@@ -102,6 +103,12 @@ export function PostCard({
             {excerpt}
           </Text>
         </Pressable>
+
+        {post.imageUrl ? (
+          <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel="Open post photo">
+            <Image source={{ uri: post.imageUrl }} style={styles.postImage} contentFit="cover" />
+          </Pressable>
+        ) : null}
 
         <View style={[styles.footer, { borderTopColor: colors.border }]}> 
           <Pressable
@@ -224,6 +231,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, lineHeight: 29, fontWeight: '800', letterSpacing: -0.2, marginBottom: 9 },
   rtlTitle: { fontSize: 20, lineHeight: 34, letterSpacing: 0, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   excerpt: { fontSize: 14, lineHeight: 23, marginBottom: 15 },
+  postImage: { width: '100%', height: 220, borderRadius: 18, marginTop: 2 },
   rtlExcerpt: { fontSize: 16, lineHeight: 30, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   author: { fontSize: 13, fontWeight: '700' },
   footer: {

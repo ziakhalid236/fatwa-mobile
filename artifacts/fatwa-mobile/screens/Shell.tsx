@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useMemo, useState } from 'react';
 import { BackHandler, Platform, Pressable, RefreshControl, StatusBar, StyleSheet, Text, View } from 'react-native';
@@ -47,12 +48,13 @@ const titles: Record<string, string> = {
 function Shell() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { alarms, settings, unreadCount, pushNotification, refreshContent } = useApp();
+  const { alarms, settings, unreadCount, pushNotification, refreshContent, notifications, hydrated, markNotificationRead } = useApp();
 
   const [tab, setTab] = useState<TabKey>('home');
   const [stack, setStack] = useState<Route[]>([]);
   const [askSignal, setAskSignal] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const handledNotificationResponses = React.useRef(new Set<string>());
 
   const route = stack.length ? stack[stack.length - 1] : { name: 'tabs' as const };
 
@@ -102,6 +104,42 @@ function Shell() {
     () => ({ tab, route, goTab, push, back, openAsk }),
     [tab, route, goTab, push, back, openAsk],
   );
+
+  const handleNotificationResponse = useCallback((response: Notifications.NotificationResponse) => {
+    const identifier = response.notification.request.identifier;
+    if (handledNotificationResponses.current.has(identifier)) return;
+    const content = response.notification.request.content;
+    const data = content.data as Record<string, unknown>;
+    const item = notifications.find((note) => note.title === content.title && note.body === content.body);
+    const kind = typeof data.kind === 'string' ? data.kind : item?.kind;
+    const refId = typeof data.refId === 'string' ? data.refId
+      : typeof data.postId === 'string' ? data.postId
+        : typeof data.questionId === 'string' ? data.questionId
+          : typeof data.fatwaId === 'string' ? data.fatwaId : item?.refId;
+    if (!kind && !item) return;
+    handledNotificationResponses.current.add(identifier);
+    if (kind === 'adhan') return;
+    if (item) markNotificationRead(item.id);
+    if (kind === 'post' && refId) {
+      refreshContent();
+      setStack([{ name: 'notifications' }, { name: 'post', postId: refId }]);
+    } else if (kind === 'answer' && refId) {
+      setStack([{ name: 'notifications' }, { name: 'questionDetail', questionId: refId }]);
+    } else if (kind === 'fatwa' && refId) {
+      setStack([{ name: 'notifications' }, { name: 'fatwa', fatwaId: refId }]);
+    } else {
+      setStack([{ name: 'notifications' }]);
+    }
+  }, [notifications, markNotificationRead, refreshContent]);
+
+  React.useEffect(() => {
+    if (!hydrated || Platform.OS === 'web') return;
+    const subscription = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) handleNotificationResponse(response);
+    });
+    return () => subscription.remove();
+  }, [hydrated, handleNotificationResponse]);
 
   const onSettings = useCallback(() => push({ name: 'settings' }), [push]);
 

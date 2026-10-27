@@ -1,4 +1,6 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PrimaryButton, SectionTitle, uiStyles } from '@/components/ui';
@@ -20,10 +22,34 @@ export default function PostSubmissionScreen() {
   const [body, setBody] = useState('');
   const [category, setCategory] = useState<PostCategory>('Islamic');
   const [busy, setBusy] = useState(false);
+  const [imageUri, setImageUri] = useState('');
+
+  const pickPhoto = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Photo access needed', 'Allow access to your photos to attach an image.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets[0]) setImageUri(result.assets[0].uri);
+    } catch {
+      Alert.alert('Could not open photos', 'Please try again.');
+    }
+  };
 
   const submit = async () => {
-    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2 || body.trim().length < 20) {
-      Alert.alert('More details needed', 'Please enter your name, country, city, and at least 20 characters for the post.');
+    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2 || (!title.trim() && !body.trim()) || (!imageUri && body.trim().length < 20)) {
+      Alert.alert('More details needed', 'Please enter your name, country, city, and a title or post text. Text-only posts need at least 20 characters.');
+      return;
+    }
+    if (imageUri) {
+      Alert.alert('Photo publishing is not ready yet', 'You can preview your photo here, but the server does not yet save post images. Remove the photo to send a text-only post.');
       return;
     }
     setBusy(true);
@@ -85,6 +111,29 @@ export default function PostSubmissionScreen() {
         textAlignVertical="top"
         style={[styles.textarea, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
       />
+      <SectionTitle title="Photo" subtitle="Choose one photo from your album." />
+      <Pressable
+        onPress={() => void pickPhoto()}
+        style={[styles.photoPicker, { backgroundColor: colors.card, borderColor: colors.border }]}
+        accessibilityRole="button"
+        accessibilityLabel={imageUri ? 'Change selected photo' : 'Choose a photo'}
+      >
+        {imageUri ? (
+          <Image source={{ uri: imageUri }} style={styles.photoPreview} contentFit="cover" />
+        ) : (
+          <View style={styles.photoPlaceholder}>
+            <Feather name="image" size={22} color={colors.primary} />
+            <Text style={[styles.photoLabel, { color: colors.foreground }]}>Choose from album</Text>
+            <Text style={[styles.photoHint, { color: colors.mutedForeground }]}>Photo publishing will be enabled after server support is added.</Text>
+          </View>
+        )}
+      </Pressable>
+      {imageUri ? (
+        <Pressable onPress={() => setImageUri('')} style={styles.removePhoto} accessibilityRole="button">
+          <Feather name="x-circle" size={15} color={colors.coral} />
+          <Text style={[styles.removePhotoText, { color: colors.coral }]}>Remove photo</Text>
+        </Pressable>
+      ) : null}
       <PrimaryButton label={busy ? 'Sending…' : 'Send for approval'} icon="send" onPress={() => void submit()} loading={busy} />
       <View style={styles.note}>
         <MaterialCommunityIcons name="shield-check-outline" size={17} color={colors.primary} />
@@ -118,4 +167,11 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 11.5, fontWeight: '700' },
   note: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', marginTop: 15 },
   noteText: { fontSize: 11, textAlign: 'center' },
+  photoPicker: { minHeight: 150, borderWidth: 1, borderStyle: 'dashed', borderRadius: 18, overflow: 'hidden', marginBottom: 8 },
+  photoPlaceholder: { minHeight: 150, alignItems: 'center', justifyContent: 'center', padding: 18 },
+  photoPreview: { width: '100%', height: 210 },
+  photoLabel: { fontSize: 13, fontWeight: '800', marginTop: 10 },
+  photoHint: { fontSize: 10.5, textAlign: 'center', marginTop: 5 },
+  removePhoto: { flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-end', paddingVertical: 9, marginBottom: 8 },
+  removePhotoText: { fontSize: 11.5, fontWeight: '700' },
 });
