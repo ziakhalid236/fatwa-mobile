@@ -1,4 +1,4 @@
-name: Android APK
+name: Android release builds
 
 on:
   push:
@@ -55,10 +55,20 @@ jobs:
         working-directory: artifacts/fatwa-mobile
         run: pnpm exec expo prebuild --platform android --no-install --no-clean
 
-      - name: Build release APK
+      - name: Enforce Google Play API 36 target
+        working-directory: artifacts/fatwa-mobile/android
+        run: |
+          cat >> build.gradle <<'EOF'
+
+          // Google Play requires API 36 for new apps and updates from August 31, 2026.
+          ext.compileSdkVersion = 36
+          ext.targetSdkVersion = 36
+          EOF
+
+      - name: Build release APK and Play Store AAB
         working-directory: artifacts/fatwa-mobile/android
         run: >-
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease bundleRelease
           --no-daemon
           --build-cache
           -PreactNativeArchitectures=${{ env.REACT_NATIVE_ARCHITECTURES }}
@@ -70,5 +80,12 @@ jobs:
         with:
           name: fatwa-mobile-preview-apk
           path: artifacts/fatwa-mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload Play Store AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fatwa-mobile-play-store-aab
+          path: artifacts/fatwa-mobile/android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 30
