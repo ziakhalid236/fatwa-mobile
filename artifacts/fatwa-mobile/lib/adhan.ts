@@ -6,7 +6,7 @@ export const ADHAN_CHANNEL_ID = 'adhan-alarms';
 export const NOTIFICATION_CHANNEL_ID = 'fatwa-updates';
 
 /** Sound file registered through the expo-notifications config plugin. */
-const ADHAN_SOUND = 'adhan_notification.wav';
+const ADHAN_SOUND = 'adhan-drive.mp3';
 
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
