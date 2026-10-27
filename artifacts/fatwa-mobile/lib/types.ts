@@ -14,7 +14,6 @@ export type Post = {
   city?: string;
   imageUrl?: string;
   source?: string;
-  imageUrl?: string;
   views: number;
   likes: number;
   date: string;

@@ -22,7 +22,8 @@ export default function PostSubmissionScreen() {
   const [body, setBody] = useState('');
   const [category, setCategory] = useState<PostCategory>('Islamic');
   const [busy, setBusy] = useState(false);
-  const [imageUri, setImageUri] = useState('');
+  const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const imageUri = imageAsset?.uri ?? '';
 
   const pickPhoto = async () => {
     try {
@@ -37,28 +38,39 @@ export default function PostSubmissionScreen() {
         aspect: [4, 3],
         quality: 0.85,
       });
-      if (!result.canceled && result.assets[0]) setImageUri(result.assets[0].uri);
+      if (!result.canceled && result.assets[0]) setImageAsset(result.assets[0]);
     } catch {
       Alert.alert('Could not open photos', 'Please try again.');
     }
   };
 
   const submit = async () => {
-    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2 || (!title.trim() && !body.trim()) || (!imageUri && body.trim().length < 20)) {
-      Alert.alert('More details needed', 'Please enter your name, country, city, and a title or post text. Text-only posts need at least 20 characters.');
-      return;
-    }
-    if (imageUri) {
-      Alert.alert('Photo publishing is not ready yet', 'You can preview your photo here, but the server does not yet save post images. Remove the photo to send a text-only post.');
+    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2 || (!title.trim() && !body.trim()) || body.trim().length < 20) {
+      Alert.alert('More details needed', 'Please enter your name, country, city, a title or post text, and at least 20 characters of post text.');
       return;
     }
     setBusy(true);
     try {
       const deviceId = await getDeviceId();
+      const form = new FormData();
+      form.append('deviceId', deviceId);
+      form.append('name', name.trim());
+      form.append('country', country.trim());
+      form.append('city', city.trim());
+      form.append('title', title.trim());
+      form.append('body', body.trim());
+      form.append('category', category);
+      form.append('language', settings.language);
+      if (imageAsset) {
+        form.append('image', {
+          uri: imageAsset.uri,
+          name: imageAsset.fileName ?? `community-${Date.now()}.jpg`,
+          type: imageAsset.mimeType ?? 'image/jpeg',
+        } as unknown as Blob);
+      }
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId, name: name.trim(), country: country.trim(), city: city.trim(), title: title.trim(), body: body.trim(), category, language: settings.language }),
+        body: form,
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Unable to send your post');
@@ -124,12 +136,12 @@ export default function PostSubmissionScreen() {
           <View style={styles.photoPlaceholder}>
             <Feather name="image" size={22} color={colors.primary} />
             <Text style={[styles.photoLabel, { color: colors.foreground }]}>Choose from album</Text>
-            <Text style={[styles.photoHint, { color: colors.mutedForeground }]}>Photo publishing will be enabled after server support is added.</Text>
+            <Text style={[styles.photoHint, { color: colors.mutedForeground }]}>Your image will be stored securely and reviewed before publication.</Text>
           </View>
         )}
       </Pressable>
       {imageUri ? (
-        <Pressable onPress={() => setImageUri('')} style={styles.removePhoto} accessibilityRole="button">
+        <Pressable onPress={() => setImageAsset(null)} style={styles.removePhoto} accessibilityRole="button">
           <Feather name="x-circle" size={15} color={colors.coral} />
           <Text style={[styles.removePhotoText, { color: colors.coral }]}>Remove photo</Text>
         </Pressable>

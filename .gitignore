@@ -53,3 +53,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local production exports may contain user-submitted data and must not be committed.
+/backups/

@@ -35,7 +35,7 @@ export function StartupSplash({ visible }: { visible: boolean }) {
   return (
     <Animated.View
       pointerEvents={visible ? 'auto' : 'none'}
-      style={[StyleSheet.absoluteFillObject, styles.overlay, { opacity }]}
+      style={[StyleSheet.absoluteFill, styles.overlay, { opacity }]}
     >
       <StatusBar barStyle="light-content" backgroundColor="#013A2D" animated />
       <LinearGradient

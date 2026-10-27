@@ -344,7 +344,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 id: String(item.id),
                 title: String(item.title ?? 'Untitled post'),
                 body: String(item.body ?? ''),
-                imageUrl: typeof item.imageUrl === 'string' ? item.imageUrl : undefined,
                 category: mapCategory(item.category),
                 author: String(item.author ?? 'Fatwa editorial team'),
                 city: typeof item.city === 'string' ? item.city : undefined,
