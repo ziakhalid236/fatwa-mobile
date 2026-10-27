@@ -171,7 +171,7 @@ function Shell() {
                     accessibilityLabel={item.label}
                     testID={`tab-${item.key}`}
                   >
-                    <View>
+                    <View style={[styles.tabIcon, selected && { backgroundColor: colors.primarySoft }]}>
                       <Feather
                         name={item.icon}
                         size={20}
@@ -254,16 +254,25 @@ const styles = StyleSheet.create({
   headerSide: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   notificationDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 9, right: 9 },
   tabBar: {
-    minHeight: 62,
-    paddingTop: 9,
-    paddingHorizontal: 10,
-    borderTopWidth: 1,
+    minHeight: 76,
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    borderTopWidth: 0,
+    borderRadius: 24,
+    marginHorizontal: 10,
+    marginBottom: 8,
+    shadowColor: '#0D594B',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-around',
   },
-  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  tabLabel: { fontSize: 9.5, fontWeight: '700' },
+  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 58 },
+  tabIcon: { width: 42, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  tabLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.1 },
   activeDot: { height: 3, width: 16, borderRadius: 2 },
   tabBadge: {
     position: 'absolute',

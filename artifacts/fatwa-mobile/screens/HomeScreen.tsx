@@ -26,9 +26,8 @@ export default function HomeScreen() {
     const query = search.trim().toLowerCase();
     return posts.filter((post) => {
       const matchesFilter = filter === 'All' || post.category === filter;
-      const hasTranslation = settings.language === 'en' || Boolean(post.translations?.[settings.language]);
       const matchesSearch = !query || `${post.title} ${post.body} ${post.author} ${post.category}`.toLowerCase().includes(query);
-      return matchesFilter && matchesSearch && hasTranslation;
+      return matchesFilter && matchesSearch;
     });
   }, [filter, posts, search, settings.language]);
 

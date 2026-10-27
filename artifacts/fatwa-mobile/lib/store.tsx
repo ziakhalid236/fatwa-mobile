@@ -39,6 +39,25 @@ export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'https://fatwa-a
 export type AppLanguage = 'en' | 'ur' | 'ar';
 type Settings = { notificationsEnabled: boolean; adhanSound: boolean; language: AppLanguage };
 
+const legacyTranslations: Record<string, NonNullable<Post['translations']>> = {
+  'A quiet place for careful questions': {
+    ur: { title: 'سوچ سمجھ کر سوال کرنے کے لیے پرسکون جگہ', body: 'اچھی رہنمائی کے لیے ضروری ہے کہ سوال سے پہلے مکمل پس منظر سمجھا جائے۔ غور کریں، اہم تفصیلات لکھیں اور پھر سوال کریں۔' },
+    ar: { title: 'مساحة هادئة للأسئلة المتأنية', body: 'تبدأ الإرشادات الجيدة بفهم السياق. اقرأ وتأمل واذكر التفاصيل المهمة عندما تطرح سؤالك.' },
+  },
+  'Intention gives a small act its direction': {
+    ur: { title: 'نیت چھوٹے عمل کو سمت دیتی ہے', body: 'کسی حکم کے بارے میں پوچھنے سے پہلے اپنے عمل کی نیت پر غور کریں۔ دل کی وضاحت سوال کی وضاحت میں مدد دیتی ہے۔' },
+    ar: { title: 'النية تمنح العمل الصغير اتجاهه', body: 'قبل البحث عن الحكم توقف عند نيتك. صفاء القلب يساعد على وضوح السؤال.' },
+  },
+  'Specific questions deserve specific details': {
+    ur: { title: 'مخصوص سوال کے لیے مکمل تفصیل ضروری ہے', body: 'درست جواب صورتحال پر منحصر ہوتا ہے۔ کیا ہوا، کب ہوا اور آپ آگے کیا کرنا چاہتے ہیں، یہ سب واضح کریں۔' },
+    ar: { title: 'الأسئلة المحددة تحتاج إلى تفاصيل محددة', body: 'تعتمد الإجابة الدقيقة على الحالة. اذكر ما حدث ومتى حدث وما الذي تريد فعله بعد ذلك.' },
+  },
+  'Traceable answers build trust': {
+    ur: { title: 'حوالہ دار جوابات اعتماد پیدا کرتے ہیں', body: 'عوامی رہنمائی کے ساتھ اس کا پس منظر اور ماخذ بھی ہونا چاہیے۔ واضح نسبت قارئین کو مزید سیکھنے میں مدد دیتی ہے۔' },
+    ar: { title: 'الإجابات الموثقة تبني الثقة', body: 'ينبغي أن تحمل الإرشادات العامة سياقها ومصدرها، فإظهار النسبة يساعد القارئ على مواصلة التعلم.' },
+  },
+};
+
 type AppState = {
   hydrated: boolean;
   profile: Profile;
@@ -100,7 +119,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettingsState] = useState<Settings>({
     notificationsEnabled: true,
     adhanSound: true,
-    language: 'en',
+    language: 'ur',
   });
   const [remotePosts, setRemotePosts] = useState<Post[] | null>(null);
   const [remoteFatwas, setRemoteFatwas] = useState<Fatwa[] | null>(null);
@@ -191,7 +210,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           language:
             isRecord(settingsValue) && (settingsValue.language === 'en' || settingsValue.language === 'ur' || settingsValue.language === 'ar')
               ? settingsValue.language
-              : 'en',
+              : 'ur',
         });
         const cityName = data[STORE_KEYS.cityName];
         if (typeof cityName === 'string') {
@@ -277,7 +296,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 translations:
                   item.translations !== null && typeof item.translations === 'object'
                     ? (item.translations as Post['translations'])
-                    : undefined,
+                    : legacyTranslations[String(item.title ?? '')],
               })),
             ]);
           }
@@ -566,7 +585,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setViewedPostIds([]);
     setAlarmsState([]);
     setPrayerCityState(defaultCity);
-    setSettingsState({ notificationsEnabled: true, adhanSound: true, language: 'en' });
+    setSettingsState({ notificationsEnabled: true, adhanSound: true, language: 'ur' });
     void AsyncStorage.multiRemove(Object.values(STORE_KEYS));
   }, []);
 

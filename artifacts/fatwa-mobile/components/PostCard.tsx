@@ -6,7 +6,7 @@ import { Avatar, Pill } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import type { Post } from '@/lib/types';
 
-export const POST_CARD_BODY_LINES = 3;
+export const POST_CARD_BODY_LINES = 5;
 
 const categoryTone: Record<Post['category'], 'primary' | 'gold' | 'muted'> = {
   Islamic: 'primary',
@@ -97,7 +97,7 @@ export function PostCard({
               void Haptics.selectionAsync();
               onToggleLike();
             }}
-            style={styles.action}
+            style={[styles.action, { backgroundColor: liked ? colors.primarySoft : colors.background }]}
             accessibilityRole="button"
             accessibilityLabel={liked ? 'Unlike post' : 'Like post'}
             testID={`like-${post.id}`}
@@ -113,7 +113,7 @@ export function PostCard({
               void Haptics.selectionAsync();
               onToggleSave();
             }}
-            style={styles.action}
+            style={[styles.action, { backgroundColor: saved ? colors.primarySoft : colors.background }]}
             accessibilityRole="button"
             accessibilityLabel={saved ? 'Remove from saved' : 'Save post'}
             testID={`save-${post.id}`}
@@ -132,7 +132,7 @@ export function PostCard({
 
           <Pressable
             onPress={onOpen}
-            style={styles.action}
+            style={[styles.action, { backgroundColor: colors.background }]}
             accessibilityRole="button"
             accessibilityLabel={`${formatCount(views)} views`}
             testID={`views-${post.id}`}
@@ -151,7 +151,7 @@ export function PostCard({
                 message: `${post.title}\n\n${post.body}\n\nShared from Fatwa.`,
               }).catch(() => undefined);
             }}
-            style={styles.action}
+            style={[styles.action, { backgroundColor: colors.background }]}
             accessibilityRole="button"
             accessibilityLabel="Share post"
             testID={`share-${post.id}`}
@@ -177,14 +177,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  body: { padding: 17 },
+  body: { padding: 20 },
   authorHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 15 },
   authorMeta: { flex: 1 },
   metaLine: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
   metaDot: { fontSize: 12 },
   date: { fontSize: 10.5, fontWeight: '500' },
-  title: { fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.3, marginBottom: 9 },
-  excerpt: { fontSize: 13, lineHeight: 20, marginBottom: 15 },
+  title: { fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.4, marginBottom: 11 },
+  excerpt: { fontSize: 14, lineHeight: 22, marginBottom: 18 },
   author: { fontSize: 13, fontWeight: '700' },
   footer: {
     flexDirection: 'row',
@@ -193,9 +193,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     marginTop: 11,
     paddingTop: 10,
-    marginHorizontal: -16,
-    paddingHorizontal: 16,
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+    gap: 7,
   },
-  action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 5 },
-  actionText: { fontSize: 11.5, fontWeight: '700' },
+  action: { flex: 1, minHeight: 38, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 5 },
+  actionText: { fontSize: 11.5, fontWeight: '800' },
 });

@@ -104,6 +104,13 @@ export default function AlarmScreen() {
         longitude: position.coords.longitude,
       }).catch(() => []);
       const cityName = place?.city || place?.district || place?.subregion || place?.region;
+      const country = String(place?.country ?? '').toLowerCase();
+      const language = country.includes('pakistan')
+        ? 'ur'
+        : ['saudi arabia', 'uae', 'united arab emirates', 'qatar', 'kuwait', 'oman', 'bahrain', 'egypt', 'jordan'].some((name) => country.includes(name))
+          ? 'ar'
+          : 'en';
+      setSettings({ language });
       if (cityName) {
         setPrayerCity({
           name: cityName,

@@ -41,7 +41,7 @@ export default function SettingsScreen() {
         />
       </View>
 
-      <SectionTitle title="Content language" subtitle="Posts and guidance will use your selected language when available." />
+      <SectionTitle title="Content language" subtitle="Choose English, اردو, or العربية. Location detection can set the country language automatically." />
       <View style={styles.languageRow}>
         {languages.map((language) => {
           const active = settings.language === language.key;
