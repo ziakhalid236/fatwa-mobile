@@ -1,6 +1,6 @@
 # Fatwa Mobile
 
-A local-first Expo/React Native frontend for a Fatwa guidance app. The backend is intentionally not connected yet; all preview interactions are stored locally on the device so the UI and user flows can be tested end to end.
+A local-first Expo/React Native frontend for a Fatwa guidance app. Published content and question submissions are connected to the Cloudflare Worker API, while device preferences and an offline copy of the user timeline remain local on the device.
 
 ## Frontend capabilities
 
@@ -16,12 +16,13 @@ A local-first Expo/React Native frontend for a Fatwa guidance app. The backend i
 - Clear local data control
 - Responsive Expo web export and Android configuration
 
-The mobile app reads published records from `EXPO_PUBLIC_API_URL` when configured and falls back to bundled records when the API is offline. Every seeded record is a short, source-linked paraphrase attributed to Darul Ifta, Darul Uloom Deoband, India; the app keeps the original source URL visible rather than presenting an unattributed ruling.
+The mobile app reads published records from `EXPO_PUBLIC_API_URL` when configured (production default: `https://fatwa-api.ziakhalid236.workers.dev`) and falls back to bundled records when the API is offline. Every seeded record is a short, source-linked paraphrase attributed to Darul Ifta, Darul Uloom Deoband, India; the app keeps the original source URL visible rather than presenting an unattributed ruling.
 
 ## Backend and admin panel
 
-- `artifacts/api-server` exposes public fatwa/question endpoints and protected admin endpoints.
+- `artifacts/api-server` exposes the local-compatible version of the public fatwa/question endpoints and protected admin endpoints. Production is served by the `fatwa-api` Cloudflare Worker backed by the `fatwa-web-content` D1 database.
 - `artifacts/admin-panel` provides fatwa CRUD, source attribution fields, dashboard counts, question review, and answer publishing.
+- The deployed admin frontend is available at `https://fatwa-web.pages.dev` and uses the same Worker API.
 - Set `ADMIN_TOKEN` on the API server. The admin panel uses `VITE_ADMIN_TOKEN` for local development or asks for the token at login.
 - The current development store is file-backed and can be pointed at a persistent location with `CONTENT_STORE_FILE`. A Postgres/Drizzle adapter can be added without changing the API contract.
 
@@ -32,7 +33,7 @@ ADMIN_TOKEN=change-me PORT=5000 pnpm --filter @workspace/api-server run dev
 VITE_API_URL=http://localhost:5000 VITE_ADMIN_TOKEN=change-me pnpm --filter @workspace/admin-panel run dev
 ```
 
-Questions submitted from the mobile app are stored as `submitted`, appear in the admin inbox, and become `answered` after an admin publishes a response. The mobile question timeline remains locally available if the API is temporarily offline.
+Questions submitted from the mobile app are stored as `submitted`, appear in the admin inbox, and become `answered` after an admin publishes a response. The Worker creates an answer notification for the submitting device. The mobile question timeline remains locally available if the API is temporarily offline.
 
 ## Development
 

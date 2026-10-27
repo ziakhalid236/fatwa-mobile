@@ -200,8 +200,8 @@ export class ContentStore {
     await this.ready;
     return {
       publishedFatwas: this.data.fatwas.filter((item) => item.status === "published").length,
-      draftFatwas: this.data.fatwas.filter((item) => item.status === "draft").length,
-      submittedQuestions: this.data.questions.filter((item) => item.status === "submitted").length,
+      draftPosts: this.data.fatwas.filter((item) => item.status === "draft").length,
+      pendingQuestions: this.data.questions.filter((item) => item.status !== "answered").length,
       answeredQuestions: this.data.questions.filter((item) => item.status === "answered").length,
     };
   }

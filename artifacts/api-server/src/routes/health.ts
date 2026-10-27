@@ -1,11 +1,16 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { HealthCheckResponse } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-router.get("/healthz", (_req, res) => {
+const health = (_req: Request, res: Response) => {
   const data = HealthCheckResponse.parse({ status: "ok" });
   res.json(data);
-});
+};
+
+// Keep both names during the Cloudflare migration. The deployed Worker uses
+// /health while the generated local API client historically used /healthz.
+router.get("/health", health);
+router.get("/healthz", health);
 
 export default router;

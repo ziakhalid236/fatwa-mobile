@@ -465,6 +465,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         submittedAt: timestamp,
         updatedAt: timestamp,
       };
+      let returnedEntry = entry;
       setQuestions((current) => {
         const next = [entry, ...current];
         persist([[STORE_KEYS.questions, next]]);
@@ -500,6 +501,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               status?: string;
               answer?: string;
               answeredBy?: string;
+              createdAt?: string;
+            };
+            returnedEntry = {
+              ...entry,
+              id: remote.id ?? entry.id,
+              status:
+                remote.status === 'answered'
+                  ? 'Answered'
+                  : remote.status === 'under_review'
+                    ? 'Under review'
+                    : 'Submitted',
+              answer: remote.answer,
+              answeredBy: remote.answeredBy,
+              submittedAt: remote.createdAt ?? entry.submittedAt,
             };
             setQuestions((current) => {
               const next: UserQuestion[] = current.map((item) =>
@@ -526,7 +541,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Keep the local submission when the API is unavailable.
         }
       }
-      return entry;
+      return returnedEntry;
     },
     [persist, pushNotification, setProfile],
   );
