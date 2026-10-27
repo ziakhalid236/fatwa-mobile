@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Image, StatusBar, StyleSheet, View } from 'react-native';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
   Inter_400Regular,
@@ -20,6 +21,7 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 export default function RootLayout() {
+  const [showLaunchArt, setShowLaunchArt] = useState(true);
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -30,6 +32,8 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
+      const launchTimer = setTimeout(() => setShowLaunchArt(false), 1800);
+      return () => clearTimeout(launchTimer);
     }
   }, [fontsLoaded, fontError]);
 
@@ -39,9 +43,22 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView>
+          <GestureHandlerRootView style={styles.root}>
             <AppProvider>
-              <Stack screenOptions={{ headerShown: false }} />
+              <View style={styles.root}>
+                <Stack screenOptions={{ headerShown: false }} />
+                {showLaunchArt ? (
+                  <View style={styles.launchOverlay}>
+                    <StatusBar hidden />
+                    <Image
+                      source={require('../assets/images/splash.png')}
+                      style={StyleSheet.absoluteFillObject}
+                      resizeMode="cover"
+                      accessible={false}
+                    />
+                  </View>
+                ) : null}
+              </View>
             </AppProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
@@ -49,3 +66,13 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  launchOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+    elevation: 100,
+    backgroundColor: '#00533F',
+  },
+});

@@ -36,15 +36,15 @@ export default function QuestionDetailScreen({ questionId }: { questionId: strin
 }
 
 const styles = StyleSheet.create({
-  head: { marginTop: 8, marginBottom: 17 },
-  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.3, marginBottom: 6 },
-  title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-  subtitle: { fontSize: 12.5, lineHeight: 19, marginTop: 6 },
-  card: { borderWidth: 1, borderRadius: 20, padding: 17, marginBottom: 14 },
-  answerCard: { borderWidth: 1, borderRadius: 20, padding: 18, marginBottom: 24 },
+  head: { marginTop: 10, marginBottom: 18 },
+  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 },
+  title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.6 },
+  subtitle: { fontSize: 13, lineHeight: 20, marginTop: 7 },
+  card: { borderWidth: 1, borderRadius: 22, padding: 18, marginBottom: 14 },
+  answerCard: { borderWidth: 1, borderRadius: 22, padding: 19, marginBottom: 24 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 12 },
   metaText: { fontSize: 11.5, fontWeight: '600' },
   answerBy: { fontSize: 12.5, fontWeight: '800' },
-  question: { fontSize: 16, lineHeight: 25, fontWeight: '700' },
-  answer: { fontSize: 15, lineHeight: 24 },
+  question: { fontSize: 16.5, lineHeight: 26, fontWeight: '700' },
+  answer: { fontSize: 15.5, lineHeight: 26 },
 });

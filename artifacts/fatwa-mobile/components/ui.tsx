@@ -123,7 +123,16 @@ export function PrimaryButton({
       testID={testID}
       style={({ pressed }) => [
         styles.primaryButton,
-        { backgroundColor: colors.primary, opacity: disabled ? 0.5 : pressed ? 0.88 : 1 },
+        {
+          backgroundColor: colors.primary,
+          shadowColor: colors.shadow,
+          shadowOpacity: disabled ? 0 : 0.14,
+          shadowRadius: 9,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: disabled ? 0 : 3,
+          opacity: disabled ? 0.5 : pressed ? 0.88 : 1,
+          transform: [{ scale: pressed && !disabled ? 0.99 : 1 }],
+        },
       ]}
     >
       {loading ? (
@@ -154,7 +163,12 @@ export function GhostButton({
       accessibilityRole="button"
       style={({ pressed }) => [
         styles.ghostButton,
-        { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          opacity: pressed ? 0.82 : 1,
+          transform: [{ scale: pressed ? 0.99 : 1 }],
+        },
       ]}
     >
       {icon ? <Feather name={icon} size={16} color={colors.foreground} /> : null}
@@ -291,29 +305,29 @@ export function Avatar({
 }
 
 export const uiStyles = StyleSheet.create({
-  screenPadding: { paddingHorizontal: 18, paddingBottom: 28 },
-  card: { borderRadius: 20, borderWidth: 1 },
+  screenPadding: { paddingHorizontal: 18, paddingBottom: 30 },
+  card: { borderRadius: 22, borderWidth: 1 },
 });
 
 const styles = StyleSheet.create({
-  sectionRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: 12, gap: 10 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.3 },
-  sectionSubtitle: { fontSize: 11, marginTop: 3 },
-  actionText: { fontSize: 12.5, fontWeight: '700' },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 13, gap: 10 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.35 },
+  sectionSubtitle: { fontSize: 11.5, marginTop: 4 },
+  actionText: { fontSize: 12.5, fontWeight: '800' },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     borderRadius: 20,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   pillText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
   statChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 3 },
   statText: { fontSize: 11.5, fontWeight: '600' },
   primaryButton: {
     minHeight: 52,
-    borderRadius: 17,
+    borderRadius: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -323,7 +337,7 @@ const styles = StyleSheet.create({
   primaryButtonText: { fontSize: 14.5, fontWeight: '700' },
   ghostButton: {
     minHeight: 50,
-    borderRadius: 16,
+    borderRadius: 17,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -334,8 +348,8 @@ const styles = StyleSheet.create({
   ghostButtonText: { fontSize: 13.5, fontWeight: '600' },
   emptyState: {
     borderWidth: 1,
-    borderRadius: 22,
-    padding: 26,
+    borderRadius: 24,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -360,8 +374,8 @@ const styles = StyleSheet.create({
   infoText: { fontSize: 11.5, lineHeight: 17, flex: 1 },
   hero: {
     borderRadius: 26,
-    minHeight: 198,
-    padding: 20,
+    minHeight: 205,
+    padding: 21,
     overflow: 'hidden',
     flexDirection: 'row',
     position: 'relative',
@@ -370,8 +384,8 @@ const styles = StyleSheet.create({
   heroPill: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 11 },
   heroPillDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#B6F1D6' },
   heroPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 1.3, color: '#E3F6ED' },
-  heroTitle: { fontSize: 22, fontWeight: '700', color: '#FFFFFF', lineHeight: 27, letterSpacing: -0.4, maxWidth: 224 },
-  heroSubtitle: { fontSize: 12, lineHeight: 18, color: '#DFF1E9', marginTop: 7, maxWidth: 212 },
+  heroTitle: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', lineHeight: 28, letterSpacing: -0.4, maxWidth: 224 },
+  heroSubtitle: { fontSize: 12.5, lineHeight: 19, color: '#DFF1E9', marginTop: 8, maxWidth: 212 },
   heroButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -381,7 +395,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    marginTop: 16,
+    marginTop: 15,
   },
   heroButtonText: { fontSize: 12, fontWeight: '800' },
   heroArt: {

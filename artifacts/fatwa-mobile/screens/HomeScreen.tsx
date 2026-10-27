@@ -40,7 +40,7 @@ export default function HomeScreen() {
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Search for a question, topic or keyword..."
+          placeholder="Search posts and questions"
           placeholderTextColor={colors.mutedForeground}
           style={[styles.searchInput, { color: colors.foreground }]}
           returnKeyType="search"
@@ -110,12 +110,12 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: 18, paddingBottom: 8 },
+  container: { paddingHorizontal: 16, paddingBottom: 12 },
   searchBar: {
     minHeight: 58,
-    borderRadius: 30,
+    borderRadius: 20,
     borderWidth: 1,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 13,
@@ -123,15 +123,15 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
     elevation: 2,
-    marginBottom: 18,
+    marginBottom: 14,
   },
-  searchInput: { flex: 1, minHeight: 54, fontSize: 15, fontWeight: '500' },
-  filterRow: { gap: 10, paddingBottom: 25 },
-  filterChip: { minHeight: 52, borderRadius: 28, borderWidth: 1, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  filterText: { fontSize: 14, fontWeight: '700' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  sectionTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  sectionTitle: { fontSize: 25, fontWeight: '800', letterSpacing: -0.7 },
+  searchInput: { flex: 1, minHeight: 54, fontSize: 14, fontWeight: '500' },
+  filterRow: { gap: 8, paddingBottom: 20 },
+  filterChip: { minHeight: 44, borderRadius: 22, borderWidth: 1, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  filterText: { fontSize: 13, fontWeight: '700' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  sectionTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
   viewAll: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   viewAllText: { fontSize: 14, fontWeight: '700' },
   empty: { borderWidth: 1, borderRadius: 22, padding: 28, alignItems: 'center', marginBottom: 18 },
