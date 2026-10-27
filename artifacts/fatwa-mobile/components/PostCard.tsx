@@ -4,6 +4,7 @@ import React from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { Avatar, Pill } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
+import { cleanPostBody, containsArabic } from '@/lib/post-text';
 import type { Post } from '@/lib/types';
 
 export const POST_CARD_BODY_LINES = 5;
@@ -48,15 +49,14 @@ export function PostCard({
   onToggleSave: () => void;
   onOpen: () => void;
   onShare: () => void;
-  }) {
+}) {
   const colors = useColors();
+  const excerpt = cleanPostBody(post.title, post.body);
+  const isRtl = containsArabic(`${post.title}\n${excerpt}`);
 
   return (
     <View
-      style={[
-        styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
-      ]}
+      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
       testID={`post-card-${post.id}`}
     >
       <View style={styles.body}>
@@ -73,31 +73,27 @@ export function PostCard({
               {post.city ? <Text style={[styles.date, { color: colors.mutedForeground }]} numberOfLines={1}>{post.city}</Text> : null}
             </View>
           </View>
-          <Pill
-            label={post.category}
-            icon={categoryIcon[post.category]}
-            tone={categoryTone[post.category]}
-          />
+          <Pill label={post.category} icon={categoryIcon[post.category]} tone={categoryTone[post.category]} />
         </View>
 
         <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={post.title}>
-          <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
+          <Text
+            style={[styles.title, isRtl && styles.rtlTitle, { color: colors.foreground }]}
+            numberOfLines={isRtl ? 3 : 2}
+          >
             {post.title}
           </Text>
           <Text
-            style={[styles.excerpt, { color: colors.mutedForeground }]}
-            numberOfLines={POST_CARD_BODY_LINES}
+            style={[styles.excerpt, isRtl && styles.rtlExcerpt, { color: colors.mutedForeground }]}
+            numberOfLines={isRtl ? 6 : POST_CARD_BODY_LINES}
           >
-            {post.body}
+            {excerpt}
           </Text>
         </Pressable>
 
-        <View style={[styles.footer, { borderTopColor: colors.border }]}> 
+        <View style={[styles.footer, { borderTopColor: colors.border }]}>
           <Pressable
-            onPress={() => {
-              void Haptics.selectionAsync();
-              onToggleLike();
-            }}
+            onPress={() => { void Haptics.selectionAsync(); onToggleLike(); }}
             style={[styles.action, { backgroundColor: liked ? colors.primarySoft : colors.background }]}
             accessibilityRole="button"
             accessibilityLabel={liked ? 'Unlike post' : 'Like post'}
@@ -110,23 +106,14 @@ export function PostCard({
           </Pressable>
 
           <Pressable
-            onPress={() => {
-              void Haptics.selectionAsync();
-              onToggleSave();
-            }}
+            onPress={() => { void Haptics.selectionAsync(); onToggleSave(); }}
             style={[styles.action, { backgroundColor: saved ? colors.primarySoft : colors.background }]}
             accessibilityRole="button"
             accessibilityLabel={saved ? 'Remove from saved' : 'Save post'}
             testID={`save-${post.id}`}
           >
-            <Feather
-              name="bookmark"
-              size={16}
-              color={saved ? colors.primary : colors.mutedForeground}
-            />
-            <Text
-              style={[styles.actionText, { color: saved ? colors.primary : colors.mutedForeground }]}
-            >
+            <Feather name="bookmark" size={16} color={saved ? colors.primary : colors.mutedForeground} />
+            <Text style={[styles.actionText, { color: saved ? colors.primary : colors.mutedForeground }]}>
               {saved ? 'Saved' : 'Save'}
             </Text>
           </Pressable>
@@ -139,9 +126,7 @@ export function PostCard({
             testID={`views-${post.id}`}
           >
             <Feather name="eye" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.actionText, { color: colors.mutedForeground }]}>
-              {formatCount(views)}
-            </Text>
+            <Text style={[styles.actionText, { color: colors.mutedForeground }]}>{formatCount(views)}</Text>
           </Pressable>
 
           <Pressable
@@ -149,7 +134,7 @@ export function PostCard({
               void Haptics.selectionAsync();
               void Share.share({
                 title: post.title,
-                message: `${post.title}\n\n${post.body}\n\nShared from Fatwa.`,
+                message: `${post.title}\n\n${excerpt}\n\nShared from Fatwa App.`,
               }).catch(() => undefined);
             }}
             style={[styles.action, { backgroundColor: colors.background }]}
@@ -161,7 +146,6 @@ export function PostCard({
             <Text style={[styles.actionText, { color: colors.mutedForeground }]}>Share</Text>
           </Pressable>
         </View>
-
       </View>
     </View>
   );
@@ -185,7 +169,9 @@ const styles = StyleSheet.create({
   metaDot: { fontSize: 12 },
   date: { fontSize: 10.5, fontWeight: '500' },
   title: { fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.4, marginBottom: 11 },
+  rtlTitle: { fontSize: 20, lineHeight: 34, letterSpacing: 0, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   excerpt: { fontSize: 14, lineHeight: 22, marginBottom: 18 },
+  rtlExcerpt: { fontSize: 16, lineHeight: 30, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   author: { fontSize: 13, fontWeight: '700' },
   footer: {
     flexDirection: 'row',
