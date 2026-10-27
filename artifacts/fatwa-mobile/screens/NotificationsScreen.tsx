@@ -43,7 +43,7 @@ export default function NotificationsScreen() {
   return (
     <View style={uiStyles.screenPadding}>
       <View style={styles.head}>
-        <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>ALERTS</Text>
+        <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>NOTIFICATIONS</Text>
         <Text style={[styles.title, { color: colors.foreground }]}>Notifications</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
           Answers to your questions, new guidance, and alarm updates appear here.
@@ -80,6 +80,8 @@ export default function NotificationsScreen() {
                 onPress={() => {
                   markNotificationRead(item.id);
                   if (item.kind === 'answer') nav.goTab('questions');
+                  else if (item.kind === 'fatwa' && item.refId) nav.push({ name: 'fatwa', fatwaId: item.refId });
+                  else if (item.kind === 'post' && item.refId) nav.push({ name: 'post', postId: item.refId });
                 }}
                 style={[
                   styles.noteCard,

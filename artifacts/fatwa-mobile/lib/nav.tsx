@@ -9,7 +9,8 @@ export type Route =
   | { name: 'notifications' }
   | { name: 'saved' }
   | { name: 'myQuestions' }
-  | { name: 'settings' };
+  | { name: 'settings' }
+  | { name: 'prayerSettings' };
 
 export type Nav = {
   tab: TabKey;

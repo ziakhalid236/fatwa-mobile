@@ -164,7 +164,7 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
         icon="compass"
         title="Qibla & adhan"
         subtitle={`Prayer city: ${prayerCity.name}`}
-        onPress={() => nav.goTab('alarm')}
+        onPress={() => nav.push({ name: 'prayerSettings' })}
       />
 
       <SectionTitle title="Preferences" />

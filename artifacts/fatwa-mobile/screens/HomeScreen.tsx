@@ -2,13 +2,18 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PostCard } from '@/components/PostCard';
-import { HeroCard, InfoBanner, SectionTitle, uiStyles } from '@/components/ui';
+import { SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
-import type { PostCategory } from '@/lib/types';
+import type { PostCategory, PostLanguage } from '@/lib/types';
 
 const filters: Array<PostCategory | 'All'> = ['All', 'Islamic', 'History', 'Poetry', 'Reflection', 'Seerah'];
+const languages: Array<{ key: PostLanguage; label: string }> = [
+  { key: 'en', label: 'English' },
+  { key: 'ur', label: 'اردو' },
+  { key: 'ar', label: 'العربية' },
+];
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -24,6 +29,7 @@ export default function HomeScreen() {
     registerView,
   } = useApp();
   const [filter, setFilter] = useState<PostCategory | 'All'>('All');
+  const [language, setLanguage] = useState<PostLanguage>('en');
 
   const visiblePosts = useMemo(
     () => (filter === 'All' ? posts : posts.filter((post) => post.category === filter)),
@@ -49,24 +55,24 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <HeroCard
-        eyebrow="Ask a scholar"
-        title="A question on your mind?"
-        subtitle="Send a private question and follow the answer here."
-        icon="hands-pray"
-        actionLabel="Ask a question"
-        onAction={nav.openAsk}
-        testID="ask-a-question"
-      />
-
-      <View style={styles.bannerWrap}>
-        <InfoBanner
-          icon="book-open"
-          text="Posts cover Islamic guidance, Islamic history, and poetry. Open a post to read it in full."
-        />
-      </View>
-
       <SectionTitle title="Latest posts" subtitle={`${visiblePosts.length} posts`} />
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.languageChips}>
+        {languages.map((item) => {
+          const active = language === item.key;
+          return (
+            <Pressable
+              key={item.key}
+              onPress={() => setLanguage(item.key)}
+              style={[styles.languageChip, { backgroundColor: active ? colors.primarySoft : colors.card, borderColor: active ? colors.primary : colors.border }]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+            >
+              <Text style={[styles.languageText, { color: active ? colors.primary : colors.foreground }]}>{item.label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       <ScrollView
         horizontal
@@ -102,8 +108,8 @@ export default function HomeScreen() {
 
       {visiblePosts.map((post) => (
         <PostCard
-          key={post.id}
-          post={post}
+          key={`${post.id}-${language}`}
+          post={language === 'en' || !post.translations?.[language] ? post : { ...post, ...post.translations[language] }}
           liked={likedPostIds.includes(post.id)}
           saved={savedPostIds.includes(post.id)}
           views={post.views + (viewedPostIds.includes(post.id) ? 1 : 0)}
@@ -139,9 +145,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bannerWrap: { marginTop: 14, marginBottom: 6 },
   chipsScroll: { marginHorizontal: -18, marginBottom: 16 },
   chips: { gap: 8, paddingHorizontal: 18 },
+  languageChips: { gap: 8, paddingBottom: 12 },
+  languageChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 13, paddingVertical: 8 },
+  languageText: { fontSize: 12, fontWeight: '700' },
   chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   chipText: { fontSize: 12, fontWeight: '700' },
   footerNote: {

@@ -180,6 +180,7 @@ export function PostCard({
 
 const styles = StyleSheet.create({
   card: {
+    minHeight: 318,
     borderRadius: 22,
     borderWidth: 1,
     marginBottom: 14,
@@ -190,11 +191,11 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   accentBar: { height: 4, width: '100%' },
-  body: { padding: 16 },
+  body: { padding: 18, flex: 1 },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 },
   date: { fontSize: 10.5, fontWeight: '500' },
-  title: { fontSize: 16, lineHeight: 22, fontWeight: '700', letterSpacing: -0.3, marginBottom: 7 },
-  excerpt: { fontSize: 12.5, lineHeight: 19, marginBottom: 12 },
+  title: { fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.3, marginBottom: 9 },
+  excerpt: { fontSize: 13, lineHeight: 20, marginBottom: 14 },
   authorRow: {
     flexDirection: 'row',
     alignItems: 'center',

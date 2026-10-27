@@ -1,6 +1,9 @@
 export type TabKey = 'home' | 'fatwa' | 'questions' | 'alarm' | 'profile';
 
 export type PostCategory = 'Islamic' | 'History' | 'Poetry' | 'Reflection' | 'Seerah';
+export type PostLanguage = 'en' | 'ur' | 'ar';
+
+export type PostTranslation = { title: string; body: string };
 
 export type Post = {
   id: string;
@@ -14,6 +17,7 @@ export type Post = {
   date: string;
   accent: string;
   icon: string;
+  translations?: Partial<Record<Exclude<PostLanguage, 'en'>, PostTranslation>>;
 };
 
 export type FatwaCategory =

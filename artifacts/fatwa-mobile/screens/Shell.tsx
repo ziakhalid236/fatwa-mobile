@@ -20,12 +20,13 @@ import PostDetailScreen from '@/screens/PostDetailScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import QuestionsScreen from '@/screens/QuestionsScreen';
 import SavedScreen from '@/screens/SavedScreen';
+import SettingsScreen from '@/screens/SettingsScreen';
 
 const tabs: Array<{ key: TabKey; label: string; icon: keyof typeof Feather.glyphMap }> = [
   { key: 'home', label: 'Home', icon: 'home' },
   { key: 'fatwa', label: 'Fatwa', icon: 'book-open' },
   { key: 'questions', label: 'Ask', icon: 'message-circle' },
-  { key: 'alarm', label: 'Alarm', icon: 'compass' },
+  { key: 'alarm', label: 'Notifications', icon: 'bell' },
   { key: 'profile', label: 'Profile', icon: 'user' },
 ];
 
@@ -34,6 +35,8 @@ const titles: Record<string, string> = {
   fatwa: 'Fatwa',
   notifications: 'Notifications',
   saved: 'Saved posts',
+  settings: 'Settings',
+  prayerSettings: 'Prayer settings',
 };
 
 function Shell() {
@@ -75,7 +78,7 @@ function Shell() {
   const onSettings = useCallback(() => push({ name: 'settings' }), [push]);
 
   const header = () => {
-    const title = titles[route.name];
+    const title = titles[route.name] ?? (route.name === 'tabs' && tab === 'alarm' ? 'Notifications' : undefined);
     const canGoBack = stack.length > 0 || tab !== 'home';
     return (
       <View style={[styles.topBar, { paddingTop: Platform.OS === 'web' ? 67 : 6 }]}>
@@ -116,11 +119,12 @@ function Shell() {
   else if (route.name === 'fatwa') content = <FatwaDetailScreen fatwaId={route.fatwaId} />;
   else if (route.name === 'notifications') content = <NotificationsScreen />;
   else if (route.name === 'saved') content = <SavedScreen />;
-  else if (route.name === 'settings') content = <ProfileScreen onOpenSettings={() => goTab('profile')} />;
+  else if (route.name === 'settings') content = <SettingsScreen />;
+  else if (route.name === 'prayerSettings') content = <AlarmScreen />;
   else if (tab === 'home') content = <HomeScreen />;
   else if (tab === 'fatwa') content = <FatwaScreen />;
   else if (tab === 'questions') content = <QuestionsScreen askSignal={askSignal} />;
-  else if (tab === 'alarm') content = <AlarmScreen />;
+  else if (tab === 'alarm') content = <NotificationsScreen />;
   else content = <ProfileScreen onOpenSettings={onSettings} />;
 
   const showTabBar = route.name === 'tabs';
@@ -153,7 +157,7 @@ function Shell() {
             >
               {tabs.map((item) => {
                 const selected = tab === item.key;
-                const badge = item.key === 'questions' ? unreadCount : 0;
+                const badge = item.key === 'alarm' ? unreadCount : 0;
                 return (
                   <Pressable
                     key={item.key}
