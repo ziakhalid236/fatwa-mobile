@@ -160,19 +160,6 @@ export function PostCard({
           </Pressable>
         </View>
 
-        <Pressable
-          onPress={onOpen}
-          style={({ pressed }) => [
-            styles.moreButton,
-            { backgroundColor: colors.primarySoft, opacity: pressed ? 0.85 : 1 },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={`Read full post: ${post.title}`}
-          testID={`more-${post.id}`}
-        >
-          <Text style={[styles.moreText, { color: colors.primary }]}>More</Text>
-          <Feather name="arrow-right" size={15} color={colors.primary} />
-        </Pressable>
       </View>
     </View>
   );
@@ -216,14 +203,4 @@ const styles = StyleSheet.create({
   },
   action: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 3 },
   actionText: { fontSize: 11.5, fontWeight: '600' },
-  moreButton: {
-    marginTop: 12,
-    minHeight: 42,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-  },
-  moreText: { fontSize: 13, fontWeight: '700' },
 });
