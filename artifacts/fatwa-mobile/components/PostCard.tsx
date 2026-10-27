@@ -168,7 +168,6 @@ export function PostCard({
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 318,
     borderRadius: 22,
     borderWidth: 1,
     marginBottom: 14,
@@ -178,7 +177,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  body: { padding: 17, flex: 1 },
+  body: { padding: 17 },
   authorHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 15 },
   authorMeta: { flex: 1 },
   metaLine: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },

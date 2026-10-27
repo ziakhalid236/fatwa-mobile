@@ -142,6 +142,40 @@ export const posts: Post[] = [
     accent: 'gold',
     icon: 'account-group-outline',
   },
+  {
+    id: 'post-11',
+    title: 'A saying on the beauty of truthfulness',
+    body: 'Truthfulness gives a person inner strength. A believer keeps the same honest word in private and in public, and trusts Allah with the result.',
+    category: 'Reflection',
+    author: 'Fatwa editorial team',
+    source: 'Sahih al-Bukhari',
+    views: 3920,
+    likes: 780,
+    date: 'New',
+    accent: 'teal',
+    icon: 'heart-outline',
+    translations: {
+      ur: { title: 'سچائی کی خوبصورتی پر ایک قول', body: 'سچائی انسان کو اندرونی طاقت عطا کرتی ہے۔ مومن تنہائی اور لوگوں کے درمیان ایک ہی سچی بات کہتا ہے اور نتیجہ اللہ کے سپرد کرتا ہے۔' },
+      ar: { title: 'قول في جمال الصدق', body: 'يمنح الصدق الإنسان قوة داخلية. فالمؤمن يقول الكلمة الصادقة في السر والعلن ويتوكل على الله في النتيجة.' },
+    },
+  },
+  {
+    id: 'post-12',
+    title: 'A gentle reminder about kindness',
+    body: 'A kind word can open a heart. Make space for mercy in family conversations, in the marketplace, and with the neighbour who needs patience.',
+    category: 'Islamic',
+    author: 'Fatwa editorial team',
+    source: 'Sahih Muslim',
+    views: 4210,
+    likes: 910,
+    date: 'New',
+    accent: 'forest',
+    icon: 'hands-pray',
+    translations: {
+      ur: { title: 'نرمی اور حسنِ سلوک کی یاد دہانی', body: 'نرم بات دل کا دروازہ کھول سکتی ہے۔ گھر کی گفتگو، بازار کے معاملات اور پڑوسیوں کے ساتھ برتاؤ میں رحمت اور صبر کے لیے جگہ بنائیں۔' },
+      ar: { title: 'تذكير بالرفق وحسن الخلق', body: 'قد تفتح الكلمة الطيبة قلباً. فاجعل للرحمة مكاناً في حديثك مع الأسرة ومع الناس والجيران.' },
+    },
+  },
 ];
 
 export const fatwas: Fatwa[] = [

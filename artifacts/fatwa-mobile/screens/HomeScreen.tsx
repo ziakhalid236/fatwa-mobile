@@ -5,7 +5,7 @@ import { PostCard } from '@/components/PostCard';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
-import type { PostCategory, PostLanguage } from '@/lib/types';
+import type { PostCategory } from '@/lib/types';
 
 const filters: Array<{ key: PostCategory | 'All'; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }> = [
   { key: 'All', label: 'All', icon: 'apps' },
@@ -15,28 +15,22 @@ const filters: Array<{ key: PostCategory | 'All'; label: string; icon: keyof typ
   { key: 'Reflection', label: 'Reflections', icon: 'heart-outline' },
 ];
 
-const languages: Array<{ key: PostLanguage; label: string }> = [
-  { key: 'en', label: 'English' },
-  { key: 'ur', label: 'اردو' },
-  { key: 'ar', label: 'العربية' },
-];
-
 export default function HomeScreen() {
   const colors = useColors();
   const nav = useNav();
-  const { posts, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView } = useApp();
+  const { posts, settings, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView } = useApp();
   const [filter, setFilter] = useState<PostCategory | 'All'>('All');
-  const [language, setLanguage] = useState<PostLanguage>('en');
   const [search, setSearch] = useState('');
 
   const visiblePosts = useMemo(() => {
     const query = search.trim().toLowerCase();
     return posts.filter((post) => {
       const matchesFilter = filter === 'All' || post.category === filter;
+      const hasTranslation = settings.language === 'en' || Boolean(post.translations?.[settings.language]);
       const matchesSearch = !query || `${post.title} ${post.body} ${post.author} ${post.category}`.toLowerCase().includes(query);
-      return matchesFilter && matchesSearch;
+      return matchesFilter && matchesSearch && hasTranslation;
     });
-  }, [filter, posts, search]);
+  }, [filter, posts, search, settings.language]);
 
   return (
     <View style={styles.container}>
@@ -87,8 +81,8 @@ export default function HomeScreen() {
 
       {visiblePosts.map((post) => (
         <PostCard
-          key={`${post.id}-${language}`}
-          post={language === 'en' || !post.translations?.[language] ? post : { ...post, ...post.translations[language] }}
+          key={`${post.id}-${settings.language}`}
+          post={settings.language === 'en' || !post.translations?.[settings.language] ? post : { ...post, ...post.translations[settings.language] }}
           liked={likedPostIds.includes(post.id)}
           saved={savedPostIds.includes(post.id)}
           views={post.views + (viewedPostIds.includes(post.id) ? 1 : 0)}
@@ -110,16 +104,6 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.languageRow}>
-        {languages.map((item) => {
-          const active = language === item.key;
-          return (
-            <Pressable key={item.key} onPress={() => setLanguage(item.key)} style={[styles.languageChip, { backgroundColor: active ? colors.primarySoft : colors.card, borderColor: active ? colors.primary : colors.border }]}>
-              <Text style={[styles.languageText, { color: active ? colors.primary : colors.foreground }]}>{item.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
     </View>
   );
 }
@@ -152,7 +136,4 @@ const styles = StyleSheet.create({
   empty: { borderWidth: 1, borderRadius: 22, padding: 28, alignItems: 'center', marginBottom: 18 },
   emptyTitle: { fontSize: 16, fontWeight: '700', marginTop: 10 },
   emptyText: { fontSize: 12, marginTop: 5 },
-  languageRow: { gap: 8, paddingBottom: 14 },
-  languageChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 13, paddingVertical: 8 },
-  languageText: { fontSize: 12, fontWeight: '700' },
 });

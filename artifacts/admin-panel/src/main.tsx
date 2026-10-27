@@ -101,6 +101,7 @@ function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -116,6 +117,8 @@ function App() {
       sessionStorage.setItem("fatwa-admin-token", token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load dashboard");
+    } finally {
+      setLoading(false);
     }
   }, [token]);
 
@@ -127,6 +130,18 @@ function App() {
     () => questions.filter((item) => item.status !== "answered"),
     [questions],
   );
+
+  if (!stats && !error && loading) {
+    return (
+      <main className="login-shell">
+        <div className="login-card loading-card">
+          <img className="logo-image" src="/fatwa-icon.png" alt="Fatwa logo" />
+          <h1>Loading Fatwa Admin</h1>
+          <p>Connecting to the secure content workspace…</p>
+        </div>
+      </main>
+    );
+  }
 
   if (!stats && error) {
     return (

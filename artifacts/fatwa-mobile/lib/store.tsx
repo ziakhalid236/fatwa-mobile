@@ -36,7 +36,8 @@ const STORE_KEYS = {
 
 export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'https://fatwa-api.ziakhalid236.workers.dev').replace(/\/$/, '');
 
-type Settings = { notificationsEnabled: boolean; adhanSound: boolean };
+export type AppLanguage = 'en' | 'ur' | 'ar';
+type Settings = { notificationsEnabled: boolean; adhanSound: boolean; language: AppLanguage };
 
 type AppState = {
   hydrated: boolean;
@@ -99,6 +100,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettingsState] = useState<Settings>({
     notificationsEnabled: true,
     adhanSound: true,
+    language: 'en',
   });
   const [remotePosts, setRemotePosts] = useState<Post[] | null>(null);
   const [remoteFatwas, setRemoteFatwas] = useState<Fatwa[] | null>(null);
@@ -186,6 +188,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             isRecord(settingsValue) && typeof settingsValue.adhanSound === 'boolean'
               ? settingsValue.adhanSound
               : true,
+          language:
+            isRecord(settingsValue) && (settingsValue.language === 'en' || settingsValue.language === 'ur' || settingsValue.language === 'ar')
+              ? settingsValue.language
+              : 'en',
         });
         const cityName = data[STORE_KEYS.cityName];
         if (typeof cityName === 'string') {
@@ -254,8 +260,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (category.includes('seerah')) return 'Seerah';
               return 'Islamic';
             };
-            setRemotePosts(
-              payload.posts.map((item) => ({
+            setRemotePosts([
+              ...seedPosts,
+              ...payload.posts.map((item) => ({
                 id: String(item.id),
                 title: String(item.title ?? 'Untitled post'),
                 body: String(item.body ?? ''),
@@ -267,8 +274,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 date: String(item.date ?? item.createdAt ?? 'Recently'),
                 accent: String(item.accent ?? 'teal'),
                 icon: String(item.icon ?? 'book-open-outline'),
+                translations:
+                  item.translations !== null && typeof item.translations === 'object'
+                    ? (item.translations as Post['translations'])
+                    : undefined,
               })),
-            );
+            ]);
           }
         }
         if (fatwasResponse.ok) {
@@ -555,7 +566,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setViewedPostIds([]);
     setAlarmsState([]);
     setPrayerCityState(defaultCity);
-    setSettingsState({ notificationsEnabled: true, adhanSound: true });
+    setSettingsState({ notificationsEnabled: true, adhanSound: true, language: 'en' });
     void AsyncStorage.multiRemove(Object.values(STORE_KEYS));
   }, []);
 

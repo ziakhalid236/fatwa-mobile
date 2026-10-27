@@ -99,6 +99,19 @@ export default function AlarmScreen() {
         accuracy: Location.Accuracy.Balanced,
       });
       setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      }).catch(() => []);
+      const cityName = place?.city || place?.district || place?.subregion || place?.region;
+      if (cityName) {
+        setPrayerCity({
+          name: cityName,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          timezone: -new Date().getTimezoneOffset() / 60,
+        });
+      }
       stopHeading();
       headingSub.current = await Location.watchHeadingAsync((value) => {
         const next = value.trueHeading >= 0 ? value.trueHeading : value.magHeading;
@@ -208,7 +221,7 @@ export default function AlarmScreen() {
         <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>QIBLA &amp; ADHAN</Text>
         <Text style={[styles.title, { color: colors.foreground }]}>Alarm</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Find the Qibla direction with the compass and set an adhan alarm for each prayer.
+          GPS location with Hanafi Asr (shadow factor 2), 18° Fajr and 18° Isha calculation.
         </Text>
       </View>
 

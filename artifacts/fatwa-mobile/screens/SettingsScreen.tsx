@@ -10,6 +10,11 @@ export default function SettingsScreen() {
   const colors = useColors();
   const nav = useNav();
   const { settings, setSettings, prayerCity } = useApp();
+  const languages = [
+    { key: 'en' as const, label: 'English' },
+    { key: 'ur' as const, label: 'اردو' },
+    { key: 'ar' as const, label: 'العربية' },
+  ];
 
   return (
     <View style={uiStyles.screenPadding}>
@@ -36,6 +41,24 @@ export default function SettingsScreen() {
         />
       </View>
 
+      <SectionTitle title="Content language" subtitle="Posts and guidance will use your selected language when available." />
+      <View style={styles.languageRow}>
+        {languages.map((language) => {
+          const active = settings.language === language.key;
+          return (
+            <Pressable
+              key={language.key}
+              onPress={() => setSettings({ language: language.key })}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              style={[styles.languageChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}
+            >
+              <Text style={[styles.languageText, { color: active ? colors.primaryForeground : colors.foreground }]}>{language.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       <SectionTitle title="Prayer tools" />
       <Pressable
         onPress={() => nav.push({ name: 'prayerSettings' })}
@@ -46,7 +69,7 @@ export default function SettingsScreen() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.rowTitle, { color: colors.foreground }]}>Qibla & Adhan alarms</Text>
-          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Prayer city: {prayerCity.name}</Text>
+          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Prayer city: {prayerCity.name} · Hanafi timings</Text>
         </View>
         <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
       </Pressable>
@@ -79,4 +102,7 @@ const styles = StyleSheet.create({
   icon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { fontSize: 13.5, fontWeight: '700', marginBottom: 3 },
   rowSubtitle: { fontSize: 11.5 },
+  languageRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  languageChip: { borderWidth: 1, borderRadius: 15, paddingHorizontal: 15, paddingVertical: 10 },
+  languageText: { fontSize: 12.5, fontWeight: '700' },
 });
