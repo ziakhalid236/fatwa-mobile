@@ -98,6 +98,7 @@ type AppState = {
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   clearNotifications: () => void;
+  refreshContent: () => void;
   clearLocalData: () => void;
 };
 
@@ -136,6 +137,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
   const [remotePosts, setRemotePosts] = useState<Post[] | null>(null);
   const [remoteFatwas, setRemoteFatwas] = useState<Fatwa[] | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const writeQueue = useRef(Promise.resolve());
 
@@ -399,7 +401,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(interval);
       appState.remove();
     };
-  }, [persist]);
+  }, [persist, refreshNonce]);
 
   const setProfile = useCallback(
     (patch: Partial<Profile>) => {
@@ -517,6 +519,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNotifications([]);
     persist([[STORE_KEYS.notifications, []]]);
   }, [persist]);
+
+  const refreshContent = useCallback(() => {
+    setRefreshNonce((value) => value + 1);
+  }, []);
 
   const setAlarms = useCallback(
     (next: AdhanAlarm[]) => {
@@ -698,6 +704,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markNotificationRead,
       markAllNotificationsRead,
       clearNotifications,
+      refreshContent,
       clearLocalData,
     }),
     [
@@ -727,6 +734,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markNotificationRead,
       markAllNotificationsRead,
       clearNotifications,
+      refreshContent,
       clearLocalData,
     ],
   );

@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Platform, Pressable, RefreshControl, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { LogoMark } from '@/components/ui';
@@ -47,11 +47,12 @@ const titles: Record<string, string> = {
 function Shell() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { alarms, settings, unreadCount, pushNotification } = useApp();
+  const { alarms, settings, unreadCount, pushNotification, refreshContent } = useApp();
 
   const [tab, setTab] = useState<TabKey>('home');
   const [stack, setStack] = useState<Route[]>([]);
   const [askSignal, setAskSignal] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const route = stack.length ? stack[stack.length - 1] : { name: 'tabs' as const };
 
@@ -68,6 +69,28 @@ function Shell() {
   const back = useCallback(() => {
     setStack((current) => current.slice(0, -1));
   }, []);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refreshContent();
+    setTimeout(() => setRefreshing(false), 900);
+  }, [refreshContent]);
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (stack.length > 0) {
+        back();
+        return true;
+      }
+      if (tab !== 'home') {
+        goTab('home');
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [back, goTab, stack.length, tab]);
 
   const openAsk = useCallback(() => {
     setStack([]);
@@ -150,16 +173,19 @@ function Shell() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             enabled
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
           >
             {header()}
             {content}
           </KeyboardAwareScrollViewCompat>
           {showTabBar ? (
-            <View
+            <LinearGradient
+              colors={[colors.card, colors.cardMuted]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
               style={[
                 styles.tabBar,
                 {
-                  backgroundColor: colors.card,
                   borderTopColor: colors.border,
                   paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 30 : 8),
                 },
@@ -172,17 +198,17 @@ function Shell() {
                   <Pressable
                     key={item.key}
                     onPress={() => goTab(item.key)}
-                    style={[styles.tabItem, selected && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+                    style={[styles.tabItem, selected && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                     accessibilityRole="tab"
                     accessibilityState={{ selected }}
                     accessibilityLabel={item.label}
                     testID={`tab-${item.key}`}
                   >
-                    <View style={[styles.tabIcon, selected && { backgroundColor: colors.primarySoft }]}>
+                    <View style={[styles.tabIcon, selected && { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
                       <Feather
                         name={item.icon}
                         size={20}
-                        color={selected ? colors.primary : colors.mutedForeground}
+                        color={selected ? colors.primaryForeground : colors.mutedForeground}
                       />
                       {badge > 0 ? (
                         <View style={[styles.tabBadge, { backgroundColor: colors.coral }]}>
@@ -193,14 +219,14 @@ function Shell() {
                     <Text
                       style={[
                         styles.tabLabel,
-                        { color: selected ? colors.primary : colors.mutedForeground },
+                        { color: selected ? colors.primaryForeground : colors.mutedForeground },
                       ]}
                     >
                       {item.label}
                     </Text>
                     {selected ? (
                       <LinearGradient
-                        colors={[colors.primary, colors.teal]}
+                        colors={selected ? [colors.gold, colors.goldSoft] : [colors.border, colors.border]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                         style={styles.activeDot}
@@ -211,7 +237,7 @@ function Shell() {
                   </Pressable>
                 );
               })}
-            </View>
+            </LinearGradient>
           ) : null}
         </View>
       </SafeAreaView>
@@ -262,10 +288,10 @@ const styles = StyleSheet.create({
   headerSide: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   notificationDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 9, right: 9 },
   tabBar: {
-    minHeight: 76,
-    paddingTop: 10,
+    minHeight: 82,
+    paddingTop: 9,
     paddingHorizontal: 12,
-    borderTopWidth: 0,
+    borderTopWidth: 1,
     borderRadius: 24,
     marginHorizontal: 10,
     marginBottom: 8,
@@ -278,7 +304,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-around',
   },
-  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 58, borderWidth: 1, borderColor: 'transparent', borderRadius: 18, marginHorizontal: 2 },
+  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 61, borderWidth: 1, borderColor: 'transparent', borderRadius: 18, marginHorizontal: 2, paddingVertical: 4 },
   tabIcon: { width: 42, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   tabLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.1 },
   activeDot: { height: 3, width: 16, borderRadius: 2 },

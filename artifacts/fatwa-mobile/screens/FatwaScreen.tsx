@@ -1,4 +1,5 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FatwaCard } from '@/components/cards';
@@ -41,15 +42,20 @@ export default function FatwaScreen() {
 
   return (
     <View style={uiStyles.screenPadding}>
-      <View style={styles.head}>
-        <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>FATWA LIBRARY</Text>
-        <Text style={[styles.title, { color: colors.foreground }]}>Published rulings</Text>
-        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Every entry shows the question first and the reviewed answer below it.
-        </Text>
-      </View>
+      <LinearGradient colors={[colors.forestDeep, colors.forest, colors.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+        <View style={styles.heroTop}>
+          <View style={styles.heroIcon}><MaterialCommunityIcons name="scale-balance" size={21} color={colors.gold} /></View>
+          <View style={styles.heroPill}><Text style={styles.heroPillText}>REVIEWED LIBRARY</Text></View>
+        </View>
+        <Text style={styles.heroTitle}>Find clarity in a trusted answer.</Text>
+        <Text style={styles.heroCopy}>Browse published rulings with their question, answer, scholar and source kept together.</Text>
+        <View style={styles.heroFooter}>
+          <Text style={styles.heroCount}>{fatwas.length} published rulings</Text>
+          <MaterialCommunityIcons name="arrow-top-right" size={18} color={colors.onHeroMuted} />
+        </View>
+      </LinearGradient>
 
-      <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}> 
         <Feather name="search" size={17} color={colors.mutedForeground} />
         <TextInput
           value={search}
@@ -140,6 +146,15 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.3, marginBottom: 6 },
   title: { fontSize: 23, fontWeight: '700', letterSpacing: -0.5 },
   subtitle: { fontSize: 12.5, lineHeight: 19, marginTop: 6 },
+  hero: { borderRadius: 25, padding: 19, marginTop: 3, marginBottom: 15, overflow: 'hidden', shadowColor: '#04382D', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  heroIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  heroPill: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6 },
+  heroPillText: { color: '#D9F1E7', fontSize: 9, fontWeight: '800', letterSpacing: 1.1 },
+  heroTitle: { color: '#FFFFFF', fontSize: 23, lineHeight: 29, fontWeight: '800', letterSpacing: -0.6, maxWidth: 300 },
+  heroCopy: { color: '#CFE7DE', fontSize: 12, lineHeight: 18, marginTop: 7, maxWidth: 315 },
+  heroFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 17 },
+  heroCount: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '700' },
   searchBar: {
     borderWidth: 1,
     borderRadius: 16,
@@ -149,11 +164,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 9,
     marginBottom: 13,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
   },
   searchInput: { flex: 1, fontSize: 13.5, height: '100%' },
   chipsScroll: { marginHorizontal: -18, marginBottom: 4 },
   chips: { gap: 8, paddingHorizontal: 18, paddingBottom: 12 },
-  chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
+  chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 15, paddingVertical: 9, shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   chipText: { fontSize: 12, fontWeight: '700' },
   cta: {
     borderRadius: 20,
