@@ -55,7 +55,12 @@ export function PostCard({
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          borderTopColor: colors.gold,
+          shadowColor: colors.shadow,
+        },
       ]}
       testID={`post-card-${post.id}`}
     >
@@ -101,7 +106,7 @@ export function PostCard({
             style={({ pressed }) => [
               styles.action,
               {
-                backgroundColor: liked ? colors.goldSoft : colors.cardMuted,
+                 backgroundColor: liked ? colors.coralSoft : colors.cardMuted,
                 opacity: pressed ? 0.72 : 1,
                 transform: [{ scale: pressed ? 0.97 : 1 }],
               },
@@ -196,9 +201,10 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 24,
     borderWidth: 1,
+    borderTopWidth: 3,
     marginBottom: 14,
     overflow: 'hidden',
-    shadowOpacity: 0.045,
+    shadowOpacity: 0.065,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 5 },
     elevation: 2,
@@ -209,8 +215,8 @@ const styles = StyleSheet.create({
   metaLine: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
   metaDot: { fontSize: 12 },
   date: { fontSize: 10.5, fontWeight: '500' },
-  title: { fontSize: 19, lineHeight: 27, fontWeight: '800', letterSpacing: -0.35, marginBottom: 9 },
-  excerpt: { fontSize: 13.5, lineHeight: 22, marginBottom: 15 },
+  title: { fontSize: 20, lineHeight: 29, fontWeight: '800', letterSpacing: -0.2, marginBottom: 9 },
+  excerpt: { fontSize: 14, lineHeight: 23, marginBottom: 15 },
   author: { fontSize: 13, fontWeight: '700' },
   footer: {
     flexDirection: 'row',
@@ -223,6 +229,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 17,
     gap: 6,
   },
-  action: { flex: 1, minWidth: 0, minHeight: 38, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4 },
-  actionText: { fontSize: 10.5, fontWeight: '800' },
+  action: { flex: 1, minWidth: 0, minHeight: 40, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4 },
+  actionText: { fontSize: 11, fontWeight: '800' },
 });

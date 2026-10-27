@@ -11,59 +11,60 @@ const light = {
   tint: '#126447',
 
   // Core surfaces
-  background: '#F7F7F1',
-  backgroundElevated: '#FFFFFF',
+  background: '#F4F0E5',
+  backgroundElevated: '#FFFDF8',
   foreground: '#172920',
 
   // Cards / elevated surfaces
-  card: '#FFFFFF',
+  card: '#FFFEFA',
   cardForeground: '#172920',
-  cardMuted: '#F5F7F2',
+  cardMuted: '#F0F1E8',
 
   // Primary action color (buttons, links, active states)
-  primary: '#126447',
+  primary: '#0B6048',
   primaryForeground: '#FFFFFF',
-  primarySoft: '#E6F1E9',
+  primarySoft: '#DFEEE4',
 
   // Secondary / less-emphasis interactive surfaces
-  secondary: '#EDF3EC',
+  secondary: '#E9EEE3',
   secondaryForeground: '#244B3B',
 
   // Muted / subdued elements (dividers, timestamps, placeholders)
-  muted: '#F1F3EE',
-  mutedForeground: '#748078',
+  muted: '#EFEEE6',
+  mutedForeground: '#6D766E',
 
   // Accent highlights (badges, selected items, focus rings)
-  accent: '#E6F0E6',
-  accentForeground: '#16533C',
+  accent: '#F0E5CB',
+  accentForeground: '#5A4726',
 
   // Destructive actions (delete, error states)
   destructive: '#A94C43',
   destructiveForeground: '#FFFFFF',
 
   // Borders and input outlines
-  border: '#E4E8DE',
-  borderStrong: '#CDD8CD',
-  input: '#E4E8DE',
+  border: '#DEDCCF',
+  borderStrong: '#C7C4B5',
+  input: '#DEDCCF',
 
   // Fatwa brand accents
-  forest: '#0C3327',
-  forestDeep: '#08261D',
-  green: '#167153',
-  teal: '#6FA78F',
-  mint: '#E7F2E9',
-  gold: '#B38A41',
-  goldSoft: '#F6F0E4',
-  coral: '#C66D61',
+  forest: '#082F23',
+  forestDeep: '#05261C',
+  green: '#0E7151',
+  teal: '#559878',
+  mint: '#E5F0E5',
+  gold: '#A8782E',
+  goldSoft: '#F3E8CF',
+  coral: '#C45E53',
+  coralSoft: '#F8E7E1',
   blue: '#4C9BC0',
   purple: '#8F72BE',
   pink: '#CE6791',
   orange: '#BE7048',
   slate: '#586B61',
-  ivory: '#FDFDF9',
+  ivory: '#FBF9F1',
 
   // Effects
-  shadow: '#213A2D',
+  shadow: '#1B382B',
   overlay: 'rgba(8, 38, 29, 0.52)',
   onHero: '#FFFFFF',
   onHeroMuted: '#DDE9DF',
@@ -109,6 +110,7 @@ const dark: typeof light = {
   gold: '#D4B36E',
   goldSoft: '#302817',
   coral: '#E08A73',
+  coralSoft: '#38251F',
   blue: '#63B2D4',
   purple: '#A48CD1',
   pink: '#E084AB',

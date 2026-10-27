@@ -2,6 +2,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PostCard } from '@/components/PostCard';
+import { HeroCard } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
@@ -50,6 +51,16 @@ export default function HomeScreen() {
           <Feather name="upload-cloud" size={22} color={colors.primary} />
         </Pressable>
       </View>
+
+      <HeroCard
+        eyebrow="Fatwa • daily guidance"
+        title="Guidance for your day"
+        subtitle="Trusted answers and thoughtful reminders."
+        icon="star-crescent"
+        actionLabel="Ask a question"
+        onAction={nav.openAsk}
+        testID="home-ask-guidance"
+      />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {filters.map((item) => {

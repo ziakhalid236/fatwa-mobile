@@ -122,7 +122,7 @@ function Shell() {
           </Pressable>
         ) : (
           <View style={styles.brandLockup}>
-            <LogoMark size={32} />
+            <LogoMark size={36} />
             <View>
               <Text style={[styles.brandName, { color: colors.forest }]}>Fatwa</Text>
               <Text style={[styles.hijriDate, { color: colors.mutedForeground }]}>{formatIslamicDate(new Date(), settings.language)}</Text>
@@ -284,14 +284,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandName: { fontSize: 21, fontWeight: '800', letterSpacing: -0.6 },
-  hijriDate: { fontSize: 10, fontWeight: '500', marginTop: 2 },
+  brandName: { fontSize: 23, fontWeight: '800', letterSpacing: -0.6 },
+  hijriDate: { fontSize: 10.5, fontWeight: '500', marginTop: 2 },
   topBarTitle: { position: 'absolute', left: 70, right: 66, textAlign: 'center', fontSize: 16, fontWeight: '700' },
   headerSide: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   notificationDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 9, right: 9 },
   tabBar: {
-    minHeight: 76,
-    paddingTop: 7,
+    minHeight: 80,
+    paddingTop: 8,
     paddingHorizontal: 10,
     borderTopWidth: 0,
     borderRadius: 25,
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   },
   tabItem: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 58, borderWidth: 1, borderColor: 'transparent', borderRadius: 18, marginHorizontal: 2, paddingHorizontal: 2, paddingVertical: 4 },
   tabIcon: { width: 38, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  tabLabel: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.05 },
+  tabLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.05 },
   activeDot: { height: 3, width: 12, borderRadius: 2 },
   tabBadge: {
     position: 'absolute',
