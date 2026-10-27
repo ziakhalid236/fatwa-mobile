@@ -110,7 +110,7 @@ export default function AlarmScreen() {
         : ['saudi arabia', 'uae', 'united arab emirates', 'qatar', 'kuwait', 'oman', 'bahrain', 'egypt', 'jordan'].some((name) => country.includes(name))
           ? 'ar'
           : 'en';
-      setSettings({ language });
+      if (settings.autoLanguage) setSettings({ language });
       if (cityName) {
         setPrayerCity({
           name: cityName,
@@ -127,7 +127,7 @@ export default function AlarmScreen() {
     } catch {
       setPermission('denied');
     }
-  }, [stopHeading]);
+  }, [settings.autoLanguage, setSettings, stopHeading]);
 
   useEffect(() => {
     void startHeading();

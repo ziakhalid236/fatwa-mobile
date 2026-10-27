@@ -37,7 +37,7 @@ const STORE_KEYS = {
 export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'https://fatwa-api.ziakhalid236.workers.dev').replace(/\/$/, '');
 
 export type AppLanguage = 'en' | 'ur' | 'ar';
-type Settings = { notificationsEnabled: boolean; adhanSound: boolean; language: AppLanguage };
+type Settings = { notificationsEnabled: boolean; adhanSound: boolean; language: AppLanguage; autoLanguage: boolean; autoTranslate: boolean };
 
 const legacyTranslations: Record<string, NonNullable<Post['translations']>> = {
   'A quiet place for careful questions': {
@@ -120,6 +120,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     notificationsEnabled: true,
     adhanSound: true,
     language: 'ur',
+    autoLanguage: true,
+    autoTranslate: true,
   });
   const [remotePosts, setRemotePosts] = useState<Post[] | null>(null);
   const [remoteFatwas, setRemoteFatwas] = useState<Fatwa[] | null>(null);
@@ -211,6 +213,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             isRecord(settingsValue) && (settingsValue.language === 'en' || settingsValue.language === 'ur' || settingsValue.language === 'ar')
               ? settingsValue.language
               : 'ur',
+          autoLanguage:
+            isRecord(settingsValue) && typeof settingsValue.autoLanguage === 'boolean'
+              ? settingsValue.autoLanguage
+              : true,
+          autoTranslate:
+            isRecord(settingsValue) && typeof settingsValue.autoTranslate === 'boolean'
+              ? settingsValue.autoTranslate
+              : true,
         });
         const cityName = data[STORE_KEYS.cityName];
         if (typeof cityName === 'string') {
@@ -585,7 +595,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setViewedPostIds([]);
     setAlarmsState([]);
     setPrayerCityState(defaultCity);
-    setSettingsState({ notificationsEnabled: true, adhanSound: true, language: 'ur' });
+    setSettingsState({ notificationsEnabled: true, adhanSound: true, language: 'ur', autoLanguage: true, autoTranslate: true });
     void AsyncStorage.multiRemove(Object.values(STORE_KEYS));
   }, []);
 

@@ -48,7 +48,7 @@ export default function SettingsScreen() {
           return (
             <Pressable
               key={language.key}
-              onPress={() => setSettings({ language: language.key })}
+              onPress={() => setSettings({ language: language.key, autoLanguage: false })}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               style={[styles.languageChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}
@@ -57,6 +57,38 @@ export default function SettingsScreen() {
             </Pressable>
           );
         })}
+      </View>
+
+      <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
+          <MaterialCommunityIcons name="crosshairs-gps" size={19} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowTitle, { color: colors.foreground }]}>Use location language</Text>
+          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Pakistan → اردو · Arab countries → العربية</Text>
+        </View>
+        <Switch
+          value={settings.autoLanguage}
+          onValueChange={(value) => setSettings({ autoLanguage: value })}
+          trackColor={{ false: colors.border, true: colors.teal }}
+          thumbColor="#FFFFFF"
+        />
+      </View>
+
+      <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
+          <MaterialCommunityIcons name="translate" size={19} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowTitle, { color: colors.foreground }]}>Translate posts automatically</Text>
+          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Use Urdu or Arabic translations in the feed</Text>
+        </View>
+        <Switch
+          value={settings.autoTranslate}
+          onValueChange={(value) => setSettings({ autoTranslate: value })}
+          trackColor={{ false: colors.border, true: colors.teal }}
+          thumbColor="#FFFFFF"
+        />
       </View>
 
       <SectionTitle title="Prayer tools" />

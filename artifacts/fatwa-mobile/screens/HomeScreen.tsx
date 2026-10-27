@@ -81,7 +81,7 @@ export default function HomeScreen() {
       {visiblePosts.map((post) => (
         <PostCard
           key={`${post.id}-${settings.language}`}
-          post={settings.language === 'en' || !post.translations?.[settings.language] ? post : { ...post, ...post.translations[settings.language] }}
+          post={!settings.autoTranslate || settings.language === 'en' || !post.translations?.[settings.language] ? post : { ...post, ...post.translations[settings.language] }}
           liked={likedPostIds.includes(post.id)}
           saved={savedPostIds.includes(post.id)}
           views={post.views + (viewedPostIds.includes(post.id) ? 1 : 0)}
