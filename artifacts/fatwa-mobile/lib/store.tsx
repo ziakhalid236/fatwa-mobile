@@ -260,17 +260,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const response = await fetch(`${API_BASE_URL}/api/notifications?deviceId=${encodeURIComponent(deviceId)}`);
         if (!response.ok || !active) return;
         const payload = (await response.json()) as {
-          notifications?: Array<{ id?: string; title?: string; body?: string; createdAt?: string; readAt?: string | null; questionId?: string }>;
+          notifications?: Array<{ id?: string; title?: string; body?: string; createdAt?: string; readAt?: string | null; questionId?: string; postId?: string }>;
         };
         const remote = Array.isArray(payload.notifications)
           ? payload.notifications.map((item): AppNotification => ({
               id: `remote-${String(item.id ?? makeId('note'))}`,
-              kind: String(item.title ?? '').toLowerCase().includes('answered') ? 'answer' : 'system',
+              kind: typeof item.postId === 'string' ? 'post' : String(item.title ?? '').toLowerCase().includes('answered') ? 'answer' : 'system',
               title: String(item.title ?? 'Fatwa update'),
               body: String(item.body ?? ''),
               createdAt: String(item.createdAt ?? new Date().toISOString()),
               read: Boolean(item.readAt),
-              refId: typeof item.questionId === 'string' ? item.questionId : undefined,
+              refId: typeof item.postId === 'string' ? item.postId : typeof item.questionId === 'string' ? item.questionId : undefined,
             }))
           : [];
         setNotifications((current) => {
