@@ -60,6 +60,7 @@ router.post("/post-submissions", async (req, res) => {
     city: typeof city === "string" ? city.trim() : undefined,
     title: typeof title === "string" && title.trim().length >= 3 ? title.trim() : body.trim().slice(0, 80),
     body: body.trim(), category, language: language === "ur" ? "ur" : language === "ar" ? "ar" : "en",
+    imageUrl: typeof req.body?.imageUrl === "string" ? req.body.imageUrl : undefined,
   });
   return res.status(201).json(saved);
 });

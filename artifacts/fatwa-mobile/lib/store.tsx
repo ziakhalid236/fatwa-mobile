@@ -348,6 +348,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 category: mapCategory(item.category),
                 author: String(item.author ?? 'Fatwa editorial team'),
                 city: typeof item.city === 'string' ? item.city : undefined,
+                imageUrl: typeof item.imageUrl === 'string' && item.imageUrl ? item.imageUrl : undefined,
                 source: typeof item.source === 'string' ? item.source : undefined,
                 views: Number(item.views ?? 0),
                 likes: Number(item.likes ?? 0),

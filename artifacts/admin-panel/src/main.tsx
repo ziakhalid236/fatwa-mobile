@@ -60,6 +60,7 @@ type PostSubmission = {
   body: string;
   category: Category;
   language: "en" | "ur" | "ar";
+  imageUrl?: string;
   status: "pending" | "approved" | "rejected";
   rejectionReason?: string;
   createdAt: string;
@@ -547,6 +548,7 @@ function SubmissionRow({
       </div>
       <h3>{submission.title}</h3>
       <p className="questioner">By {submission.name}{submission.city ? ` · ${submission.city}` : ""}{submission.country ? `, ${submission.country}` : ""}</p>
+      {submission.imageUrl ? <img className="submission-image" src={submission.imageUrl} alt="Submitted post attachment" loading="lazy" /> : null}
       <p className="submission-body">{submission.body}</p>
       {submission.status === "pending" ? (
         <div className="answer-footer">

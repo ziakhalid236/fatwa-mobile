@@ -23,7 +23,7 @@ const PRAYERS: PrayerName[] = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
 export default function AlarmScreen() {
   const colors = useColors();
-  const { alarms, updateAlarm, prayerCity, setPrayerCity, settings, setSettings, pushNotification } =
+  const { alarms, updateAlarm, prayerCity, setPrayerCity, setProfile, settings, setSettings, pushNotification } =
     useApp();
 
   const [now, setNow] = useState(new Date());
@@ -104,7 +104,7 @@ export default function AlarmScreen() {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
       }).catch(() => []);
-      const cityName = place?.city || place?.district || place?.subregion || place?.region;
+      const cityName = place?.city || place?.district || place?.subregion || place?.region || 'Current location';
       const country = String(place?.country ?? '').toLowerCase();
       const language = country.includes('pakistan')
         ? 'ur'
@@ -112,14 +112,14 @@ export default function AlarmScreen() {
           ? 'ar'
           : 'en';
       if (settings.autoLanguage) setSettings({ language });
-      if (cityName) {
-        setPrayerCity({
-          name: cityName,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          timezone: -new Date().getTimezoneOffset() / 60,
-        });
-      }
+      setPrayerCity({
+        name: cityName,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        // Use the device's current timezone for the live GPS point.
+        timezone: -new Date().getTimezoneOffset() / 60,
+      });
+      setProfile({ city: cityName });
       stopHeading();
       headingSub.current = await Location.watchHeadingAsync((value) => {
         const next = value.trueHeading >= 0 ? value.trueHeading : value.magHeading;
@@ -128,7 +128,7 @@ export default function AlarmScreen() {
     } catch {
       setPermission('denied');
     }
-  }, [settings.autoLanguage, setSettings, stopHeading]);
+  }, [setProfile, settings.autoLanguage, setSettings, stopHeading]);
 
   useEffect(() => {
     void startHeading();
@@ -158,6 +158,11 @@ export default function AlarmScreen() {
     },
     [settings.adhanSound],
   );
+
+  useEffect(() => {
+    if (!alarms.some((alarm) => alarm.enabled)) return;
+    void syncAlarms(alarms);
+  }, [alarms, prayerCity, syncAlarms]);
 
   const mergeAlarm = useCallback(
     (list: AdhanAlarm[], prayer: PrayerName, patch: Partial<AdhanAlarm>): AdhanAlarm[] => {
@@ -292,7 +297,11 @@ export default function AlarmScreen() {
             return (
               <Pressable
                 key={city.name}
-                onPress={() => setPrayerCity(city)}
+              onPress={() => {
+                setCoords({ latitude: city.latitude, longitude: city.longitude });
+                setPrayerCity(city);
+                setProfile({ city: city.name });
+              }}
                 style={[
                   styles.cityChip,
                   {

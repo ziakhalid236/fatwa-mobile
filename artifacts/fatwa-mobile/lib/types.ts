@@ -12,6 +12,7 @@ export type Post = {
   category: PostCategory;
   author: string;
   city?: string;
+  imageUrl?: string;
   source?: string;
   imageUrl?: string;
   views: number;
