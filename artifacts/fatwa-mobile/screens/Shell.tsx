@@ -10,6 +10,7 @@ import { useColors } from '@/hooks/useColors';
 import { NavProvider, type Nav, type Route } from '@/lib/nav';
 import { AppProvider, useApp } from '@/lib/store';
 import { syncAdhanAlarms } from '@/lib/adhan';
+import { formatIslamicDate } from '@/lib/islamic-date';
 import type { TabKey } from '@/lib/types';
 import AlarmScreen from '@/screens/AlarmScreen';
 import FatwaDetailScreen from '@/screens/FatwaDetailScreen';
@@ -99,7 +100,10 @@ function Shell() {
         ) : (
           <View style={styles.brandLockup}>
             <LogoMark size={32} />
-            <Text style={[styles.brandName, { color: colors.forest }]}>Fatwa</Text>
+            <View>
+              <Text style={[styles.brandName, { color: colors.forest }]}>Fatwa</Text>
+              <Text style={[styles.hijriDate, { color: colors.mutedForeground }]}>{formatIslamicDate(new Date(), settings.language)}</Text>
+            </View>
           </View>
         )}
         {title ? <Text style={[styles.topBarTitle, { color: colors.foreground }]}>{title}</Text> : null}
@@ -168,7 +172,7 @@ function Shell() {
                   <Pressable
                     key={item.key}
                     onPress={() => goTab(item.key)}
-                    style={styles.tabItem}
+                    style={[styles.tabItem, selected && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
                     accessibilityRole="tab"
                     accessibilityState={{ selected }}
                     accessibilityLabel={item.label}
@@ -253,6 +257,7 @@ const styles = StyleSheet.create({
   },
   brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   brandName: { fontSize: 21, fontWeight: '700', letterSpacing: -0.7 },
+  hijriDate: { fontSize: 9.5, fontWeight: '600', marginTop: 1 },
   topBarTitle: { position: 'absolute', left: 70, right: 66, textAlign: 'center', fontSize: 16, fontWeight: '700' },
   headerSide: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   notificationDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 9, right: 9 },
@@ -273,7 +278,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-around',
   },
-  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 58 },
+  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 58, borderWidth: 1, borderColor: 'transparent', borderRadius: 18, marginHorizontal: 2 },
   tabIcon: { width: 42, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   tabLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.1 },
   activeDot: { height: 3, width: 16, borderRadius: 2 },

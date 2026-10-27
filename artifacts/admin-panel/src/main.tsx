@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LogOut,
   MessageSquare,
+  UserRound,
   Plus,
   Send,
   Trash2,
@@ -69,7 +70,11 @@ type Stats = {
   draftPosts: number;
   pendingQuestions: number;
   answeredQuestions: number;
+  maleQuestions?: number;
+  femaleQuestions?: number;
 };
+
+type QuestionFilter = "all" | "male" | "female" | "pending" | "answered";
 
 const categories: Category[] = [
   "Aqeedah",
@@ -88,6 +93,8 @@ const metricDefinitions: Array<[string, keyof Stats, LucideIcon]> = [
   ["Draft posts", "draftPosts", ClipboardList],
   ["Pending questions", "pendingQuestions", MessageSquare],
   ["Answered questions", "answeredQuestions", CheckCircle2],
+  ["Male questions", "maleQuestions", UserRound],
+  ["Female questions", "femaleQuestions", UserRound],
 ];
 
 async function request<T>(path: string, options: RequestInit = {}, token = "") {
@@ -119,6 +126,7 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submissions, setSubmissions] = useState<PostSubmission[]>([]);
+  const [questionFilter, setQuestionFilter] = useState<QuestionFilter>("all");
 
   const load = useCallback(async () => {
     try {
@@ -150,6 +158,12 @@ function App() {
     () => questions.filter((item) => item.status !== "answered"),
     [questions],
   );
+  const visibleQuestions = useMemo(() => questions.filter((item) => {
+    if (questionFilter === "male" || questionFilter === "female") return item.gender === questionFilter;
+    if (questionFilter === "pending") return item.status !== "answered";
+    if (questionFilter === "answered") return item.status === "answered";
+    return true;
+  }), [questionFilter, questions]);
 
   if (!stats && !error && loading) {
     return (
@@ -341,10 +355,17 @@ function App() {
             <div className="panel-heading">
               <div>
                 <h2>User questions</h2>
-                <p>Write a reviewed answer and it will be visible to the user.</p>
+                <p>{questions.length} total · {questions.filter((item) => item.gender === "male").length} male · {questions.filter((item) => item.gender === "female").length} female · {pendingQuestions.length} pending · {questions.filter((item) => item.status === "answered").length} answered</p>
               </div>
             </div>
-            {questions.map((question) => (
+            <div className="filter-row" role="toolbar" aria-label="Question filters">
+              {(["all", "male", "female", "pending", "answered"] as QuestionFilter[]).map((filter) => (
+                <button key={filter} className={`filter-chip ${questionFilter === filter ? "active" : ""}`} onClick={() => setQuestionFilter(filter)}>
+                  {filter === "all" ? "All" : filter === "pending" ? "Pending" : filter === "answered" ? "Answered" : filter === "male" ? "Male" : "Female"}
+                </button>
+              ))}
+            </div>
+            {visibleQuestions.map((question) => (
               <QuestionRow
                 key={question.id}
                 question={question}
@@ -355,7 +376,7 @@ function App() {
                 }}
               />
             ))}
-            {questions.length === 0 && <div className="empty">No questions have been submitted.</div>}
+            {visibleQuestions.length === 0 && <div className="empty">No questions match this filter.</div>}
           </section>
         )}
 

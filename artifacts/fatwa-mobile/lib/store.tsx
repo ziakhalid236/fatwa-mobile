@@ -274,6 +274,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Local notifications remain available when Cloudflare is temporarily offline.
       }
     };
+    const syncRemoteQuestions = async () => {
+      try {
+        const deviceId = await AsyncStorage.getItem(STORE_KEYS.deviceId);
+        if (!deviceId || !active) return;
+        const response = await fetch(`${API_BASE_URL}/api/questions?deviceId=${encodeURIComponent(deviceId)}`);
+        if (!response.ok || !active) return;
+        const payload = (await response.json()) as { questions?: Array<Record<string, unknown>> };
+        if (!Array.isArray(payload.questions)) return;
+        const remote = payload.questions.map((item): UserQuestion => ({
+          id: String(item.id),
+          name: String(item.name ?? ''),
+          gender: item.gender === 'male' || item.gender === 'female' ? item.gender : 'unspecified',
+          country: String(item.country ?? ''),
+          city: String(item.city ?? ''),
+          question: String(item.question ?? ''),
+          category: String(item.category) as UserQuestion['category'],
+          status: item.status === 'answered' ? 'Answered' : item.status === 'under_review' ? 'Under review' : 'Submitted',
+          answer: typeof item.answer === 'string' ? item.answer : undefined,
+          answeredBy: typeof item.answeredBy === 'string' ? item.answeredBy : undefined,
+          submittedAt: String(item.createdAt ?? new Date().toISOString()),
+          updatedAt: String(item.updatedAt ?? item.createdAt ?? new Date().toISOString()),
+        }));
+        setQuestions((current) => {
+          const remoteIds = new Set(remote.map((item) => item.id));
+          const next = [...remote, ...current.filter((item) => !remoteIds.has(item.id))];
+          persist([[STORE_KEYS.questions, next]]);
+          return next;
+        });
+      } catch {
+        // Keep local questions when the remote history is unavailable.
+      }
+    };
     const loadRemote = async () => {
       try {
         const [postsResponse, fatwasResponse] = await Promise.all([
@@ -336,11 +368,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Bundled content remains available when the API is offline.
       }
       await syncRemoteNotifications();
+      await syncRemoteQuestions();
     };
     void loadRemote();
-    const interval = setInterval(() => void syncRemoteNotifications(), 30_000);
+    const interval = setInterval(() => {
+      void syncRemoteNotifications();
+      void syncRemoteQuestions();
+    }, 30_000);
     const appState = NativeAppState.addEventListener('change', (state) => {
-      if (state === 'active') void syncRemoteNotifications();
+      if (state === 'active') {
+        void syncRemoteNotifications();
+        void syncRemoteQuestions();
+      }
     });
     return () => {
       active = false;
@@ -544,6 +583,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               category: input.category,
             }),
           });
+          if (!response.ok) {
+            const failure = (await response.json().catch(() => ({}))) as { error?: string };
+            throw new Error(failure.error ?? `Question submission failed (${response.status})`);
+          }
           if (response.ok) {
             const remote = (await response.json()) as {
               id?: string;

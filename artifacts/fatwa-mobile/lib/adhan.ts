@@ -7,6 +7,7 @@ export const NOTIFICATION_CHANNEL_ID = 'fatwa-updates';
 
 /** Sound file registered through the expo-notifications config plugin. */
 const ADHAN_SOUND = 'adhan-drive.mp3';
+const UPDATE_SOUND = 'adhan_notification.wav';
 
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
@@ -36,7 +37,7 @@ async function ensureChannels(soundEnabled: boolean) {
   await Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
     name: 'Fatwa updates',
     importance: Notifications.AndroidImportance.HIGH,
-    sound: 'default',
+    sound: UPDATE_SOUND,
   });
 }
 
@@ -93,7 +94,7 @@ export async function notifyNow(title: string, body: string) {
   if (!permitted) return;
   await ensureChannels(true);
   await Notifications.scheduleNotificationAsync({
-    content: { title, body, sound: 'default' },
+    content: { title, body, sound: UPDATE_SOUND },
     trigger: null,
   });
 }

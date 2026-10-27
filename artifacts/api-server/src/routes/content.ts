@@ -39,6 +39,10 @@ router.post("/questions", async (req, res) => {
   return res.status(201).json(saved);
 });
 
+router.get("/questions", async (_req, res) => {
+  return res.json({ questions: await contentStore.listQuestions() });
+});
+
 router.get("/questions/:id", async (req, res) => {
   const questions = await contentStore.listQuestions();
   const question = questions.find((item) => item.id === req.params.id);

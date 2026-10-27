@@ -94,8 +94,8 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
       setLastId(entry.id);
       setStep('done');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      Alert.alert('Could not submit', 'Please try again in a moment.');
+    } catch (error) {
+      Alert.alert('Could not submit', error instanceof Error ? error.message : 'Please try again in a moment.');
     } finally {
       setSubmitting(false);
     }
