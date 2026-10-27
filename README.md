@@ -22,7 +22,7 @@ The mobile app reads published records from `EXPO_PUBLIC_API_URL` when configure
 
 - `artifacts/api-server` exposes the local-compatible version of the public fatwa/question endpoints and protected admin endpoints. Production is served by the `fatwa-api` Cloudflare Worker backed by the `fatwa-web-content` D1 database.
 - `artifacts/admin-panel` provides fatwa CRUD, source attribution fields, dashboard counts, question review, and answer publishing.
-- The deployed admin frontend is available at `https://fatwa-web.pages.dev` and uses the same Worker API.
+- The deployed admin frontend is available at `https://fatwa-admin.pages.dev` and uses the same Worker API. It is connected to this GitHub repository through the Cloudflare Pages project `fatwa-admin` and deploys from `main`.
 - Set `ADMIN_TOKEN` on the API server. The admin panel uses `VITE_ADMIN_TOKEN` for local development or asks for the token at login.
 - The current development store is file-backed and can be pointed at a persistent location with `CONTENT_STORE_FILE`. A Postgres/Drizzle adapter can be added without changing the API contract.
 
