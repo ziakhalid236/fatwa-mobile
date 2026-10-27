@@ -18,18 +18,20 @@ const filters: Array<{ key: PostCategory | 'All'; label: string; icon: keyof typ
 export default function HomeScreen() {
   const colors = useColors();
   const nav = useNav();
-  const { posts, settings, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView } = useApp();
+  const { posts, settings, profile, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView } = useApp();
   const [filter, setFilter] = useState<PostCategory | 'All'>('All');
   const [search, setSearch] = useState('');
 
   const visiblePosts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return posts.filter((post) => {
+    const filtered = posts.filter((post) => {
       const matchesFilter = filter === 'All' || post.category === filter;
       const matchesSearch = !query || `${post.title} ${post.body} ${post.author} ${post.category}`.toLowerCase().includes(query);
       return matchesFilter && matchesSearch;
     });
-  }, [filter, posts, search, settings.language]);
+    const city = profile.city.trim().toLowerCase();
+    return city ? [...filtered].sort((a, b) => Number((b.city ?? '').toLowerCase() === city) - Number((a.city ?? '').toLowerCase() === city)) : filtered;
+  }, [filter, posts, profile.city, search, settings.language]);
 
   return (
     <View style={styles.container}>

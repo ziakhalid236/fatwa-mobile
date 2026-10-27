@@ -4,7 +4,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { PrimaryButton, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
-import { API_BASE_URL, useApp } from '@/lib/store';
+import { API_BASE_URL, getDeviceId, useApp } from '@/lib/store';
 import type { PostCategory } from '@/lib/types';
 
 const categories: PostCategory[] = ['Islamic', 'History', 'Poetry', 'Reflection', 'Seerah'];
@@ -22,21 +22,22 @@ export default function PostSubmissionScreen() {
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    if (name.trim().length < 2 || body.trim().length < 20) {
-      Alert.alert('More details needed', 'Please enter your name and at least 20 characters for the post.');
+    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2 || body.trim().length < 20) {
+      Alert.alert('More details needed', 'Please enter your name, country, city, and at least 20 characters for the post.');
       return;
     }
     setBusy(true);
     try {
+      const deviceId = await getDeviceId();
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, country, city, title, body, category, language: settings.language }),
+        body: JSON.stringify({ deviceId, name: name.trim(), country: country.trim(), city: city.trim(), title: title.trim(), body: body.trim(), category, language: settings.language }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Unable to send your post');
       setProfile({ name: name.trim(), city: city.trim() });
-      Alert.alert('Sent for review', 'Your post is pending admin approval. It will appear publicly only after review.', [
+      Alert.alert('Sent for review', 'Your post is pending admin approval. You will receive a notification when it is approved and published.', [
         { text: 'Done', onPress: () => nav.back() },
       ]);
     } catch (error) {

@@ -34,7 +34,7 @@ export default function AlarmScreen() {
   const [scheduled, setScheduled] = useState<number | null>(null);
 
   // Primary adhan audio imported from the user's Google Drive file "Fatwa app".
-  const player = useAudioPlayer(require('../assets/audio/adhan-drive.mp3'));
+  const player = useAudioPlayer(require('../assets/audio/adhan_drive.mp3'));
   const headingSub = useRef<Location.LocationSubscription | null>(null);
 
   useEffect(() => {

@@ -35,7 +35,7 @@
         {
           "color": "#0B6B53",
           "defaultChannel": "adhan-alarms",
-          "sounds": ["./assets/audio/adhan-drive.mp3", "./assets/audio/adhan_notification.wav"]
+          "sounds": ["./assets/audio/adhan_drive.mp3", "./assets/audio/adhan_notification.wav"]
         }
       ],
       [

@@ -109,6 +109,14 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+export async function getDeviceId(): Promise<string> {
+  const existing = await AsyncStorage.getItem(STORE_KEYS.deviceId);
+  if (existing) return existing;
+  const created = `fatwa-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  await AsyncStorage.setItem(STORE_KEYS.deviceId, created);
+  return created;
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [profile, setProfileState] = useState<Profile>(emptyProfile);
@@ -336,6 +344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 body: String(item.body ?? ''),
                 category: mapCategory(item.category),
                 author: String(item.author ?? 'Fatwa editorial team'),
+                city: typeof item.city === 'string' ? item.city : undefined,
                 source: typeof item.source === 'string' ? item.source : undefined,
                 views: Number(item.views ?? 0),
                 likes: Number(item.likes ?? 0),
@@ -571,9 +580,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (API_BASE_URL) {
         try {
-          const storedDeviceId = await AsyncStorage.getItem(STORE_KEYS.deviceId);
-          const deviceId = storedDeviceId ?? `fatwa-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-          if (!storedDeviceId) await AsyncStorage.setItem(STORE_KEYS.deviceId, deviceId);
+          const deviceId = await getDeviceId();
           const response = await fetch(`${API_BASE_URL}/api/questions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

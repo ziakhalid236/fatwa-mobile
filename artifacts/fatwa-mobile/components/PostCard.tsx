@@ -69,7 +69,8 @@ export function PostCard({
             <View style={styles.metaLine}>
               <Text style={[styles.date, { color: colors.mutedForeground }]}>{post.date}</Text>
               <Text style={[styles.metaDot, { color: colors.mutedForeground }]}>•</Text>
-              <Feather name="globe" size={11} color={colors.mutedForeground} />
+              <Feather name={post.city ? 'map-pin' : 'globe'} size={11} color={colors.mutedForeground} />
+              {post.city ? <Text style={[styles.date, { color: colors.mutedForeground }]} numberOfLines={1}>{post.city}</Text> : null}
             </View>
           </View>
           <Pill

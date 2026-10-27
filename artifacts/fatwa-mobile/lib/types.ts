@@ -11,6 +11,7 @@ export type Post = {
   body: string;
   category: PostCategory;
   author: string;
+  city?: string;
   source?: string;
   views: number;
   likes: number;
