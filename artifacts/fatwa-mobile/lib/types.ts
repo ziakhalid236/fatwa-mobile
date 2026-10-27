@@ -47,7 +47,9 @@ export type QuestionStatus = 'Submitted' | 'Under review' | 'Answered';
 export type UserQuestion = {
   id: string;
   name: string;
+  gender: 'male' | 'female' | 'unspecified';
   city: string;
+  country: string;
   question: string;
   category: FatwaCategory;
   status: QuestionStatus;

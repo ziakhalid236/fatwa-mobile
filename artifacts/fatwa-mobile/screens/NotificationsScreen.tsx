@@ -79,7 +79,8 @@ export default function NotificationsScreen() {
                 key={item.id}
                 onPress={() => {
                   markNotificationRead(item.id);
-                  if (item.kind === 'answer') nav.goTab('questions');
+                  if (item.kind === 'answer' && item.refId) nav.push({ name: 'questionDetail', questionId: item.refId });
+                  else if (item.kind === 'answer') nav.goTab('questions');
                   else if (item.kind === 'fatwa' && item.refId) nav.push({ name: 'fatwa', fatwaId: item.refId });
                   else if (item.kind === 'post' && item.refId) nav.push({ name: 'post', postId: item.refId });
                 }}

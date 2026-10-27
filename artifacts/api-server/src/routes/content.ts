@@ -31,11 +31,11 @@ router.get("/fatwas/:id", async (req, res) => {
 });
 
 router.post("/questions", async (req, res) => {
-  const { name, city, question, category } = req.body ?? {};
-  if (typeof name !== "string" || name.trim().length < 2 || typeof question !== "string" || question.trim().length < 20 || !validCategory(category)) {
-    return res.status(400).json({ error: "name, question, and a valid category are required" });
+  const { name, gender, country, city, question, category } = req.body ?? {};
+  if (typeof name !== "string" || name.trim().length < 2 || !["male", "female", "unspecified"].includes(gender) || typeof country !== "string" || country.trim().length < 2 || typeof question !== "string" || question.trim().length < 20 || !validCategory(category)) {
+    return res.status(400).json({ error: "name, gender, country, question, and a valid category are required" });
   }
-  const saved = await contentStore.createQuestion({ name: name.trim(), city: typeof city === "string" ? city.trim() : undefined, question: question.trim(), category });
+  const saved = await contentStore.createQuestion({ name: name.trim(), gender, country: country.trim(), city: typeof city === "string" ? city.trim() : undefined, question: question.trim(), category });
   return res.status(201).json(saved);
 });
 

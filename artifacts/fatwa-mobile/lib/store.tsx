@@ -80,7 +80,9 @@ type AppState = {
   registerView: (id: string) => void;
   submitQuestion: (input: {
     name: string;
+    gender: UserQuestion['gender'];
     city: string;
+    country: string;
     question: string;
     category: UserQuestion['category'];
   }) => Promise<UserQuestion>;
@@ -249,7 +251,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const response = await fetch(`${API_BASE_URL}/api/notifications?deviceId=${encodeURIComponent(deviceId)}`);
         if (!response.ok || !active) return;
         const payload = (await response.json()) as {
-          notifications?: Array<{ id?: string; title?: string; body?: string; createdAt?: string; readAt?: string | null }>;
+          notifications?: Array<{ id?: string; title?: string; body?: string; createdAt?: string; readAt?: string | null; questionId?: string }>;
         };
         const remote = Array.isArray(payload.notifications)
           ? payload.notifications.map((item): AppNotification => ({
@@ -259,6 +261,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               body: String(item.body ?? ''),
               createdAt: String(item.createdAt ?? new Date().toISOString()),
               read: Boolean(item.readAt),
+              refId: typeof item.questionId === 'string' ? item.questionId : undefined,
             }))
           : [];
         setNotifications((current) => {
@@ -490,7 +493,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const submitQuestion = useCallback(
     async (input: {
       name: string;
+      gender: UserQuestion['gender'];
       city: string;
+      country: string;
       question: string;
       category: UserQuestion['category'];
     }) => {
@@ -498,7 +503,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const entry: UserQuestion = {
         id: `FAT-${Date.now().toString().slice(-8)}`,
         name: input.name,
+        gender: input.gender,
         city: input.city,
+        country: input.country,
         question: input.question,
         category: input.category,
         status: 'Submitted',
@@ -530,7 +537,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             body: JSON.stringify({
               deviceId,
               name: input.name,
+              gender: input.gender,
               city: input.city,
+              country: input.country,
               question: input.question,
               category: input.category,
             }),

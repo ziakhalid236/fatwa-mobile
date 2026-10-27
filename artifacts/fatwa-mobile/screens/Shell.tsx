@@ -20,6 +20,7 @@ import PostDetailScreen from '@/screens/PostDetailScreen';
 import PostSubmissionScreen from '@/screens/PostSubmissionScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import QuestionsScreen from '@/screens/QuestionsScreen';
+import QuestionDetailScreen from '@/screens/QuestionDetailScreen';
 import SavedScreen from '@/screens/SavedScreen';
 import SettingsScreen from '@/screens/SettingsScreen';
 
@@ -39,6 +40,7 @@ const titles: Record<string, string> = {
   saved: 'Saved posts',
   settings: 'Settings',
   prayerSettings: 'Prayer settings',
+  questionDetail: 'Answer details',
 };
 
 function Shell() {
@@ -124,6 +126,7 @@ function Shell() {
   else if (route.name === 'saved') content = <SavedScreen />;
   else if (route.name === 'settings') content = <SettingsScreen />;
   else if (route.name === 'prayerSettings') content = <AlarmScreen />;
+  else if (route.name === 'questionDetail') content = <QuestionDetailScreen questionId={route.questionId} />;
   else if (tab === 'home') content = <HomeScreen />;
   else if (tab === 'fatwa') content = <FatwaScreen />;
   else if (tab === 'questions') content = <QuestionsScreen askSignal={askSignal} />;

@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
@@ -9,7 +9,7 @@ import { useApp } from '@/lib/store';
 export default function SettingsScreen() {
   const colors = useColors();
   const nav = useNav();
-  const { settings, setSettings, prayerCity } = useApp();
+  const { settings, setSettings, prayerCity, profile, setProfile } = useApp();
   const languages = [
     { key: 'en' as const, label: 'English' },
     { key: 'ur' as const, label: 'اردو' },
@@ -59,7 +59,15 @@ export default function SettingsScreen() {
         })}
       </View>
 
-      <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <SectionTitle title="Account" subtitle="Stay in guest mode or add your name for personalised question replies." />
+      <View style={[styles.accountCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.inputLabel, { color: colors.foreground }]}>Your name</Text>
+        <TextInput value={profile.name} onChangeText={(value) => setProfile({ name: value })} placeholder="Guest name (optional)" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
+        <Text style={[styles.inputLabel, { color: colors.foreground }]}>City / country</Text>
+        <TextInput value={profile.city} onChangeText={(value) => setProfile({ city: value })} placeholder="Your location (optional)" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
+      </View>
+
+      <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}> 
         <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
           <MaterialCommunityIcons name="crosshairs-gps" size={19} color={colors.primary} />
         </View>
@@ -137,4 +145,7 @@ const styles = StyleSheet.create({
   languageRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   languageChip: { borderWidth: 1, borderRadius: 15, paddingHorizontal: 15, paddingVertical: 10 },
   languageText: { fontSize: 12.5, fontWeight: '700' },
+  accountCard: { borderWidth: 1, borderRadius: 18, padding: 14, marginBottom: 15 },
+  inputLabel: { fontSize: 11.5, fontWeight: '700', marginBottom: 6 },
+  input: { minHeight: 46, borderWidth: 1, borderRadius: 13, paddingHorizontal: 12, fontSize: 13, marginBottom: 12 },
 });

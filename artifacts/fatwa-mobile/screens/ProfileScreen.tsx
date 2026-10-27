@@ -1,7 +1,7 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Avatar, InfoBanner, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
@@ -53,7 +53,6 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
   const nav = useNav();
   const {
     profile,
-    setProfile,
     questions,
     savedPostIds,
     notifications,
@@ -119,26 +118,6 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
           <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Saved</Text>
         </View>
       </View>
-
-      <SectionTitle title="Your details" />
-      <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Full name</Text>
-      <TextInput
-        value={profile.name}
-        onChangeText={(value) => setProfile({ name: value })}
-        placeholder="Enter your name"
-        placeholderTextColor={colors.mutedForeground}
-        style={[styles.input, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
-        autoCapitalize="words"
-      />
-      <Text style={[styles.fieldLabel, { color: colors.foreground }]}>City / country</Text>
-      <TextInput
-        value={profile.city}
-        onChangeText={(value) => setProfile({ city: value })}
-        placeholder="Enter your city"
-        placeholderTextColor={colors.mutedForeground}
-        style={[styles.input, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
-        autoCapitalize="words"
-      />
 
       <SectionTitle title="Your space" />
       <ProfileRow
@@ -258,15 +237,6 @@ const styles = StyleSheet.create({
   statBox: { flex: 1, borderRadius: 16, borderWidth: 1, paddingVertical: 13, alignItems: 'center' },
   statValue: { fontSize: 18, fontWeight: '800' },
   statLabel: { fontSize: 10.5, fontWeight: '600', marginTop: 3 },
-  fieldLabel: { fontSize: 12, fontWeight: '700', marginBottom: 8 },
-  input: {
-    minHeight: 50,
-    borderWidth: 1,
-    borderRadius: 15,
-    paddingHorizontal: 14,
-    fontSize: 13.5,
-    marginBottom: 15,
-  },
   row: {
     borderRadius: 18,
     borderWidth: 1,

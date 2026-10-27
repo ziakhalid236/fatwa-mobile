@@ -32,6 +32,8 @@ export type Fatwa = {
 export type UserQuestion = {
   id: string;
   name: string;
+  gender: "male" | "female" | "unspecified";
+  country?: string;
   city?: string;
   question: string;
   category: FatwaCategory;
@@ -192,7 +194,7 @@ export class ContentStore {
     return true;
   }
 
-  async createQuestion(input: Pick<UserQuestion, "name" | "city" | "question" | "category">) {
+  async createQuestion(input: Pick<UserQuestion, "name" | "gender" | "country" | "city" | "question" | "category">) {
     await this.ready;
     const timestamp = new Date().toISOString();
     const question: UserQuestion = { ...input, id: `question-${randomUUID()}`, status: "submitted", createdAt: timestamp, updatedAt: timestamp };

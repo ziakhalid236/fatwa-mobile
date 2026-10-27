@@ -40,6 +40,8 @@ type Fatwa = {
 type Question = {
   id: string;
   name: string;
+  gender?: "male" | "female" | "unspecified";
+  country?: string;
   city?: string;
   question: string;
   category: Category;
@@ -458,7 +460,7 @@ function QuestionRow({
         <span className={`status ${question.status}`}>{question.status.replace("_", " ")}</span>
       </div>
       <h3>{question.question}</h3>
-      <p className="questioner">Asked by {question.name}{question.city ? ` · ${question.city}` : ""}</p>
+      <p className="questioner">Asked by {question.name}{question.gender && question.gender !== "unspecified" ? ` · ${question.gender}` : ""}{question.city ? ` · ${question.city}` : ""}{question.country ? `, ${question.country}` : ""}</p>
       {question.status !== "answered" ? (
         <div className="answer-form">
           <textarea

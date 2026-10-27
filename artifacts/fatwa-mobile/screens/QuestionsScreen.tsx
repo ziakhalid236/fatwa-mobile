@@ -37,7 +37,9 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
 
   const [step, setStep] = useState<Step>('list');
   const [name, setName] = useState(profile.name);
+  const [gender, setGender] = useState<'male' | 'female' | 'unspecified'>('unspecified');
   const [city, setCity] = useState(profile.city);
+  const [country, setCountry] = useState('Pakistan');
   const [questionText, setQuestionText] = useState('');
   const [category, setCategory] = useState<FatwaCategory>('Namaz');
   const [submitting, setSubmitting] = useState(false);
@@ -50,7 +52,9 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
 
   const startAsk = useCallback(() => {
     setName(profile.name);
+    setGender('unspecified');
     setCity(profile.city);
+    setCountry('Pakistan');
     setQuestionText('');
     setCategory('Namaz');
     setStep('details');
@@ -61,8 +65,8 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
   }, [askSignal, startAsk]);
 
   const continueFromDetails = () => {
-    if (name.trim().length < 2 || city.trim().length < 2) {
-      Alert.alert('A little more detail', 'Enter your name and city to continue.');
+    if (name.trim().length < 2 || city.trim().length < 2 || country.trim().length < 2) {
+      Alert.alert('A little more detail', 'Enter your name, country, and city to continue.');
       return;
     }
     setStep('question');
@@ -81,7 +85,9 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
     try {
       const entry = await submitQuestion({
         name: name.trim(),
+        gender,
         city: city.trim(),
+        country: country.trim(),
         question: questionText.trim(),
         category,
       });
@@ -145,7 +151,17 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
               autoCapitalize="words"
               testID="ask-name"
             />
-            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>City / country *</Text>
+            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Country *</Text>
+            <TextInput
+              value={country}
+              onChangeText={setCountry}
+              placeholder="Enter your country"
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.input, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
+              autoCapitalize="words"
+              testID="ask-country"
+            />
+            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>City / area *</Text>
             <TextInput
               value={city}
               onChangeText={setCity}
@@ -155,6 +171,13 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
               autoCapitalize="words"
               testID="ask-city"
             />
+            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Gender *</Text>
+            <View style={styles.categoryGrid}>
+              {(['male', 'female', 'unspecified'] as const).map((item) => {
+                const active = gender === item;
+                return <Pressable key={item} onPress={() => setGender(item)} style={[styles.categoryChip, { backgroundColor: active ? colors.primarySoft : colors.card, borderColor: active ? colors.primary : colors.border }]}><Text style={[styles.categoryChipText, { color: active ? colors.primary : colors.foreground }]}>{item === 'male' ? 'Male' : item === 'female' ? 'Female' : 'Prefer not to say'}</Text></Pressable>;
+              })}
+            </View>
             <InfoBanner icon="lock" text="Your identity is only shared with the reviewing scholar." />
           </>
         ) : step === 'question' ? (
@@ -216,7 +239,8 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
             </Text>
             <View style={[styles.reviewCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <ReviewRow label="Name" value={name} />
-              <ReviewRow label="Location" value={city} />
+              <ReviewRow label="Gender" value={gender === 'unspecified' ? 'Prefer not to say' : gender === 'male' ? 'Male' : 'Female'} />
+              <ReviewRow label="Location" value={`${city}, ${country}`} />
               <ReviewRow label="Category" value={category} />
               <View style={[styles.reviewQuestion, { borderTopColor: colors.border }]}>
                 <Text style={[styles.reviewLabel, { color: colors.mutedForeground }]}>QUESTION</Text>
