@@ -8,6 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { AppState as NativeAppState } from 'react-native';
 import { defaultCity, fatwas as seedFatwas, posts as seedPosts, prayerCities } from '@/data/content';
 import type {
   AdhanAlarm,
@@ -206,6 +207,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!API_BASE_URL) return;
     let active = true;
+    const syncRemoteNotifications = async () => {
+      try {
+        const deviceId = await AsyncStorage.getItem(STORE_KEYS.deviceId);
+        if (!deviceId || !active) return;
+        const response = await fetch(`${API_BASE_URL}/api/notifications?deviceId=${encodeURIComponent(deviceId)}`);
+        if (!response.ok || !active) return;
+        const payload = (await response.json()) as {
+          notifications?: Array<{ id?: string; title?: string; body?: string; createdAt?: string; readAt?: string | null }>;
+        };
+        const remote = Array.isArray(payload.notifications)
+          ? payload.notifications.map((item): AppNotification => ({
+              id: `remote-${String(item.id ?? makeId('note'))}`,
+              kind: String(item.title ?? '').toLowerCase().includes('answered') ? 'answer' : 'system',
+              title: String(item.title ?? 'Fatwa update'),
+              body: String(item.body ?? ''),
+              createdAt: String(item.createdAt ?? new Date().toISOString()),
+              read: Boolean(item.readAt),
+            }))
+          : [];
+        setNotifications((current) => {
+          const local = current.filter((item) => !item.id.startsWith('remote-'));
+          const next = [...remote, ...local].slice(0, 60);
+          persist([[STORE_KEYS.notifications, next]]);
+          return next;
+        });
+      } catch {
+        // Local notifications remain available when Cloudflare is temporarily offline.
+      }
+    };
     const loadRemote = async () => {
       try {
         const [postsResponse, fatwasResponse] = await Promise.all([
@@ -262,12 +292,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // Bundled content remains available when the API is offline.
       }
+      await syncRemoteNotifications();
     };
     void loadRemote();
+    const interval = setInterval(() => void syncRemoteNotifications(), 30_000);
+    const appState = NativeAppState.addEventListener('change', (state) => {
+      if (state === 'active') void syncRemoteNotifications();
+    });
     return () => {
       active = false;
+      clearInterval(interval);
+      appState.remove();
     };
-  }, []);
+  }, [persist]);
 
   const setProfile = useCallback(
     (patch: Partial<Profile>) => {
@@ -359,6 +396,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         persist([[STORE_KEYS.notifications, next]]);
         return next;
       });
+      if (id.startsWith('remote-') && API_BASE_URL) {
+        void AsyncStorage.getItem(STORE_KEYS.deviceId).then((deviceId) => {
+          if (!deviceId) return;
+          return fetch(`${API_BASE_URL}/api/notifications/${encodeURIComponent(id.slice(7))}/read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId }),
+          }).catch(() => undefined);
+        });
+      }
     },
     [persist],
   );

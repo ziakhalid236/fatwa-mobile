@@ -66,7 +66,7 @@ const categories: Category[] = [
   "Tafseer & Quran",
 ];
 
-const API = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+const API = (import.meta.env.VITE_API_URL ?? "https://fatwa-api.ziakhalid236.workers.dev").replace(/\/$/, "");
 const metricDefinitions: Array<[string, keyof Stats, LucideIcon]> = [
   ["Published fatwas", "publishedFatwas", BookOpen],
   ["Draft posts", "draftPosts", ClipboardList],
