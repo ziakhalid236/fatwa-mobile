@@ -14,7 +14,6 @@ permissions:
 
 env:
   NODE_VERSION: 22
-  PNPM_VERSION: 11.25.0
   JAVA_VERSION: 17
   # Preview builds only need the ABI real phones use. Building all four
   # (armeabi-v7a, arm64-v8a, x86, x86_64) doubles the native CMake work.
@@ -31,8 +30,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
