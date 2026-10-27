@@ -10,6 +10,7 @@ export type Route =
   | { name: 'notifications' }
   | { name: 'saved' }
   | { name: 'myQuestions' }
+  | { name: 'questionDetail'; questionId: string }
   | { name: 'settings' }
   | { name: 'prayerSettings' };
 
