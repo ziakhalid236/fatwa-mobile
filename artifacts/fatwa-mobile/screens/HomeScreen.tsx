@@ -2,7 +2,6 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PostCard } from '@/components/PostCard';
-import { HeroCard } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
@@ -52,16 +51,6 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <HeroCard
-        eyebrow="Fatwa • daily guidance"
-        title="Guidance for your day"
-        subtitle="Trusted answers and thoughtful reminders."
-        icon="star-crescent"
-        actionLabel="Ask a question"
-        onAction={nav.openAsk}
-        testID="home-ask-guidance"
-      />
-
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {filters.map((item) => {
           const active = filter === item.key;
@@ -79,17 +68,6 @@ export default function HomeScreen() {
           );
         })}
       </ScrollView>
-
-      <View style={styles.sectionHeader}>
-        <View style={styles.sectionTitleWrap}>
-          <MaterialCommunityIcons name="book-open-outline" size={28} color={colors.primary} />
-          <Text style={[styles.sectionTitle, { color: colors.primary }]}>Latest Posts</Text>
-        </View>
-        <Pressable onPress={() => setFilter('All')} accessibilityRole="button" hitSlop={8} style={styles.viewAll}>
-          <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
-          <Feather name="arrow-right" size={20} color={colors.primary} />
-        </Pressable>
-      </View>
 
       {visiblePosts.map((post) => (
         <PostCard
@@ -140,11 +118,6 @@ const styles = StyleSheet.create({
   filterRow: { gap: 8, paddingBottom: 20 },
   filterChip: { minHeight: 44, borderRadius: 22, borderWidth: 1, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 8 },
   filterText: { fontSize: 13, fontWeight: '700' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
-  viewAll: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  viewAllText: { fontSize: 14, fontWeight: '700' },
   empty: { borderWidth: 1, borderRadius: 22, padding: 28, alignItems: 'center', marginBottom: 18 },
   emptyTitle: { fontSize: 16, fontWeight: '700', marginTop: 10 },
   emptyText: { fontSize: 12, marginTop: 5 },
