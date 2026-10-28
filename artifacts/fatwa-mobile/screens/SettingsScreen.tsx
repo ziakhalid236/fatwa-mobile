@@ -1,4 +1,6 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import React from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SectionTitle, uiStyles } from '@/components/ui';
@@ -15,6 +17,13 @@ export default function SettingsScreen() {
     { key: 'ur' as const, label: 'اردو' },
     { key: 'ar' as const, label: 'العربية' },
   ];
+
+  const chooseProfilePhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.85 });
+    if (!result.canceled && result.assets[0]?.uri) setProfile({ avatarUri: result.assets[0].uri });
+  };
 
   return (
     <View style={uiStyles.screenPadding}>
@@ -61,13 +70,23 @@ export default function SettingsScreen() {
 
       <SectionTitle title="Account" subtitle="Stay in guest mode or add your name for personalised question replies." />
       <View style={[styles.accountCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.profilePhotoRow}>
+          {profile.avatarUri ? <Image source={{ uri: profile.avatarUri }} style={styles.profilePhoto} contentFit="cover" /> : <View style={[styles.profilePhoto, styles.profilePhotoPlaceholder, { backgroundColor: colors.primarySoft }]}><Feather name="user" size={22} color={colors.primary} /></View>}
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.inputLabel, { color: colors.foreground }]}>Profile photo</Text>
+            <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Stored privately on this device.</Text>
+          </View>
+          <Pressable onPress={() => void chooseProfilePhoto()} style={[styles.photoButton, { borderColor: colors.border }]} accessibilityRole="button">
+            <Text style={[styles.photoButtonText, { color: colors.primary }]}>{profile.avatarUri ? 'Change' : 'Add'}</Text>
+          </Pressable>
+        </View>
         <Text style={[styles.inputLabel, { color: colors.foreground }]}>Your name</Text>
         <TextInput value={profile.name} onChangeText={(value) => setProfile({ name: value })} placeholder="Guest name (optional)" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
         <Text style={[styles.inputLabel, { color: colors.foreground }]}>City / country</Text>
         <TextInput value={profile.city} onChangeText={(value) => setProfile({ city: value })} placeholder="Your location (optional)" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
       </View>
 
-      <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+      <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
           <MaterialCommunityIcons name="crosshairs-gps" size={19} color={colors.primary} />
         </View>
@@ -146,6 +165,11 @@ const styles = StyleSheet.create({
   languageChip: { borderWidth: 1, borderRadius: 17, paddingHorizontal: 15, paddingVertical: 10 },
   languageText: { fontSize: 12.5, fontWeight: '700' },
   accountCard: { borderWidth: 1, borderRadius: 21, padding: 16, marginBottom: 16 },
+  profilePhotoRow: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 16 },
+  profilePhoto: { width: 52, height: 52, borderRadius: 26 },
+  profilePhotoPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  photoButton: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8 },
+  photoButtonText: { fontSize: 12, fontWeight: '800' },
   inputLabel: { fontSize: 11.5, fontWeight: '700', marginBottom: 6 },
   input: { minHeight: 48, borderWidth: 1, borderRadius: 15, paddingHorizontal: 13, fontSize: 13, marginBottom: 12 },
 });

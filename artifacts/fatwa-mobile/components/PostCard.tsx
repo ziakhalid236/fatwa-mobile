@@ -10,7 +10,7 @@ import type { Post } from '@/lib/types';
 
 export const POST_CARD_BODY_LINES = 5;
 
-const categoryTone: Record<Post['category'], 'primary' | 'gold' | 'muted'> = {
+const categoryTone: Partial<Record<Post['category'], 'primary' | 'gold' | 'muted'>> = {
   Islamic: 'primary',
   Seerah: 'primary',
   History: 'gold',
@@ -18,7 +18,7 @@ const categoryTone: Record<Post['category'], 'primary' | 'gold' | 'muted'> = {
   Reflection: 'gold',
 };
 
-const categoryIcon: Record<Post['category'], keyof typeof MaterialCommunityIcons.glyphMap> = {
+const categoryIcon: Partial<Record<Post['category'], keyof typeof MaterialCommunityIcons.glyphMap>> = {
   Islamic: 'star-crescent',
   Seerah: 'account-group-outline',
   History: 'bank-outline',
@@ -84,8 +84,8 @@ export function PostCard({
           </View>
           <Pill
             label={post.category}
-            icon={categoryIcon[post.category]}
-            tone={categoryTone[post.category]}
+            icon={categoryIcon[post.category] ?? 'apps'}
+            tone={categoryTone[post.category] ?? 'primary'}
           />
         </View>
 

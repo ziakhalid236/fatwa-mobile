@@ -5,14 +5,12 @@ import { PostCard } from '@/components/PostCard';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
-import type { PostCategory } from '@/lib/types';
+import { POST_CATEGORIES, type PostCategory } from '@/lib/types';
 
+const categoryIcons: Array<keyof typeof MaterialCommunityIcons.glyphMap> = ['star-crescent', 'book-open-page-variant', 'book-open-variant', 'bank-outline', 'hands-pray', 'account-heart-outline', 'account-group-outline', 'feather', 'bullhorn-outline', 'apps'];
 const filters: Array<{ key: PostCategory | 'All'; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }> = [
   { key: 'All', label: 'All', icon: 'apps' },
-  { key: 'Islamic', label: 'Islamic', icon: 'star-crescent' },
-  { key: 'History', label: 'History', icon: 'bank-outline' },
-  { key: 'Poetry', label: 'Poetry', icon: 'feather' },
-  { key: 'Reflection', label: 'Reflections', icon: 'heart-outline' },
+  ...POST_CATEGORIES.map((category, index) => ({ key: category, label: category, icon: categoryIcons[index] })),
 ];
 
 export default function HomeScreen() {

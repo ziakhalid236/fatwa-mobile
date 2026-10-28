@@ -1,4 +1,5 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
@@ -93,7 +94,7 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
         style={styles.banner}
       >
         <View style={styles.bannerAvatar}>
-          <Feather name="user" size={26} color={colors.primary} />
+          {profile.avatarUri ? <Image source={{ uri: profile.avatarUri }} style={styles.bannerAvatarImage} contentFit="cover" /> : <Feather name="user" size={26} color={colors.primary} />}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.bannerName}>{profile.name.trim() || 'Guest reader'}</Text>
@@ -230,7 +231,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  bannerAvatarImage: { width: '100%', height: '100%' },
   bannerName: { fontSize: 17, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
   bannerSub: { fontSize: 12, color: '#DCEFE7' },
   statsRow: { flexDirection: 'row', gap: 9, marginTop: 14, marginBottom: 8 },

@@ -1,5 +1,6 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -7,9 +8,7 @@ import { PrimaryButton, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { API_BASE_URL, getDeviceId, useApp } from '@/lib/store';
-import type { PostCategory } from '@/lib/types';
-
-const categories: PostCategory[] = ['Islamic', 'History', 'Poetry', 'Reflection', 'Seerah'];
+import { POST_CATEGORIES, type PostCategory } from '@/lib/types';
 
 export default function PostSubmissionScreen() {
   const colors = useColors();
@@ -20,7 +19,8 @@ export default function PostSubmissionScreen() {
   const [city, setCity] = useState(profile.city);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [category, setCategory] = useState<PostCategory>('Islamic');
+  const [category, setCategory] = useState<PostCategory>('Islamic Guidance');
+  const [categorySearch, setCategorySearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const imageUri = imageAsset?.uri ?? '';
@@ -62,11 +62,8 @@ export default function PostSubmissionScreen() {
       form.append('category', category);
       form.append('language', settings.language);
       if (imageAsset) {
-        form.append('image', {
-          uri: imageAsset.uri,
-          name: imageAsset.fileName ?? `community-${Date.now()}.jpg`,
-          type: imageAsset.mimeType ?? 'image/jpeg',
-        } as unknown as Blob);
+        const file = new File(imageAsset.uri);
+        form.append('image', file, imageAsset.fileName ?? `community-${Date.now()}.jpg`);
       }
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',
@@ -103,8 +100,16 @@ export default function PostSubmissionScreen() {
       <SectionTitle title="Post" subtitle={`It will be submitted in ${settings.language === 'ur' ? 'Urdu' : settings.language === 'ar' ? 'Arabic' : 'English'}.`} />
       <TextInputField label="Title (optional)" value={title} onChangeText={setTitle} placeholder="A short title" colors={colors} />
       <Text style={[styles.label, { color: colors.foreground }]}>Category</Text>
+      <TextInput
+        value={categorySearch}
+        onChangeText={setCategorySearch}
+        placeholder="Search categories"
+        placeholderTextColor={colors.mutedForeground}
+        style={[styles.categorySearch, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
+        accessibilityLabel="Search post categories"
+      />
       <View style={styles.chips}>
-        {categories.map((item) => {
+        {POST_CATEGORIES.filter((item) => item.toLowerCase().includes(categorySearch.trim().toLowerCase())).map((item) => {
           const active = category === item;
           return (
             <Pressable key={item} onPress={() => setCategory(item)} style={[styles.chip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}>
@@ -174,6 +179,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
   input: { minHeight: 50, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, fontSize: 13 },
   textarea: { minHeight: 160, borderWidth: 1, borderRadius: 18, padding: 15, fontSize: 14, lineHeight: 22, marginBottom: 17 },
+  categorySearch: { minHeight: 44, borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, fontSize: 13, marginBottom: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 15 },
   chip: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
   chipText: { fontSize: 11.5, fontWeight: '700' },

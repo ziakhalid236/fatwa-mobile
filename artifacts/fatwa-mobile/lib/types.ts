@@ -1,6 +1,34 @@
 export type TabKey = 'home' | 'fatwa' | 'questions' | 'alarm' | 'profile';
 
-export type PostCategory = 'Islamic' | 'History' | 'Poetry' | 'Reflection' | 'Seerah';
+export type PostCategory =
+  | 'Islamic'
+  | 'History'
+  | 'Poetry'
+  | 'Reflection'
+  | 'Seerah'
+  | 'Islamic Guidance'
+  | 'Quran & Tafseer'
+  | 'Hadith & Sunnah'
+  | 'Seerah & History'
+  | 'Prayer & Worship'
+  | 'Family & Character'
+  | 'Community & Public Benefit'
+  | 'Poetry & Reflection'
+  | 'Announcements'
+  | 'General';
+
+export const POST_CATEGORIES: PostCategory[] = [
+  'Islamic Guidance',
+  'Quran & Tafseer',
+  'Hadith & Sunnah',
+  'Seerah & History',
+  'Prayer & Worship',
+  'Family & Character',
+  'Community & Public Benefit',
+  'Poetry & Reflection',
+  'Announcements',
+  'General',
+];
 export type PostLanguage = 'en' | 'ur' | 'ar';
 
 export type PostTranslation = { title: string; body: string };
@@ -84,6 +112,7 @@ export type AdhanAlarm = {
 export type Profile = {
   name: string;
   city: string;
+  avatarUri?: string;
 };
 
 export type PrayerCity = {

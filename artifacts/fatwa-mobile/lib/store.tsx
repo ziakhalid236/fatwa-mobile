@@ -9,7 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { AppState as NativeAppState } from 'react-native';
-import { defaultCity, fatwas as seedFatwas, posts as seedPosts, prayerCities } from '@/data/content';
+import { defaultCity, prayerCities } from '@/data/content';
 import { notifyNow } from '@/lib/adhan';
 import type {
   AdhanAlarm,
@@ -175,6 +175,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ? {
                 name: typeof profileValue.name === 'string' ? profileValue.name : '',
                 city: typeof profileValue.city === 'string' ? profileValue.city : '',
+                avatarUri: typeof profileValue.avatarUri === 'string' ? profileValue.avatarUri : undefined,
               }
             : emptyProfile,
         );
@@ -329,17 +330,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!active) return;
         if (postsResponse.ok) {
           const payload = (await postsResponse.json()) as { posts?: Array<Record<string, unknown>> };
-          if (Array.isArray(payload.posts) && payload.posts.length) {
+          if (Array.isArray(payload.posts)) {
             const mapCategory = (value: unknown): Post['category'] => {
               const category = String(value ?? '').toLowerCase();
-              if (category.includes('history')) return 'History';
-              if (category.includes('poetry')) return 'Poetry';
-              if (category.includes('reflection')) return 'Reflection';
-              if (category.includes('seerah')) return 'Seerah';
-              return 'Islamic';
+              if (category.includes('quran') || category.includes('tafseer')) return 'Quran & Tafseer';
+              if (category.includes('hadith') || category.includes('sunnah')) return 'Hadith & Sunnah';
+              if (category.includes('history') || category.includes('seerah')) return 'Seerah & History';
+              if (category.includes('prayer') || category.includes('worship')) return 'Prayer & Worship';
+              if (category.includes('family') || category.includes('character')) return 'Family & Character';
+              if (category.includes('community') || category.includes('public')) return 'Community & Public Benefit';
+              if (category.includes('poetry') || category.includes('reflection')) return 'Poetry & Reflection';
+              if (category.includes('announcement')) return 'Announcements';
+              if (category.includes('islamic')) return 'Islamic Guidance';
+              return 'General';
             };
             setRemotePosts([
-              ...seedPosts,
               ...payload.posts.map((item) => ({
                 id: String(item.id),
                 title: String(item.title ?? 'Untitled post'),
@@ -364,7 +369,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         if (fatwasResponse.ok) {
           const payload = (await fatwasResponse.json()) as { fatwas?: Array<Record<string, unknown>> };
-          if (Array.isArray(payload.fatwas) && payload.fatwas.length) {
+          if (Array.isArray(payload.fatwas)) {
             setRemoteFatwas(
               payload.fatwas.map((item) => ({
                 id: String(item.id),
@@ -669,8 +674,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void AsyncStorage.multiRemove(Object.values(STORE_KEYS));
   }, []);
 
-  const posts = useMemo(() => remotePosts ?? seedPosts, [remotePosts]);
-  const fatwaList = useMemo(() => remoteFatwas ?? seedFatwas, [remoteFatwas]);
+  const posts = useMemo(() => remotePosts ?? [], [remotePosts]);
+  const fatwaList = useMemo(() => remoteFatwas ?? [], [remoteFatwas]);
 
   const unreadCount = useMemo(
     () => notifications.filter((item) => !item.read).length,
