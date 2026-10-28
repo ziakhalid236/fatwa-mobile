@@ -118,13 +118,17 @@ router.get("/admin/fatwa-agent", async (_req, res) => {
 });
 
 router.patch("/admin/fatwa-agent/bulk", async (req, res) => {
-  const ids = Array.isArray(req.body?.ids)
+  const ids: string[] = Array.isArray(req.body?.ids)
     ? req.body.ids.filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0).slice(0, 100)
     : [];
   const action = req.body?.action === "reject" || req.body?.action === "delete" ? req.body.action : undefined;
   if (!action || ids.length === 0) return res.status(400).json({ error: "action and at least one candidate id are required" });
   try {
-    return res.json(await agentRequest("/api/fatwa-agent/admin/bulk", { method: "PATCH", body: JSON.stringify({ action, ids }) }));
+    const results = await Promise.all(ids.map((id) => agentRequest(`/api/fatwa-agent/admin/${encodeURIComponent(id)}`, {
+      method: action === "delete" ? "DELETE" : "PATCH",
+      ...(action === "delete" ? {} : { body: JSON.stringify({ action }) }),
+    })));
+    return res.json({ ok: true, count: results.length, results });
   } catch (error) {
     const status = Number((error as { status?: number }).status) || 503;
     return res.status(status).json({ error: error instanceof Error ? error.message : "Fatwa agent bulk action unavailable" });
