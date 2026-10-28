@@ -19,6 +19,19 @@ function validCategory(category: unknown): category is FatwaCategory {
   return typeof category === "string" && categories.includes(category as FatwaCategory);
 }
 
+async function agentRequest(path: string, options: RequestInit = {}) {
+  const base = (process.env.FATWA_AGENT_URL ?? "https://blacksite-field-ops.ziakhalid236.workers.dev").replace(/\/$/, "");
+  const token = process.env.FATWA_AGENT_ADMIN_TOKEN;
+  if (!token) throw new Error("FATWA_AGENT_ADMIN_TOKEN is not configured");
+  const response = await fetch(`${base}${path}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", "x-agent-token": token, ...(options.headers ?? {}) },
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(body?.error ?? `Fatwa agent request failed (${response.status})`), { status: response.status });
+  return body;
+}
+
 router.get("/fatwas", async (req, res) => {
   const fatwas = await contentStore.listFatwas(String(req.query.search ?? ""), String(req.query.category ?? ""));
   res.json({ fatwas });
@@ -72,6 +85,33 @@ router.get("/admin/stats", async (_req, res) => res.json(await contentStore.stat
 router.get("/admin/fatwas", async (_req, res) => res.json({ fatwas: await contentStore.listAllFatwas() }));
 router.get("/admin/questions", async (_req, res) => res.json({ questions: await contentStore.listQuestions() }));
 router.get("/admin/post-submissions", async (_req, res) => res.json({ submissions: await contentStore.listSubmissions() }));
+
+router.get("/admin/fatwa-agent", async (_req, res) => {
+  try {
+    return res.json(await agentRequest("/api/fatwa-agent/admin"));
+  } catch (error) {
+    const status = Number((error as { status?: number }).status) || 503;
+    return res.status(status).json({ error: error instanceof Error ? error.message : "Fatwa agent bridge unavailable" });
+  }
+});
+
+router.patch("/admin/fatwa-agent/:id", async (req, res) => {
+  try {
+    return res.json(await agentRequest(`/api/fatwa-agent/admin/${encodeURIComponent(req.params.id)}`, { method: "PATCH", body: JSON.stringify({ action: req.body?.action }) }));
+  } catch (error) {
+    const status = Number((error as { status?: number }).status) || 503;
+    return res.status(status).json({ error: error instanceof Error ? error.message : "Fatwa agent bridge unavailable" });
+  }
+});
+
+router.delete("/admin/fatwa-agent/:id", async (req, res) => {
+  try {
+    return res.json(await agentRequest(`/api/fatwa-agent/admin/${encodeURIComponent(req.params.id)}`, { method: "DELETE" }));
+  } catch (error) {
+    const status = Number((error as { status?: number }).status) || 503;
+    return res.status(status).json({ error: error instanceof Error ? error.message : "Fatwa agent bridge unavailable" });
+  }
+});
 
 router.patch("/admin/post-submissions/:id", async (req, res) => {
   const action = req.body?.action === "approve" ? "approved" : req.body?.action === "reject" ? "rejected" : undefined;

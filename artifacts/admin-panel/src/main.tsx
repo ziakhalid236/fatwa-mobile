@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
+  Bot,
   CheckCircle2,
   ClipboardList,
   ExternalLink,
@@ -81,6 +82,31 @@ type PublishedPost = {
   createdAt: string;
 };
 
+type AgentCandidate = {
+  id: string;
+  source_url: string;
+  institution: string;
+  category?: string | null;
+  scholar?: string;
+  question?: string;
+  answer?: string;
+  urdu_draft?: string;
+  source_title?: string;
+  confidence: number;
+  status: "draft" | "needs_review" | "approved" | "rejected";
+  model?: string;
+  reasons?: string[] | string;
+  created_at: string;
+};
+
+type AgentStatus = {
+  enabled: boolean;
+  mode?: string;
+  lastRun?: { started_at?: string; finished_at?: string; status?: string; processed?: number; errors?: number; message?: string } | null;
+  candidates: AgentCandidate[];
+  sources?: Array<{ status: string; count: number }>;
+};
+
 type Stats = {
   publishedFatwas: number;
   draftPosts: number;
@@ -136,7 +162,7 @@ function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [fatwas, setFatwas] = useState<Fatwa[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [tab, setTab] = useState<"overview" | "fatwas" | "questions" | "submissions" | "posts">("overview");
+  const [tab, setTab] = useState<"overview" | "fatwas" | "questions" | "submissions" | "posts" | "agent">("overview");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -144,6 +170,7 @@ function App() {
   const [submissions, setSubmissions] = useState<PostSubmission[]>([]);
   const [posts, setPosts] = useState<PublishedPost[]>([]);
   const [questionFilter, setQuestionFilter] = useState<QuestionFilter>("all");
+  const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -161,6 +188,8 @@ function App() {
       if (questionResult.status === "fulfilled") setQuestions(questionResult.value.questions);
       if (submissionResult.status === "fulfilled") setSubmissions(submissionResult.value.submissions);
       if (postsResult.status === "fulfilled") setPosts(postsResult.value.posts);
+      const agentResult = await request<AgentStatus>("/admin/fatwa-agent", {}, token).catch(() => null);
+      if (agentResult) setAgentStatus(agentResult);
       sessionStorage.setItem("fatwa-admin-token", token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load dashboard");
@@ -251,6 +280,9 @@ function App() {
           <button className={tab === "posts" ? "active" : ""} onClick={() => setTab("posts")}>
             <Pin size={18} /> Live posts <b>{posts.length}</b>
           </button>
+          <button className={tab === "agent" ? "active" : ""} onClick={() => setTab("agent")}>
+            <Bot size={18} /> AI Agent <b>{agentStatus?.candidates.filter((item) => item.status === "needs_review").length ?? 0}</b>
+          </button>
         </nav>
         <button
           className="logout"
@@ -276,7 +308,9 @@ function App() {
                   ? "Fatwa library"
                   : tab === "questions"
                     ? "Questions inbox"
-                    : "Community submissions"}
+                    : tab === "agent"
+                      ? "Fatwa AI Agent"
+                      : "Community submissions"}
             </h1>
             <p className="subtitle">Review, publish and maintain traceable scholarly guidance.</p>
           </div>
@@ -450,6 +484,18 @@ function App() {
             {submissions.length === 0 && <div className="empty">No community submissions yet.</div>}
           </section>
         )}
+
+        {tab === "agent" && (
+          <AgentPanel
+            status={agentStatus}
+            token={token}
+            onRefresh={async () => {
+              const next = await request<AgentStatus>("/admin/fatwa-agent", {}, token);
+              setAgentStatus(next);
+            }}
+            onNotice={setNotice}
+          />
+        )}
       </main>
 
       {showForm && (
@@ -464,6 +510,74 @@ function App() {
         />
       )}
     </div>
+  );
+}
+
+function AgentPanel({
+  status,
+  token,
+  onRefresh,
+  onNotice,
+}: {
+  status: AgentStatus | null;
+  token: string;
+  onRefresh: () => Promise<void>;
+  onNotice: (message: string) => void;
+}) {
+  const candidates = status?.candidates ?? [];
+  const reviewable = candidates.filter((item) => item.status === "needs_review" || item.status === "draft");
+  const review = async (candidate: AgentCandidate, action: "approve" | "reject") => {
+    try {
+      await request(`/admin/fatwa-agent/${candidate.id}`, { method: "PATCH", body: JSON.stringify({ action }) }, token);
+      await onRefresh();
+      onNotice(action === "approve" ? "AI draft approved and published." : "AI draft rejected and kept private.");
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Unable to review AI draft");
+    }
+  };
+  const remove = async (candidate: AgentCandidate) => {
+    if (!window.confirm("Delete this AI draft permanently?")) return;
+    try {
+      await request(`/admin/fatwa-agent/${candidate.id}`, { method: "DELETE" }, token);
+      await onRefresh();
+      onNotice("AI draft deleted.");
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Unable to delete AI draft");
+    }
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <h2>Fatwa AI Agent drafts</h2>
+          <p>{status?.enabled ? "Source-grounded drafts require an editor decision before publication." : "Agent bridge is not configured on the API."}</p>
+        </div>
+        <button className="text-button" onClick={() => void onRefresh()}>Refresh</button>
+      </div>
+      {status?.lastRun && <div className="agent-summary">Last run: {status.lastRun.status ?? "unknown"} · processed {status.lastRun.processed ?? 0} · errors {status.lastRun.errors ?? 0}</div>}
+      {reviewable.map((candidate) => (
+        <article className="question-card" key={candidate.id}>
+          <div className="row-meta">
+            <span className="tag">{candidate.category || "Needs category"}</span>
+            <span className={`status ${candidate.status}`}>{candidate.status.replace("_", " ")}</span>
+            <span>{Math.round((candidate.confidence || 0) * 100)}% confidence</span>
+          </div>
+          <h3>{candidate.source_title || candidate.question || "Untitled source record"}</h3>
+          <p className="questioner">{candidate.institution}{candidate.scholar ? ` · ${candidate.scholar}` : ""}</p>
+          {candidate.question ? <p className="submission-body"><strong>Question:</strong> {candidate.question}</p> : null}
+          {candidate.answer ? <p className="submission-body"><strong>Source answer:</strong> {candidate.answer}</p> : null}
+          {candidate.urdu_draft ? <p className="submission-body"><strong>Urdu draft:</strong> {candidate.urdu_draft}</p> : null}
+          <div className="answer-footer">
+            <a className="text-button" href={candidate.source_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open full source</a>
+            <button className="primary small" onClick={() => void review(candidate, "approve")}><CheckCircle2 size={15} /> Approve & publish</button>
+            <button className="icon-button danger" onClick={() => void review(candidate, "reject")} title="Reject AI draft">Reject</button>
+            <button className="icon-button danger" onClick={() => void remove(candidate)} title="Delete AI draft" aria-label="Delete AI draft"><Trash2 size={15} /></button>
+          </div>
+        </article>
+      ))}
+      {reviewable.length === 0 && <div className="empty">No AI drafts waiting for review.</div>}
+    </section>
   );
 }
 
