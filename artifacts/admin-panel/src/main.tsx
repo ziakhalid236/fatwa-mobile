@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
-  Bot,
   CheckCircle2,
   ClipboardList,
   ExternalLink,
@@ -170,7 +169,6 @@ function App() {
   const [submissions, setSubmissions] = useState<PostSubmission[]>([]);
   const [posts, setPosts] = useState<PublishedPost[]>([]);
   const [questionFilter, setQuestionFilter] = useState<QuestionFilter>("all");
-  const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -188,11 +186,6 @@ function App() {
       if (questionResult.status === "fulfilled") setQuestions(questionResult.value.questions);
       if (submissionResult.status === "fulfilled") setSubmissions(submissionResult.value.submissions);
       if (postsResult.status === "fulfilled") setPosts(postsResult.value.posts);
-      const agentResult = await request<AgentStatus>("/admin/fatwa-agent", {}, token).catch((err) => {
-        setError(err instanceof Error ? `AI fatwa queue: ${err.message}` : "AI fatwa queue is unavailable");
-        return null;
-      });
-      if (agentResult) setAgentStatus(agentResult);
       sessionStorage.setItem("fatwa-admin-token", token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load dashboard");
@@ -283,9 +276,6 @@ function App() {
           <button className={tab === "posts" ? "active" : ""} onClick={() => setTab("posts")}>
             <Pin size={18} /> Live posts <b>{posts.length}</b>
           </button>
-          <button className={tab === "agent" ? "active" : ""} onClick={() => setTab("agent")}>
-            <Bot size={18} /> AI Agent <b>{agentStatus?.candidates.filter((item) => item.status === "needs_review").length ?? 0}</b>
-          </button>
         </nav>
         <button
           className="logout"
@@ -311,9 +301,7 @@ function App() {
                   ? "Fatwa library"
                   : tab === "questions"
                     ? "Questions inbox"
-                    : tab === "agent"
-                      ? "Fatwa AI Agent"
-                      : "Community submissions"}
+                    : "Community submissions"}
             </h1>
             <p className="subtitle">Review, publish and maintain traceable scholarly guidance.</p>
           </div>
@@ -353,6 +341,11 @@ function App() {
                   <FatwaRow
                     key={fatwa.id}
                     fatwa={fatwa}
+                    onApprove={fatwa.status === "draft" ? async () => {
+                      await request(`/admin/fatwas/${fatwa.id}`, { method: "PATCH", body: JSON.stringify({ status: "published" }) }, token);
+                      await load();
+                      setNotice("Fatwa approved and published to the app.");
+                    } : undefined}
                     onDelete={async () => {
                       await request(`/admin/fatwas/${fatwa.id}`, { method: "DELETE" }, token);
                       await load();
@@ -398,6 +391,11 @@ function App() {
               <FatwaRow
                 key={fatwa.id}
                 fatwa={fatwa}
+                onApprove={fatwa.status === "draft" ? async () => {
+                  await request(`/admin/fatwas/${fatwa.id}`, { method: "PATCH", body: JSON.stringify({ status: "published" }) }, token);
+                  await load();
+                  setNotice("Fatwa approved and published to the app.");
+                } : undefined}
                 onDelete={async () => {
                   await request(`/admin/fatwas/${fatwa.id}`, { method: "DELETE" }, token);
                   await load();
@@ -488,17 +486,6 @@ function App() {
           </section>
         )}
 
-        {tab === "agent" && (
-          <AgentPanel
-            status={agentStatus}
-            liveFatwas={fatwas}
-            token={token}
-            onRefresh={async () => {
-              await load();
-            }}
-            onNotice={setNotice}
-          />
-        )}
       </main>
 
       {showForm && (
@@ -508,7 +495,7 @@ function App() {
           onSaved={async () => {
             setShowForm(false);
             await load();
-            setNotice("Fatwa published successfully.");
+            setNotice("Fatwa saved as a private draft. Approve it from the Fatwa library to publish it in the app.");
           }}
         />
       )}
@@ -633,7 +620,7 @@ function FatwaEditForm({ fatwa, token, onClose, onSaved }: { fatwa: Fatwa; token
   return <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true"><div className="modal-header"><div><p className="eyebrow">LIVE RECORD</p><h2>Edit published fatwa</h2></div><button className="icon-button" onClick={onClose} aria-label="Close">×</button></div><div className="form-grid"><label>Category<select value={form.category} onChange={(event) => update("category", event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label><label>Scholar / responder<input value={form.scholar} onChange={(event) => update("scholar", event.target.value)} /></label><label className="wide">Question<textarea value={form.question} onChange={(event) => update("question", event.target.value)} /></label><label className="wide">Published answer<textarea value={form.answer} onChange={(event) => update("answer", event.target.value)} /></label><label>Institution<input value={form.institution} onChange={(event) => update("institution", event.target.value)} /></label><label>Source URL<input value={form.sourceUrl} onChange={(event) => update("sourceUrl", event.target.value)} /></label></div>{error && <div className="alert error">{error}</div>}<div className="modal-footer"><p>Changes go live after saving.</p><button className="primary" disabled={busy || !valid} onClick={() => void save()}><CheckCircle2 size={16} /> {busy ? "Saving..." : "Save live changes"}</button></div></div></div>;
 }
 
-function FatwaRow({ fatwa, onDelete }: { fatwa: Fatwa; onDelete: () => Promise<void> }) {
+function FatwaRow({ fatwa, onApprove, onDelete }: { fatwa: Fatwa; onApprove?: () => Promise<void>; onDelete: () => Promise<void> }) {
   return (
     <article className="row">
       <div className="row-icon"><BookOpen size={17} /></div>
@@ -650,6 +637,7 @@ function FatwaRow({ fatwa, onDelete }: { fatwa: Fatwa; onDelete: () => Promise<v
           <ExternalLink size={16} />
         </a>
       )}
+      {onApprove ? <button className="primary small" onClick={() => void onApprove()} title="Approve and publish fatwa"><CheckCircle2 size={15} /> Approve</button> : null}
       <button className="icon-button danger" onClick={() => void onDelete()} title="Delete fatwa" aria-label="Delete fatwa">
         <Trash2 size={16} />
       </button>
@@ -797,7 +785,8 @@ function FatwaForm({
     form.question.trim().length >= 10 &&
     form.answer.trim().length >= 10 &&
     form.scholar.trim().length >= 2 &&
-    form.institution.trim().length >= 2;
+    form.institution.trim().length >= 2 &&
+    /^https:\/\//i.test(form.sourceUrl.trim());
 
   const save = async () => {
     setBusy(true);
@@ -807,9 +796,10 @@ function FatwaForm({
         "/admin/fatwas",
         {
           method: "POST",
-          body: JSON.stringify({
-            ...form,
-            // The local Express adapter requires a title; the Cloudflare Worker ignores this extra field.
+                body: JSON.stringify({
+                  ...form,
+                  status: "draft",
+                  // The local Express adapter requires a title; the Cloudflare Worker ignores this extra field.
             title: form.question.trim().slice(0, 120),
           }),
         },
@@ -851,7 +841,7 @@ function FatwaForm({
           <label>Institution
             <input value={form.institution} onChange={(event) => update("institution", event.target.value)} />
           </label>
-          <label>Source URL (optional)
+          <label>Source URL (required)
             <input value={form.sourceUrl} onChange={(event) => update("sourceUrl", event.target.value)} placeholder="https://..." />
           </label>
           <label className="wide">Source question ID (optional)

@@ -47,9 +47,10 @@ export function FatwaCard({
       <View style={[styles.fatwaFooter, { borderTopColor: colors.border }]}>
         <View style={styles.scholarRow}>
           <Feather name="award" size={14} color={colors.primary} />
-          <Text style={[styles.scholarText, { color: colors.foreground }]} numberOfLines={1}>
-            {fatwa.scholar}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.scholarText, { color: colors.foreground }]} numberOfLines={1}>{fatwa.institution}</Text>
+            <Text style={[styles.sourceText, { color: colors.mutedForeground }]} numberOfLines={1}>{fatwa.scholar}</Text>
+          </View>
         </View>
         <Pressable
           onPress={onOpen}
@@ -145,6 +146,7 @@ const styles = StyleSheet.create({
   },
   scholarRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   scholarText: { fontSize: 11.5, fontWeight: '600', flex: 1 },
+  sourceText: { fontSize: 10.5, marginTop: 2 },
   readButton: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   readText: { fontSize: 12.5, fontWeight: '700' },
   questionCard: { borderRadius: 22, borderWidth: 1, padding: 16, marginBottom: 12 },
