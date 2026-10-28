@@ -526,6 +526,7 @@ function AgentPanel({
 }) {
   const candidates = status?.candidates ?? [];
   const reviewable = candidates.filter((item) => item.status === "needs_review" || item.status === "draft");
+  const history = candidates.filter((item) => item.status !== "needs_review" && item.status !== "draft");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const parseReasons = (value: AgentCandidate["reasons"]) => {
     if (Array.isArray(value)) return value;
@@ -631,7 +632,26 @@ function AgentPanel({
           })()}
         </article>
       ))}
-      {reviewable.length === 0 && <div className="empty">No AI drafts waiting for review.</div>}
+      {reviewable.length === 0 && (
+        <div className="empty">
+          No AI drafts waiting for review. Approved: {history.filter((item) => item.status === "approved").length} · Rejected: {history.filter((item) => item.status === "rejected").length}.
+          <br />Published items are listed under the Fatwas section.
+        </div>
+      )}
+      {history.length > 0 && (
+        <div className="agent-history">
+          <h3>Agent review history</h3>
+          {history.map((candidate) => (
+            <div className="row" key={candidate.id}>
+              <div className="row-main">
+                <strong>{candidate.source_title || candidate.question || "Untitled candidate"}</strong>
+                <span className={`status ${candidate.status}`}>{candidate.status}</span>
+                <small>{candidate.institution}</small>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
