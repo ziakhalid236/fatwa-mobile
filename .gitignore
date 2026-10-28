@@ -56,3 +56,4 @@ Thumbs.db
 
 # Local production exports may contain user-submitted data and must not be committed.
 /backups/
+/release-artifacts/
