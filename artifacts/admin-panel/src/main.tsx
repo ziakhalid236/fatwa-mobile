@@ -9,6 +9,7 @@ import {
   MessageSquare,
   UserRound,
   Plus,
+  Pin,
   Send,
   Trash2,
   type LucideIcon,
@@ -63,6 +64,20 @@ type PostSubmission = {
   imageUrl?: string;
   status: "pending" | "approved" | "rejected";
   rejectionReason?: string;
+  createdAt: string;
+};
+
+type PublishedPost = {
+  id: string;
+  title: string;
+  body: string;
+  category: string;
+  city?: string;
+  author: string;
+  authorImageUrl?: string;
+  imageUrl?: string;
+  featured: boolean;
+  status: string;
   createdAt: string;
 };
 
@@ -121,12 +136,13 @@ function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [fatwas, setFatwas] = useState<Fatwa[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [tab, setTab] = useState<"overview" | "fatwas" | "questions" | "submissions">("overview");
+  const [tab, setTab] = useState<"overview" | "fatwas" | "questions" | "submissions" | "posts">("overview");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submissions, setSubmissions] = useState<PostSubmission[]>([]);
+  const [posts, setPosts] = useState<PublishedPost[]>([]);
   const [questionFilter, setQuestionFilter] = useState<QuestionFilter>("all");
 
   const load = useCallback(async () => {
@@ -135,14 +151,16 @@ function App() {
       setError("");
       const nextStats = await request<Stats>("/admin/stats", {}, token);
       setStats(nextStats);
-      const [fatwaResult, questionResult, submissionResult] = await Promise.allSettled([
+      const [fatwaResult, questionResult, submissionResult, postsResult] = await Promise.allSettled([
         request<{ fatwas: Fatwa[] }>("/admin/fatwas", {}, token),
         request<{ questions: Question[] }>("/admin/questions", {}, token),
         request<{ submissions: PostSubmission[] }>("/admin/post-submissions", {}, token),
+        request<{ posts: PublishedPost[] }>("/admin/posts", {}, token),
       ]);
       if (fatwaResult.status === "fulfilled") setFatwas(fatwaResult.value.fatwas);
       if (questionResult.status === "fulfilled") setQuestions(questionResult.value.questions);
       if (submissionResult.status === "fulfilled") setSubmissions(submissionResult.value.submissions);
+      if (postsResult.status === "fulfilled") setPosts(postsResult.value.posts);
       sessionStorage.setItem("fatwa-admin-token", token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load dashboard");
@@ -229,6 +247,9 @@ function App() {
           </button>
           <button className={tab === "submissions" ? "active" : ""} onClick={() => setTab("submissions")}>
             <ClipboardList size={18} /> Submissions <b>{submissions.filter((item) => item.status === "pending").length}</b>
+          </button>
+          <button className={tab === "posts" ? "active" : ""} onClick={() => setTab("posts")}>
+            <Pin size={18} /> Live posts <b>{posts.length}</b>
           </button>
         </nav>
         <button
@@ -378,6 +399,32 @@ function App() {
               />
             ))}
             {visibleQuestions.length === 0 && <div className="empty">No questions match this filter.</div>}
+          </section>
+        )}
+
+        {tab === "posts" && (
+          <section className="panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Published community posts</h2>
+                <p>Remove a live post or pin one featured post at the top of the feed.</p>
+              </div>
+            </div>
+            {posts.map((post) => (
+              <article className="question-card" key={post.id}>
+                <div className="row-meta"><span className="status approved">{post.featured ? "Pinned" : "Live"}</span><span>{post.category}</span></div>
+                <h3>{post.title || "Community post"}</h3>
+                <p className="questioner">By {post.author}{post.city ? ` · ${post.city}` : ""}</p>
+                {post.authorImageUrl ? <img className="submission-image" src={post.authorImageUrl} alt={`${post.author} profile`} loading="lazy" /> : null}
+                {post.imageUrl ? <img className="submission-image" src={post.imageUrl} alt="Published post attachment" loading="lazy" /> : null}
+                <p className="submission-body">{post.body}</p>
+                <div className="answer-footer">
+                  <button className="primary small" onClick={async () => { await request(`/admin/posts/${post.id}`, { method: "PATCH", body: JSON.stringify({ action: post.featured ? "unpin" : "pin" }) }, token); await load(); setNotice(post.featured ? "Post unpinned." : "Post pinned."); }}><Pin size={15} /> {post.featured ? "Unpin" : "Pin"}</button>
+                  <button className="icon-button danger" onClick={async () => { if (!window.confirm("Delete this published post?")) return; await request(`/admin/posts/${post.id}`, { method: "DELETE" }, token); await load(); setNotice("Published post deleted."); }} title="Delete published post"><Trash2 size={16} /></button>
+                </div>
+              </article>
+            ))}
+            {posts.length === 0 && <div className="empty">No published community posts yet.</div>}
           </section>
         )}
 
@@ -542,14 +589,13 @@ function SubmissionRow({
   return (
     <article className="question-card">
       <div className="row-meta">
-        <span className="tag">{submission.category}</span>
         <span className={`status ${submission.status}`}>{submission.status}</span>
         <span>{submission.language.toUpperCase()}</span>
       </div>
-      <h3>{submission.title}</h3>
+      <h3>{submission.title || "Community post"}</h3>
       <p className="questioner">By {submission.name}{submission.city ? ` · ${submission.city}` : ""}{submission.country ? `, ${submission.country}` : ""}</p>
       {submission.imageUrl ? <img className="submission-image" src={submission.imageUrl} alt="Submitted post attachment" loading="lazy" /> : null}
-      <p className="submission-body">{submission.body}</p>
+      {submission.body ? <p className="submission-body">{submission.body}</p> : null}
       {submission.status === "pending" ? (
         <div className="answer-footer">
           <button className="primary small" disabled={busy} onClick={() => void review("approve")}><CheckCircle2 size={15} /> Approve & publish</button>

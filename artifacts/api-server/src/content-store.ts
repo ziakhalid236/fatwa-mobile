@@ -55,6 +55,7 @@ export type PostSubmission = {
   category: string;
   language: 'en' | 'ur' | 'ar';
   imageUrl?: string;
+  authorImageUrl?: string;
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
   createdAt: string;

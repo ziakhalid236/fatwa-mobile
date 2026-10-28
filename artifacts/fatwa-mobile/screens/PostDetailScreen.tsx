@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
-import { Avatar, Pill, PrimaryButton, uiStyles } from '@/components/ui';
+import { Avatar, PrimaryButton, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
@@ -69,9 +69,8 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
     <View>
       <View style={[styles.hero, { backgroundColor: colors.forest }]}>
         <View style={[styles.heroAccent, { backgroundColor: accent }]} />
-        <Pill label={post.category} tone="primary" />
         <View style={styles.heroMeta}>
-          <Avatar size={30} />
+          {post.authorImageUrl ? <Image source={{ uri: post.authorImageUrl }} style={styles.heroAvatar} contentFit="cover" /> : <Avatar size={30} />}
           <View>
             <Text style={styles.heroAuthor}>{post.author}</Text>
             <Text style={styles.heroDate}>{post.date}</Text>
@@ -212,6 +211,7 @@ const styles = StyleSheet.create({
   hero: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28, overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   heroAccent: { position: 'absolute', top: 0, left: 0, right: 0, height: 5 },
   heroMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
+  heroAvatar: { width: 30, height: 30, borderRadius: 15 },
   heroAuthor: { fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' },
   heroDate: { fontSize: 11.5, color: '#D5E7DB', marginTop: 3 },
   bodyCard: { borderRadius: 24, borderWidth: 1, padding: 19, marginTop: -16 },

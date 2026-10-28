@@ -51,16 +51,17 @@ router.get("/questions/:id", async (req, res) => {
 });
 
 router.post("/post-submissions", async (req, res) => {
-  const { name, country, city, title, body, category, language } = req.body ?? {};
-  if (typeof name !== "string" || name.trim().length < 2 || typeof body !== "string" || body.trim().length < 20 || typeof category !== "string") {
-    return res.status(400).json({ error: "name, post text, and category are required" });
+  const { name, country, city, title, body, category, language, authorImageUrl } = req.body ?? {};
+  if (typeof name !== "string" || name.trim().length < 2 || (![title, body, authorImageUrl].some((value) => typeof value === "string" && value.trim().length > 0))) {
+    return res.status(400).json({ error: "name and at least one of title, description, or image are required" });
   }
   const saved = await contentStore.createSubmission({
     name: name.trim(), country: typeof country === "string" ? country.trim() : undefined,
     city: typeof city === "string" ? city.trim() : undefined,
-    title: typeof title === "string" && title.trim().length >= 3 ? title.trim() : body.trim().slice(0, 80),
-    body: body.trim(), category, language: language === "ur" ? "ur" : language === "ar" ? "ar" : "en",
+    title: typeof title === "string" && title.trim().length >= 3 ? title.trim() : "Community post",
+    body: typeof body === "string" ? body.trim() : "", category: typeof category === "string" && category.trim() ? category : "Islamic", language: language === "ur" ? "ur" : language === "ar" ? "ar" : "en",
     imageUrl: typeof req.body?.imageUrl === "string" ? req.body.imageUrl : undefined,
+    authorImageUrl: typeof authorImageUrl === "string" ? authorImageUrl : undefined,
   });
   return res.status(201).json(saved);
 });

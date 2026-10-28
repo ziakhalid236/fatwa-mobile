@@ -3,28 +3,12 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import { Avatar, Pill } from '@/components/ui';
+import { Avatar } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { cleanPostBody, containsArabic } from '@/lib/post-text';
 import type { Post } from '@/lib/types';
 
 export const POST_CARD_BODY_LINES = 5;
-
-const categoryTone: Partial<Record<Post['category'], 'primary' | 'gold' | 'muted'>> = {
-  Islamic: 'primary',
-  Seerah: 'primary',
-  History: 'gold',
-  Poetry: 'muted',
-  Reflection: 'gold',
-};
-
-const categoryIcon: Partial<Record<Post['category'], keyof typeof MaterialCommunityIcons.glyphMap>> = {
-  Islamic: 'star-crescent',
-  Seerah: 'account-group-outline',
-  History: 'bank-outline',
-  Poetry: 'feather',
-  Reflection: 'heart-outline',
-};
 
 export function formatCount(value: number): string {
   if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
@@ -70,7 +54,7 @@ export function PostCard({
     >
       <View style={styles.body}>
         <View style={styles.authorHeader}>
-          <Avatar size={38} icon="user" />
+          {post.authorImageUrl ? <Image source={{ uri: post.authorImageUrl }} style={styles.authorAvatar} contentFit="cover" /> : <Avatar size={38} icon="user" />}
           <View style={styles.authorMeta}>
             <Text style={[styles.author, { color: colors.foreground }]} numberOfLines={1}>
               {post.author}
@@ -82,11 +66,6 @@ export function PostCard({
               {post.city ? <Text style={[styles.date, { color: colors.mutedForeground }]} numberOfLines={1}>{post.city}</Text> : null}
             </View>
           </View>
-          <Pill
-            label={post.category}
-            icon={categoryIcon[post.category] ?? 'apps'}
-            tone={categoryTone[post.category] ?? 'primary'}
-          />
         </View>
 
         <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={post.title}>
@@ -234,6 +213,7 @@ const styles = StyleSheet.create({
   postImage: { width: '100%', height: 220, borderRadius: 18, marginTop: 2 },
   rtlExcerpt: { fontSize: 16, lineHeight: 30, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   author: { fontSize: 13, fontWeight: '700' },
+  authorAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E5F2EC' },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',

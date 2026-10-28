@@ -39,6 +39,7 @@ export type Post = {
   body: string;
   category: PostCategory;
   author: string;
+  authorImageUrl?: string;
   city?: string;
   imageUrl?: string;
   source?: string;

@@ -7,23 +7,6 @@ import { PrimaryButton, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { API_BASE_URL, getDeviceId, useApp } from '@/lib/store';
-import { POST_CATEGORIES, type PostCategory } from '@/lib/types';
-
-// The currently deployed Worker still validates the original five category values.
-// Keep the richer labels in the app while sending a compatible value until the
-// Worker category migration is deployed.
-const API_CATEGORY_BY_LABEL: Partial<Record<PostCategory, string>> = {
-  'Islamic Guidance': 'Islamic',
-  'Quran & Tafseer': 'Islamic',
-  'Hadith & Sunnah': 'Islamic',
-  'Seerah & History': 'Seerah',
-  'Prayer & Worship': 'Islamic',
-  'Family & Character': 'Reflection',
-  'Community & Public Benefit': 'Reflection',
-  'Poetry & Reflection': 'Poetry',
-  Announcements: 'Islamic',
-  General: 'Islamic',
-};
 
 export default function PostSubmissionScreen() {
   const colors = useColors();
@@ -34,8 +17,6 @@ export default function PostSubmissionScreen() {
   const [city, setCity] = useState(profile.city);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [category, setCategory] = useState<PostCategory>('Islamic Guidance');
-  const [categorySearch, setCategorySearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const imageUri = imageAsset?.uri ?? '';
@@ -60,8 +41,8 @@ export default function PostSubmissionScreen() {
   };
 
   const submit = async () => {
-    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2 || (!title.trim() && !body.trim()) || body.trim().length < 20) {
-      Alert.alert('More details needed', 'Please enter your name, country, city, a title or post text, and at least 20 characters of post text.');
+    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2 || (!title.trim() && !body.trim() && !imageAsset)) {
+      Alert.alert('More details needed', 'Please enter your name, country, city, and at least one of a title, description, or photo.');
       return;
     }
     setBusy(true);
@@ -74,13 +55,20 @@ export default function PostSubmissionScreen() {
       form.append('city', city.trim());
       form.append('title', title.trim());
       form.append('body', body.trim());
-      form.append('category', API_CATEGORY_BY_LABEL[category] ?? 'Islamic');
+      form.append('category', 'Islamic');
       form.append('language', settings.language);
       if (imageAsset) {
         const imageResponse = await fetch(imageAsset.uri);
         if (!imageResponse.ok) throw new Error('The selected image could not be read from the device.');
         const imageBlob = await imageResponse.blob();
         form.append('image', imageBlob, imageAsset.fileName ?? `community-${Date.now()}.jpg`);
+      }
+      if (profile.avatarUri) {
+        const avatarResponse = await fetch(profile.avatarUri);
+        if (avatarResponse.ok) {
+          const avatarBlob = await avatarResponse.blob();
+          form.append('avatar', avatarBlob, `profile-${Date.now()}.jpg`);
+        }
       }
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',
@@ -116,25 +104,6 @@ export default function PostSubmissionScreen() {
 
       <SectionTitle title="Post" subtitle={`It will be submitted in ${settings.language === 'ur' ? 'Urdu' : settings.language === 'ar' ? 'Arabic' : 'English'}.`} />
       <TextInputField label="Title (optional)" value={title} onChangeText={setTitle} placeholder="A short title" colors={colors} />
-      <Text style={[styles.label, { color: colors.foreground }]}>Category</Text>
-      <TextInput
-        value={categorySearch}
-        onChangeText={setCategorySearch}
-        placeholder="Search categories"
-        placeholderTextColor={colors.mutedForeground}
-        style={[styles.categorySearch, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
-        accessibilityLabel="Search post categories"
-      />
-      <View style={styles.chips}>
-        {POST_CATEGORIES.filter((item) => item.toLowerCase().includes(categorySearch.trim().toLowerCase())).map((item) => {
-          const active = category === item;
-          return (
-            <Pressable key={item} onPress={() => setCategory(item)} style={[styles.chip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}>
-              <Text style={[styles.chipText, { color: active ? colors.primaryForeground : colors.foreground }]}>{item}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
       <Text style={[styles.label, { color: colors.foreground }]}>Post text</Text>
       <TextInput
         value={body}
@@ -196,10 +165,6 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
   input: { minHeight: 50, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, fontSize: 13 },
   textarea: { minHeight: 160, borderWidth: 1, borderRadius: 18, padding: 15, fontSize: 14, lineHeight: 22, marginBottom: 17 },
-  categorySearch: { minHeight: 44, borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, fontSize: 13, marginBottom: 10 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 15 },
-  chip: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
-  chipText: { fontSize: 11.5, fontWeight: '700' },
   note: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', marginTop: 15 },
   noteText: { fontSize: 11, textAlign: 'center' },
   photoPicker: { minHeight: 150, borderWidth: 1, borderStyle: 'dashed', borderRadius: 18, overflow: 'hidden', marginBottom: 8 },
