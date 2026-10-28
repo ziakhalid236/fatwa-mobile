@@ -62,6 +62,7 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
   const liked = likedPostIds.includes(post.id);
   const saved = savedPostIds.includes(post.id);
   const accent = (colors as unknown as Record<string, string>)[post.accent] ?? colors.primary;
+  const imageOnly = Boolean(post.imageUrl && !post.body.trim());
 
   const related = posts.filter((item) => item.id !== post.id && item.category === post.category).slice(0, 3);
 
@@ -73,16 +74,15 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
           {post.authorImageUrl ? <Image source={{ uri: post.authorImageUrl }} style={styles.heroAvatar} contentFit="cover" /> : <Avatar size={30} />}
           <View>
             <Text style={styles.heroAuthor}>{post.author}</Text>
-            <Text style={styles.heroDate}>{post.date}</Text>
           </View>
         </View>
       </View>
 
       <View style={uiStyles.screenPadding}>
         <View style={[styles.bodyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.contentTitle, { color: colors.foreground }]}>{post.title}</Text>
-          {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} contentFit="cover" /> : null}
-          <Text style={[styles.bodyText, { color: colors.foreground }]}>{post.body}</Text>
+          {!imageOnly ? <Text style={[styles.contentTitle, { color: colors.foreground }]}>{post.title}</Text> : null}
+          {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={[styles.postImage, imageOnly && styles.imageOnlyPost]} contentFit="contain" /> : null}
+          {post.body.trim() ? <Text style={[styles.bodyText, { color: colors.foreground }]}>{post.body}</Text> : null}
           {post.source ? (
             <View style={[styles.source, { borderTopColor: colors.border }]}>
               <Feather name="book-open" size={14} color={colors.primary} />
@@ -216,7 +216,8 @@ const styles = StyleSheet.create({
   heroDate: { fontSize: 11.5, color: '#D5E7DB', marginTop: 3 },
   bodyCard: { borderRadius: 24, borderWidth: 1, padding: 19, marginTop: -16 },
   contentTitle: { fontSize: 23, lineHeight: 31, fontWeight: '800', letterSpacing: -0.35, marginBottom: 14 },
-  postImage: { width: '100%', height: 240, borderRadius: 18, marginBottom: 16 },
+  postImage: { width: '100%', height: 240, borderRadius: 18, marginBottom: 16, backgroundColor: '#EEF5F0' },
+  imageOnlyPost: { height: 360, marginBottom: 0 },
   bodyText: { fontSize: 15.5, lineHeight: 27, letterSpacing: 0.05 },
   source: { flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, marginTop: 16, paddingTop: 13 },
   sourceText: { fontSize: 11.5, fontWeight: '600', flex: 1 },

@@ -68,12 +68,22 @@ export default function PostSubmissionScreen() {
       const bodyText = body.trim();
       form.append('body', bodyText);
       form.append('language', settings.language);
+      if (profile.avatarUri?.startsWith('https://')) form.append('authorImageUrl', profile.avatarUri);
+      if (profile.avatarUri && !profile.avatarUri.startsWith('https://')) {
+        form.append('profileImage', {
+          uri: profile.avatarUri,
+          name: `profile-${Date.now()}.jpg`,
+          type: 'image/jpeg',
+        } as unknown as Blob);
+      }
       if (imageAsset) {
         const mimeType = imageAsset.mimeType ?? 'image/jpeg';
         const extension = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
-        const imageResponse = await fetch(imageAsset.uri);
-        const imageBlob = await imageResponse.blob();
-        form.append('image', imageBlob, imageAsset.fileName ?? `community-${Date.now()}.${extension}`);
+        form.append('image', {
+          uri: imageAsset.uri,
+          name: imageAsset.fileName ?? `community-${Date.now()}.${extension}`,
+          type: mimeType,
+        } as unknown as Blob);
       }
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',

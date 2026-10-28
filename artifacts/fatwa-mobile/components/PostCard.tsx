@@ -37,6 +37,7 @@ export function PostCard({
 }) {
   const colors = useColors();
   const excerpt = cleanPostBody(post.title, post.body);
+  const imageOnly = Boolean(post.imageUrl && !post.body.trim());
   const isRtl = containsArabic(`${post.title}\n${excerpt}`);
 
   return (
@@ -59,33 +60,23 @@ export function PostCard({
             <Text style={[styles.author, { color: colors.foreground }]} numberOfLines={1}>
               {post.author}
             </Text>
-            <View style={styles.metaLine}>
-              <Text style={[styles.date, { color: colors.mutedForeground }]}>{post.date}</Text>
-              <Text style={[styles.metaDot, { color: colors.mutedForeground }]}>•</Text>
-              <Feather name={post.city ? 'map-pin' : 'globe'} size={11} color={colors.mutedForeground} />
-              {post.city ? <Text style={[styles.date, { color: colors.mutedForeground }]} numberOfLines={1}>{post.city}</Text> : null}
-            </View>
+            {post.city ? <View style={styles.metaLine}><Feather name="map-pin" size={11} color={colors.mutedForeground} /><Text style={[styles.date, { color: colors.mutedForeground }]} numberOfLines={1}>{post.city}</Text></View> : null}
           </View>
         </View>
 
-        <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={post.title}>
+        {!imageOnly ? <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={post.title}>
           <Text
             style={[styles.title, isRtl && styles.rtlTitle, { color: colors.foreground }]}
             numberOfLines={isRtl ? 3 : 2}
           >
             {post.title}
           </Text>
-          <Text
-            style={[styles.excerpt, isRtl && styles.rtlExcerpt, { color: colors.mutedForeground }]}
-            numberOfLines={isRtl ? 6 : POST_CARD_BODY_LINES}
-          >
-            {excerpt}
-          </Text>
-        </Pressable>
+          {excerpt ? <Text style={[styles.excerpt, isRtl && styles.rtlExcerpt, { color: colors.mutedForeground }]} numberOfLines={isRtl ? 6 : POST_CARD_BODY_LINES}>{excerpt}</Text> : null}
+        </Pressable> : null}
 
         {post.imageUrl ? (
           <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel="Open post photo">
-            <Image source={{ uri: post.imageUrl }} style={styles.postImage} contentFit="cover" />
+            <Image source={{ uri: post.imageUrl }} style={styles.postImage} contentFit="contain" />
           </Pressable>
         ) : null}
 

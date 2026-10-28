@@ -1,10 +1,22 @@
 import { Router, type Request, type Response } from "express";
+import multer from "multer";
 import { contentStore, type FatwaCategory } from "../content-store";
 
 const router = Router();
 const categories: FatwaCategory[] = ["Aqeedah", "Namaz", "Roza", "Zakat", "Hajj & Umrah", "Muamalat", "Tafseer & Quran"];
 
-const MAX_POST_IMAGE_URL_LENGTH = 1_500_000;
+const MAX_POST_IMAGE_URL_LENGTH = 12 * 1024 * 1024;
+const MAX_POST_IMAGE_BYTES = 8 * 1024 * 1024;
+const postUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_POST_IMAGE_BYTES },
+  fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp|gif)$/i.test(file.mimetype)),
+});
+
+function uploadedDataUrl(file: Express.Multer.File | undefined) {
+  if (!file) return "";
+  return `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+}
 
 function adminOnly(req: Request, res: Response, next: () => void) {
   const configured = process.env.ADMIN_TOKEN;
@@ -65,10 +77,12 @@ router.get("/questions/:id", async (req, res) => {
   return res.json(question);
 });
 
-router.post("/post-submissions", async (req, res) => {
+router.post("/post-submissions", postUpload.fields([{ name: "image", maxCount: 1 }, { name: "profileImage", maxCount: 1 }]), async (req, res) => {
   const { name, country, city, body, language, authorImageUrl } = req.body ?? {};
+  const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
   const bodyText = typeof body === "string" ? body.trim() : "";
-  const imageUrl = typeof req.body?.imageUrl === "string" ? req.body.imageUrl.trim() : "";
+  const imageUrl = uploadedDataUrl(files.image?.[0]) || (typeof req.body?.imageUrl === "string" ? req.body.imageUrl.trim() : "");
+  const profileImageUrl = uploadedDataUrl(files.profileImage?.[0]);
   const hasImageData = /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/]+={0,2}$/i.test(imageUrl);
   const hasHttpsImage = /^https:\/\/\S+$/i.test(imageUrl);
   if (typeof name !== "string" || name.trim().length < 2 || !(bodyText || imageUrl)) {
@@ -82,7 +96,7 @@ router.post("/post-submissions", async (req, res) => {
     title: bodyText ? bodyText.split(/\r?\n/)[0].slice(0, 120) : "Image post",
     body: bodyText, category: "", language: language === "ur" ? "ur" : language === "ar" ? "ar" : "en",
     imageUrl: imageUrl || undefined,
-    authorImageUrl: typeof authorImageUrl === "string" && authorImageUrl.length <= 2048 && /^https:\/\/\S+$/i.test(authorImageUrl) ? authorImageUrl : undefined,
+    authorImageUrl: profileImageUrl || (typeof authorImageUrl === "string" && authorImageUrl.length <= 2048 && /^https:\/\/\S+$/i.test(authorImageUrl) ? authorImageUrl : undefined),
   });
   return res.status(201).json(saved);
 });
