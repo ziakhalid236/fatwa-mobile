@@ -1,35 +1,25 @@
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PostCard } from '@/components/PostCard';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
-import { POST_CATEGORIES, type PostCategory } from '@/lib/types';
-
-const categoryIcons: Array<keyof typeof MaterialCommunityIcons.glyphMap> = ['star-crescent', 'book-open-page-variant', 'book-open-variant', 'bank-outline', 'hands-pray', 'account-heart-outline', 'account-group-outline', 'feather', 'bullhorn-outline', 'apps'];
-const filters: Array<{ key: PostCategory | 'All'; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }> = [
-  { key: 'All', label: 'All', icon: 'apps' },
-  ...POST_CATEGORIES.map((category, index) => ({ key: category, label: category, icon: categoryIcons[index] })),
-];
 
 export default function HomeScreen() {
   const colors = useColors();
   const nav = useNav();
   const { posts, settings, profile, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView } = useApp();
-  const [filter, setFilter] = useState<PostCategory | 'All'>('All');
   const [search, setSearch] = useState('');
 
   const visiblePosts = useMemo(() => {
     const query = search.trim().toLowerCase();
     const filtered = posts.filter((post) => {
-      const matchesFilter = filter === 'All' || post.category === filter;
-      const matchesSearch = !query || `${post.title} ${post.body} ${post.author} ${post.category}`.toLowerCase().includes(query);
-      return matchesFilter && matchesSearch;
+      return !query || `${post.title} ${post.body} ${post.author}`.toLowerCase().includes(query);
     });
     const city = profile.city.trim().toLowerCase();
     return city ? [...filtered].sort((a, b) => Number((b.city ?? '').toLowerCase() === city) - Number((a.city ?? '').toLowerCase() === city)) : filtered;
-  }, [filter, posts, profile.city, search, settings.language]);
+  }, [posts, profile.city, search, settings.language]);
 
   return (
     <View style={styles.container}>
@@ -48,24 +38,6 @@ export default function HomeScreen() {
           <Feather name="upload-cloud" size={22} color={colors.primary} />
         </Pressable>
       </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-        {filters.map((item) => {
-          const active = filter === item.key;
-          return (
-            <Pressable
-              key={item.key}
-              onPress={() => setFilter(item.key)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              style={[styles.filterChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}
-            >
-              <MaterialCommunityIcons name={item.icon} size={18} color={active ? colors.primaryForeground : colors.secondaryForeground} />
-              <Text style={[styles.filterText, { color: active ? colors.primaryForeground : colors.secondaryForeground }]}>{item.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
 
       {visiblePosts.map((post) => (
         <PostCard
@@ -113,9 +85,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   searchInput: { flex: 1, minHeight: 54, fontSize: 14, fontWeight: '500' },
-  filterRow: { gap: 8, paddingBottom: 20 },
-  filterChip: { minHeight: 44, borderRadius: 22, borderWidth: 1, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  filterText: { fontSize: 13, fontWeight: '700' },
   empty: { borderWidth: 1, borderRadius: 22, padding: 28, alignItems: 'center', marginBottom: 18 },
   emptyTitle: { fontSize: 16, fontWeight: '700', marginTop: 10 },
   emptyText: { fontSize: 12, marginTop: 5 },

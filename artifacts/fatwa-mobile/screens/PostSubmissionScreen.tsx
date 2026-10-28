@@ -18,7 +18,6 @@ export default function PostSubmissionScreen() {
   const [name, setName] = useState(profile.name);
   const [country, setCountry] = useState('');
   const [city, setCity] = useState(profile.city);
-  const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
@@ -54,8 +53,8 @@ export default function PostSubmissionScreen() {
   };
 
   const submit = async () => {
-    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2 || (!title.trim() && !body.trim() && !imageAsset)) {
-      Alert.alert('More details needed', 'Please enter your name, country, city, and at least one of a title, description, or photo.');
+    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2 || (!body.trim() && !imageAsset)) {
+      Alert.alert('More details needed', 'Please enter your name, country, city, and a description or photo.');
       return;
     }
     setBusy(true);
@@ -67,19 +66,14 @@ export default function PostSubmissionScreen() {
       form.append('country', country.trim());
       form.append('city', city.trim());
       const bodyText = body.trim();
-      const titleText = title.trim();
-      form.append('title', titleText.length >= 3 ? titleText : bodyText ? '' : 'Community post');
       form.append('body', bodyText);
-      form.append('category', 'Islamic');
       form.append('language', settings.language);
       if (imageAsset) {
         const mimeType = imageAsset.mimeType ?? 'image/jpeg';
         const extension = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
-        form.append('image', {
-          uri: imageAsset.uri,
-          name: imageAsset.fileName ?? `community-${Date.now()}.${extension}`,
-          type: mimeType,
-        } as unknown as Blob);
+        const imageResponse = await fetch(imageAsset.uri);
+        const imageBlob = await imageResponse.blob();
+        form.append('image', imageBlob, imageAsset.fileName ?? `community-${Date.now()}.${extension}`);
       }
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',
@@ -114,8 +108,7 @@ export default function PostSubmissionScreen() {
       </View>
 
       <SectionTitle title="Post" subtitle={`It will be submitted in ${settings.language === 'ur' ? 'Urdu' : settings.language === 'ar' ? 'Arabic' : 'English'}.`} />
-      <TextInputField label="Title (optional)" value={title} onChangeText={setTitle} placeholder="A short title" colors={colors} />
-      <Text style={[styles.label, { color: colors.foreground }]}>Post text (optional)</Text>
+      <Text style={[styles.label, { color: colors.foreground }]}>Description (optional)</Text>
       <TextInput
         value={body}
         onChangeText={setBody}

@@ -60,7 +60,7 @@ type PostSubmission = {
   city?: string;
   title: string;
   body: string;
-  category: Category;
+  category?: string;
   language: "en" | "ur" | "ar";
   imageUrl?: string;
   status: "pending" | "approved" | "rejected";
@@ -188,7 +188,10 @@ function App() {
       if (questionResult.status === "fulfilled") setQuestions(questionResult.value.questions);
       if (submissionResult.status === "fulfilled") setSubmissions(submissionResult.value.submissions);
       if (postsResult.status === "fulfilled") setPosts(postsResult.value.posts);
-      const agentResult = await request<AgentStatus>("/admin/fatwa-agent", {}, token).catch(() => null);
+      const agentResult = await request<AgentStatus>("/admin/fatwa-agent", {}, token).catch((err) => {
+        setError(err instanceof Error ? `AI fatwa queue: ${err.message}` : "AI fatwa queue is unavailable");
+        return null;
+      });
       if (agentResult) setAgentStatus(agentResult);
       sessionStorage.setItem("fatwa-admin-token", token);
     } catch (err) {
@@ -447,7 +450,7 @@ function App() {
             {posts.map((post) => (
               <article className="question-card" key={post.id}>
                 <div className="row-meta"><span className="status approved">{post.featured ? "Pinned" : "Live"}</span><span>{post.category}</span></div>
-                <h3>{post.title || "Community post"}</h3>
+                <h3>{post.body?.split(/\r?\n/)[0] || "Image post"}</h3>
                 <p className="questioner">By {post.author}{post.city ? ` · ${post.city}` : ""}</p>
                 {post.authorImageUrl ? <img className="submission-image" src={post.authorImageUrl} alt={`${post.author} profile`} loading="lazy" /> : null}
                 {post.imageUrl ? <img className="submission-image" src={post.imageUrl} alt="Published post attachment" loading="lazy" /> : null}
@@ -781,7 +784,7 @@ function SubmissionRow({
         <span className={`status ${submission.status}`}>{submission.status}</span>
         <span>{submission.language.toUpperCase()}</span>
       </div>
-      <h3>{submission.title || "Community post"}</h3>
+      <h3>{submission.body?.split(/\r?\n/)[0] || "Image post"}</h3>
       <p className="questioner">By {submission.name}{submission.city ? ` · ${submission.city}` : ""}{submission.country ? `, ${submission.country}` : ""}</p>
       {submission.imageUrl ? <img className="submission-image" src={submission.imageUrl} alt="Submitted post attachment" loading="lazy" /> : null}
       {submission.body ? <p className="submission-body">{submission.body}</p> : null}
