@@ -2,7 +2,9 @@ import { Router, type Request, type Response } from "express";
 import { contentStore, type FatwaCategory } from "../content-store";
 
 const router = Router();
-const categories: FatwaCategory[] = ["Aqeedah", "Namaz", "Roza", "Zakat", "Hajj & Umrah", "Nikah & Family", "Muamalat", "Tafseer & Quran"];
+const categories: FatwaCategory[] = ["Aqeedah", "Namaz", "Roza", "Zakat", "Hajj & Umrah", "Muamalat", "Tafseer & Quran"];
+
+const MAX_POST_IMAGE_URL_LENGTH = 1_500_000;
 
 function adminOnly(req: Request, res: Response, next: () => void) {
   const configured = process.env.ADMIN_TOKEN;
@@ -65,16 +67,23 @@ router.get("/questions/:id", async (req, res) => {
 
 router.post("/post-submissions", async (req, res) => {
   const { name, country, city, title, body, category, language, authorImageUrl } = req.body ?? {};
-  if (typeof name !== "string" || name.trim().length < 2 || (![title, body, authorImageUrl].some((value) => typeof value === "string" && value.trim().length > 0))) {
+  const titleText = typeof title === "string" ? title.trim() : "";
+  const bodyText = typeof body === "string" ? body.trim() : "";
+  const imageUrl = typeof req.body?.imageUrl === "string" ? req.body.imageUrl.trim() : "";
+  const hasImageData = /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/]+={0,2}$/i.test(imageUrl);
+  const hasHttpsImage = /^https:\/\/\S+$/i.test(imageUrl);
+  if (typeof name !== "string" || name.trim().length < 2 || !(titleText || bodyText || imageUrl)) {
     return res.status(400).json({ error: "name and at least one of title, description, or image are required" });
   }
+  if (imageUrl && imageUrl.length > MAX_POST_IMAGE_URL_LENGTH) return res.status(413).json({ error: "Image is too large. Please choose a smaller photo." });
+  if (imageUrl && !hasImageData && !hasHttpsImage) return res.status(400).json({ error: "image must be a secure URL or a supported image" });
   const saved = await contentStore.createSubmission({
     name: name.trim(), country: typeof country === "string" ? country.trim() : undefined,
     city: typeof city === "string" ? city.trim() : undefined,
-    title: typeof title === "string" && title.trim().length >= 3 ? title.trim() : "Community post",
-    body: typeof body === "string" ? body.trim() : "", category: typeof category === "string" && category.trim() ? category : "Islamic", language: language === "ur" ? "ur" : language === "ar" ? "ar" : "en",
-    imageUrl: typeof req.body?.imageUrl === "string" ? req.body.imageUrl : undefined,
-    authorImageUrl: typeof authorImageUrl === "string" ? authorImageUrl : undefined,
+    title: titleText || "Community post",
+    body: bodyText, category: typeof category === "string" && category.trim() ? category : "Islamic", language: language === "ur" ? "ur" : language === "ar" ? "ar" : "en",
+    imageUrl: imageUrl || undefined,
+    authorImageUrl: typeof authorImageUrl === "string" && authorImageUrl.length <= 2048 && /^https:\/\/\S+$/i.test(authorImageUrl) ? authorImageUrl : undefined,
   });
   return res.status(201).json(saved);
 });

@@ -8,6 +8,8 @@ import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { API_BASE_URL, getDeviceId, useApp } from '@/lib/store';
 
+const MAX_POST_IMAGE_BASE64_CHARS = 1_400_000;
+
 export default function PostSubmissionScreen() {
   const colors = useColors();
   const nav = useNav();
@@ -23,18 +25,24 @@ export default function PostSubmissionScreen() {
 
   const pickPhoto = async () => {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Photo access needed', 'Allow access to your photos to attach an image.');
-        return;
-      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.85,
+        quality: 0.65,
+        base64: true,
       });
-      if (!result.canceled && result.assets[0]) setImageAsset(result.assets[0]);
+      if (result.canceled) return;
+      const selected = result.assets[0];
+      if (!selected?.base64) {
+        Alert.alert('Could not prepare photo', 'Please choose another image and try again.');
+        return;
+      }
+      if (selected.base64.length > MAX_POST_IMAGE_BASE64_CHARS) {
+        Alert.alert('Photo is too large', 'Please crop the photo or choose a smaller image.');
+        return;
+      }
+      setImageAsset(selected);
     } catch {
       Alert.alert('Could not open photos', 'Please try again.');
     }
@@ -48,31 +56,25 @@ export default function PostSubmissionScreen() {
     setBusy(true);
     try {
       const deviceId = await getDeviceId();
-      const form = new FormData();
-      form.append('deviceId', deviceId);
-      form.append('name', name.trim());
-      form.append('country', country.trim());
-      form.append('city', city.trim());
-      form.append('title', title.trim());
-      form.append('body', body.trim());
-      form.append('category', 'Islamic');
-      form.append('language', settings.language);
-      if (imageAsset) {
-        const imageResponse = await fetch(imageAsset.uri);
-        if (!imageResponse.ok) throw new Error('The selected image could not be read from the device.');
-        const imageBlob = await imageResponse.blob();
-        form.append('image', imageBlob, imageAsset.fileName ?? `community-${Date.now()}.jpg`);
-      }
-      if (profile.avatarUri) {
-        const avatarResponse = await fetch(profile.avatarUri);
-        if (avatarResponse.ok) {
-          const avatarBlob = await avatarResponse.blob();
-          form.append('avatar', avatarBlob, `profile-${Date.now()}.jpg`);
-        }
-      }
+      const imageUrl = imageAsset?.base64
+        ? `data:${imageAsset.mimeType ?? 'image/jpeg'};base64,${imageAsset.base64}`
+        : undefined;
+      const authorImageUrl = profile.avatarUri?.startsWith('https://') ? profile.avatarUri : undefined;
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',
-        body: form,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId,
+          name: name.trim(),
+          country: country.trim(),
+          city: city.trim(),
+          title: title.trim(),
+          body: body.trim(),
+          category: 'Islamic',
+          language: settings.language,
+          imageUrl,
+          authorImageUrl,
+        }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Unable to send your post');
@@ -104,7 +106,7 @@ export default function PostSubmissionScreen() {
 
       <SectionTitle title="Post" subtitle={`It will be submitted in ${settings.language === 'ur' ? 'Urdu' : settings.language === 'ar' ? 'Arabic' : 'English'}.`} />
       <TextInputField label="Title (optional)" value={title} onChangeText={setTitle} placeholder="A short title" colors={colors} />
-      <Text style={[styles.label, { color: colors.foreground }]}>Post text</Text>
+      <Text style={[styles.label, { color: colors.foreground }]}>Post text (optional)</Text>
       <TextInput
         value={body}
         onChangeText={setBody}
@@ -114,7 +116,7 @@ export default function PostSubmissionScreen() {
         textAlignVertical="top"
         style={[styles.textarea, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
       />
-      <SectionTitle title="Photo" subtitle="Choose one photo from your album." />
+      <SectionTitle title="Photo (optional)" subtitle="You can share a photo without a title or post text." />
       <Pressable
         onPress={() => void pickPhoto()}
         style={[styles.photoPicker, { backgroundColor: colors.card, borderColor: colors.border }]}
