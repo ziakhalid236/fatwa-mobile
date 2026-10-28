@@ -589,7 +589,7 @@ function AgentPanel({
           <h2>Fatwa AI Agent drafts</h2>
           <p>{status?.enabled ? "Source-grounded drafts require an editor decision before publication." : "Agent bridge is not configured on the API."}</p>
         </div>
-        <div className="answer-footer">
+        <div className="answer-footer agent-actions">
           <button className="text-button" onClick={() => setSelectedIds(selectedIds.length === reviewable.length ? [] : reviewable.map((item) => item.id))}>
             {selectedIds.length === reviewable.length && reviewable.length > 0 ? "Clear selection" : "Select all"}
           </button>
@@ -598,7 +598,8 @@ function AgentPanel({
           <button className="text-button" onClick={() => void onRefresh()}>Refresh</button>
         </div>
       </div>
-      {status?.lastRun && <div className="agent-summary">Last run: {status.lastRun.status ?? "unknown"} · processed {status.lastRun.processed ?? 0} · errors {status.lastRun.errors ?? 0}</div>}
+      {status?.lastRun && <div className="agent-summary">Last run: {status.lastRun.status ?? "unknown"} · processed {status.lastRun.processed ?? 0} · errors {status.lastRun.errors ?? 0}{status.lastRun.message ? ` · ${status.lastRun.message}` : ""}</div>}
+      {status?.sources?.length ? <div className="agent-sources">{status.sources.map((source) => <span key={source.status}>{source.status}: {source.count}</span>)}</div> : null}
       {reviewable.map((candidate) => (
         <article className="question-card" key={candidate.id}>
           {(() => {
@@ -637,8 +638,8 @@ function AgentPanel({
       ))}
       {reviewable.length === 0 && (
         <div className="empty">
-          No AI drafts waiting for review. Approved: {history.filter((item) => item.status === "approved").length} · Rejected: {history.filter((item) => item.status === "rejected").length}.
-          <br />Published items are listed under the Fatwas section.
+          {status?.enabled ? "The agent is enabled, but there are currently no unreviewed drafts." : "The agent bridge is not enabled on the configured API."}
+          <br />Approved: {history.filter((item) => item.status === "approved").length} · Rejected: {history.filter((item) => item.status === "rejected").length}. Published items are listed under the Fatwas section.
         </div>
       )}
       {history.length > 0 && (

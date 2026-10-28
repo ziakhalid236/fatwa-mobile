@@ -117,6 +117,20 @@ router.get("/admin/fatwa-agent", async (_req, res) => {
   }
 });
 
+router.patch("/admin/fatwa-agent/bulk", async (req, res) => {
+  const ids = Array.isArray(req.body?.ids)
+    ? req.body.ids.filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0).slice(0, 100)
+    : [];
+  const action = req.body?.action === "reject" || req.body?.action === "delete" ? req.body.action : undefined;
+  if (!action || ids.length === 0) return res.status(400).json({ error: "action and at least one candidate id are required" });
+  try {
+    return res.json(await agentRequest("/api/fatwa-agent/admin/bulk", { method: "PATCH", body: JSON.stringify({ action, ids }) }));
+  } catch (error) {
+    const status = Number((error as { status?: number }).status) || 503;
+    return res.status(status).json({ error: error instanceof Error ? error.message : "Fatwa agent bulk action unavailable" });
+  }
+});
+
 router.patch("/admin/fatwa-agent/:id", async (req, res) => {
   try {
     return res.json(await agentRequest(`/api/fatwa-agent/admin/${encodeURIComponent(req.params.id)}`, { method: "PATCH", body: JSON.stringify({ action: req.body?.action }) }));
