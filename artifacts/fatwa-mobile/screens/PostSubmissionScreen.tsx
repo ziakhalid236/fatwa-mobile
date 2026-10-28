@@ -8,7 +8,8 @@ import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { API_BASE_URL, getDeviceId, useApp } from '@/lib/store';
 
-const MAX_POST_IMAGE_BASE64_CHARS = 1_400_000;
+const MAX_POST_IMAGE_BYTES = 8 * 1024 * 1024;
+const ACCEPTED_POST_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 export default function PostSubmissionScreen() {
   const colors = useColors();
@@ -30,19 +31,23 @@ export default function PostSubmissionScreen() {
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.65,
-        base64: true,
       });
       if (result.canceled) return;
       const selected = result.assets[0];
-      if (!selected?.base64) {
+      if (!selected?.uri) {
         Alert.alert('Could not prepare photo', 'Please choose another image and try again.');
         return;
       }
-      if (selected.base64.length > MAX_POST_IMAGE_BASE64_CHARS) {
+      if (typeof selected.fileSize === 'number' && selected.fileSize > MAX_POST_IMAGE_BYTES) {
         Alert.alert('Photo is too large', 'Please crop the photo or choose a smaller image.');
         return;
       }
-      setImageAsset(selected);
+      const mimeType = (selected.mimeType ?? 'image/jpeg').toLowerCase();
+      if (!ACCEPTED_POST_IMAGE_TYPES.has(mimeType)) {
+        Alert.alert('Unsupported photo format', 'Please choose a JPG, PNG, WEBP, or GIF image.');
+        return;
+      }
+      setImageAsset({ ...selected, mimeType });
     } catch {
       Alert.alert('Could not open photos', 'Please try again.');
     }
@@ -56,25 +61,29 @@ export default function PostSubmissionScreen() {
     setBusy(true);
     try {
       const deviceId = await getDeviceId();
-      const imageUrl = imageAsset?.base64
-        ? `data:${imageAsset.mimeType ?? 'image/jpeg'};base64,${imageAsset.base64}`
-        : undefined;
-      const authorImageUrl = profile.avatarUri?.startsWith('https://') ? profile.avatarUri : undefined;
+      const form = new FormData();
+      form.append('deviceId', deviceId);
+      form.append('name', name.trim());
+      form.append('country', country.trim());
+      form.append('city', city.trim());
+      const bodyText = body.trim();
+      const titleText = title.trim();
+      form.append('title', titleText.length >= 3 ? titleText : bodyText ? '' : 'Community post');
+      form.append('body', bodyText);
+      form.append('category', 'Islamic');
+      form.append('language', settings.language);
+      if (imageAsset) {
+        const mimeType = imageAsset.mimeType ?? 'image/jpeg';
+        const extension = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
+        form.append('image', {
+          uri: imageAsset.uri,
+          name: imageAsset.fileName ?? `community-${Date.now()}.${extension}`,
+          type: mimeType,
+        } as unknown as Blob);
+      }
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deviceId,
-          name: name.trim(),
-          country: country.trim(),
-          city: city.trim(),
-          title: title.trim(),
-          body: body.trim(),
-          category: 'Islamic',
-          language: settings.language,
-          imageUrl,
-          authorImageUrl,
-        }),
+        body: form,
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Unable to send your post');

@@ -24,7 +24,8 @@ The repository does not contain a reviewed Cloudflare Worker source/configuratio
 
 ## Safe resolution applied
 
-The `fatwa-api` Workers Build auto-build flag was disabled. This stops the broken trigger from automatically deploying on every GitHub push. It does not delete, modify or replace the live Worker, D1 database, R2 bucket or bindings.
+- The production auto-build remains disabled. The branch-specific preview trigger for `fix/android-post-submission-optional-content` is now limited to `workers/fatwa-api/**`, so mobile, admin and Node API-adapter changes do not invoke the incompatible monorepo build or attempt a Worker preview.
+- The live Worker, D1 database, R2 bucket and bindings were not modified by this change.
 
 ## Correct future solution
 
