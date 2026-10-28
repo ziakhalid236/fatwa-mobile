@@ -27,7 +27,7 @@ async function agentRequest(path: string, options: RequestInit = {}) {
     ...options,
     headers: { "Content-Type": "application/json", "x-agent-token": token, ...(options.headers ?? {}) },
   });
-  const body = await response.json().catch(() => ({}));
+  const body = (await response.json().catch(() => ({}))) as { error?: string } & Record<string, unknown>;
   if (!response.ok) throw Object.assign(new Error(body?.error ?? `Fatwa agent request failed (${response.status})`), { status: response.status });
   return body;
 }

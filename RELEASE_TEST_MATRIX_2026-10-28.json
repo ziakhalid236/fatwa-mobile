@@ -1,0 +1,44 @@
+{
+  "project": "Fatwa App",
+  "date": "2026-10-28",
+  "qa_status": "pass_with_deployment_verification_note",
+  "repositories": {
+    "fatwa_mobile": {
+      "latest_commit": "97ef912",
+      "latest_message": "Add Fatwa AI review panel"
+    },
+    "zia_ai_agent": {
+      "latest_commit": "904331f",
+      "latest_message": "Add authenticated Fatwa agent admin controls"
+    }
+  },
+  "tests": {
+    "zia_regression": {"status": "pass", "passed": 30, "failed": 0},
+    "mobile_typecheck": "pass",
+    "mobile_static_build": "pass",
+    "admin_typecheck": "pass",
+    "admin_build": "pass",
+    "api_typecheck": "pass",
+    "api_build": "pass",
+    "git_diff_check": "pass"
+  },
+  "live_checks": {
+    "api_health": 200,
+    "public_fatwas": 200,
+    "public_questions": 200,
+    "public_posts": 200,
+    "admin_without_token": 401,
+    "agent_runs": 53,
+    "agent_candidates_needs_review": 35,
+    "agent_published_fatwas": 0,
+    "published_community_posts": 1
+  },
+  "security": {
+    "automatic_public_fatwa_publishing": false,
+    "agent_admin_token_binding": true,
+    "source_allow_list": true,
+    "source_text_prompt_injection_boundary": true,
+    "production_deletion_during_qa": false
+  },
+  "remaining_verification": "The connected Cloudflare build for fatwa-api must deploy the new Admin Panel proxy routes before live UI approve/reject actions can be exercised end-to-end."
+}
