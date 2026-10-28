@@ -526,6 +526,7 @@ function AgentPanel({
 }) {
   const candidates = status?.candidates ?? [];
   const reviewable = candidates.filter((item) => item.status === "needs_review" || item.status === "draft");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const parseReasons = (value: AgentCandidate["reasons"]) => {
     if (Array.isArray(value)) return value;
     if (typeof value !== "string" || !value.trim()) return [];
@@ -534,6 +535,27 @@ function AgentPanel({
       return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [value];
     } catch {
       return [value];
+    }
+  };
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  };
+  const bulkReview = async (action: "reject" | "delete") => {
+    if (selectedIds.length === 0) return;
+    const message = action === "delete"
+      ? `Delete ${selectedIds.length} selected AI records permanently? This cannot be undone.`
+      : `Reject ${selectedIds.length} selected AI records and keep them private?`;
+    if (!window.confirm(message)) return;
+    try {
+      await request<{ ok: boolean; count: number }>("/admin/fatwa-agent/bulk", {
+        method: "PATCH",
+        body: JSON.stringify({ action, ids: selectedIds }),
+      }, token);
+      setSelectedIds([]);
+      await onRefresh();
+      onNotice(`${selectedIds.length} AI records ${action === "delete" ? "deleted" : "rejected"}.`);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Unable to update selected AI records");
     }
   };
   const review = async (candidate: AgentCandidate, action: "approve" | "reject") => {
@@ -563,7 +585,14 @@ function AgentPanel({
           <h2>Fatwa AI Agent drafts</h2>
           <p>{status?.enabled ? "Source-grounded drafts require an editor decision before publication." : "Agent bridge is not configured on the API."}</p>
         </div>
-        <button className="text-button" onClick={() => void onRefresh()}>Refresh</button>
+        <div className="answer-footer">
+          <button className="text-button" onClick={() => setSelectedIds(selectedIds.length === reviewable.length ? [] : reviewable.map((item) => item.id))}>
+            {selectedIds.length === reviewable.length && reviewable.length > 0 ? "Clear selection" : "Select all"}
+          </button>
+          <button className="icon-button danger" disabled={selectedIds.length === 0} onClick={() => void bulkReview("reject")}>Reject selected ({selectedIds.length})</button>
+          <button className="icon-button danger" disabled={selectedIds.length === 0} onClick={() => void bulkReview("delete")}>Delete selected ({selectedIds.length})</button>
+          <button className="text-button" onClick={() => void onRefresh()}>Refresh</button>
+        </div>
       </div>
       {status?.lastRun && <div className="agent-summary">Last run: {status.lastRun.status ?? "unknown"} · processed {status.lastRun.processed ?? 0} · errors {status.lastRun.errors ?? 0}</div>}
       {reviewable.map((candidate) => (
@@ -578,6 +607,7 @@ function AgentPanel({
             const complete = missing.length === 0 && Boolean(candidate.source_url?.trim());
             return (
               <>
+          <label className="submission-body"><input type="checkbox" checked={selectedIds.includes(candidate.id)} onChange={() => toggleSelected(candidate.id)} /> Select this record for bulk action</label>
           <div className="row-meta">
             <span className="tag">{candidate.category || "Needs category"}</span>
             <span className={`status ${candidate.status}`}>{candidate.status.replace("_", " ")}</span>
