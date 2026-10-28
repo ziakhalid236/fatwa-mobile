@@ -62,7 +62,7 @@ This final pass covered the mobile application, Admin Panel, API server, AI Fatw
 
 ## Repository and deployment records
 
-Fatwa repository latest commit: `97ef912 Add Fatwa AI review panel`.
+Fatwa repository latest commit: `8e42335 Finalize QA and document Fatwa agent operations`.
 
 Zia repository latest commit: `904331f Add authenticated Fatwa agent admin controls`.
 
