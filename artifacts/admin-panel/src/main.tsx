@@ -526,6 +526,16 @@ function AgentPanel({
 }) {
   const candidates = status?.candidates ?? [];
   const reviewable = candidates.filter((item) => item.status === "needs_review" || item.status === "draft");
+  const parseReasons = (value: AgentCandidate["reasons"]) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== "string" || !value.trim()) return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [value];
+    } catch {
+      return [value];
+    }
+  };
   const review = async (candidate: AgentCandidate, action: "approve" | "reject") => {
     try {
       await request(`/admin/fatwa-agent/${candidate.id}`, { method: "PATCH", body: JSON.stringify({ action }) }, token);
@@ -558,6 +568,16 @@ function AgentPanel({
       {status?.lastRun && <div className="agent-summary">Last run: {status.lastRun.status ?? "unknown"} · processed {status.lastRun.processed ?? 0} · errors {status.lastRun.errors ?? 0}</div>}
       {reviewable.map((candidate) => (
         <article className="question-card" key={candidate.id}>
+          {(() => {
+            const reasons = parseReasons(candidate.reasons);
+            const missing = [
+              !candidate.question?.trim() && "question",
+              !candidate.answer?.trim() && "source answer",
+              !candidate.urdu_draft?.trim() && "Urdu draft",
+            ].filter(Boolean) as string[];
+            const complete = missing.length === 0 && Boolean(candidate.source_url?.trim());
+            return (
+              <>
           <div className="row-meta">
             <span className="tag">{candidate.category || "Needs category"}</span>
             <span className={`status ${candidate.status}`}>{candidate.status.replace("_", " ")}</span>
@@ -565,15 +585,20 @@ function AgentPanel({
           </div>
           <h3>{candidate.source_title || candidate.question || "Untitled source record"}</h3>
           <p className="questioner">{candidate.institution}{candidate.scholar ? ` · ${candidate.scholar}` : ""}</p>
-          {candidate.question ? <p className="submission-body"><strong>Question:</strong> {candidate.question}</p> : null}
-          {candidate.answer ? <p className="submission-body"><strong>Source answer:</strong> {candidate.answer}</p> : null}
-          {candidate.urdu_draft ? <p className="submission-body"><strong>Urdu draft:</strong> {candidate.urdu_draft}</p> : null}
+          <p className="submission-body"><strong>Question:</strong> {candidate.question?.trim() || "Not extracted from source"}</p>
+          <p className="submission-body"><strong>Source answer:</strong> {candidate.answer?.trim() || "Not extracted from source"}</p>
+          <p className="submission-body"><strong>Urdu draft:</strong> {candidate.urdu_draft?.trim() || "Not generated"}</p>
+          {missing.length > 0 && <p className="submission-body"><strong>Cannot approve yet:</strong> Missing {missing.join(", ")}.</p>}
+          {reasons.length > 0 && <p className="submission-body"><strong>Agent review reason:</strong> {reasons.join(" ")}</p>}
           <div className="answer-footer">
-            <a className="text-button" href={candidate.source_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open full source</a>
-            <button className="primary small" onClick={() => void review(candidate, "approve")}><CheckCircle2 size={15} /> Approve & publish</button>
+            {candidate.source_url ? <a className="text-button" href={candidate.source_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open full source</a> : <span className="text-button">Source URL missing</span>}
+            <button className="primary small" disabled={!complete} onClick={() => void review(candidate, "approve")}><CheckCircle2 size={15} /> {complete ? "Approve & publish" : "Incomplete — cannot approve"}</button>
             <button className="icon-button danger" onClick={() => void review(candidate, "reject")} title="Reject AI draft">Reject</button>
             <button className="icon-button danger" onClick={() => void remove(candidate)} title="Delete AI draft" aria-label="Delete AI draft"><Trash2 size={15} /></button>
           </div>
+              </>
+            );
+          })()}
         </article>
       ))}
       {reviewable.length === 0 && <div className="empty">No AI drafts waiting for review.</div>}
