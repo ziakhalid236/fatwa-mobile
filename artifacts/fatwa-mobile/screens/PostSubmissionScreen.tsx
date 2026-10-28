@@ -1,6 +1,5 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -62,8 +61,10 @@ export default function PostSubmissionScreen() {
       form.append('category', category);
       form.append('language', settings.language);
       if (imageAsset) {
-        const file = new File(imageAsset.uri);
-        form.append('image', file, imageAsset.fileName ?? `community-${Date.now()}.jpg`);
+        const imageResponse = await fetch(imageAsset.uri);
+        if (!imageResponse.ok) throw new Error('The selected image could not be read from the device.');
+        const imageBlob = await imageResponse.blob();
+        form.append('image', imageBlob, imageAsset.fileName ?? `community-${Date.now()}.jpg`);
       }
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',
