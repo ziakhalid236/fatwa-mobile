@@ -9,6 +9,22 @@ import { useNav } from '@/lib/nav';
 import { API_BASE_URL, getDeviceId, useApp } from '@/lib/store';
 import { POST_CATEGORIES, type PostCategory } from '@/lib/types';
 
+// The currently deployed Worker still validates the original five category values.
+// Keep the richer labels in the app while sending a compatible value until the
+// Worker category migration is deployed.
+const API_CATEGORY_BY_LABEL: Partial<Record<PostCategory, string>> = {
+  'Islamic Guidance': 'Islamic',
+  'Quran & Tafseer': 'Islamic',
+  'Hadith & Sunnah': 'Islamic',
+  'Seerah & History': 'Seerah',
+  'Prayer & Worship': 'Islamic',
+  'Family & Character': 'Reflection',
+  'Community & Public Benefit': 'Reflection',
+  'Poetry & Reflection': 'Poetry',
+  Announcements: 'Islamic',
+  General: 'Islamic',
+};
+
 export default function PostSubmissionScreen() {
   const colors = useColors();
   const nav = useNav();
@@ -58,7 +74,7 @@ export default function PostSubmissionScreen() {
       form.append('city', city.trim());
       form.append('title', title.trim());
       form.append('body', body.trim());
-      form.append('category', category);
+      form.append('category', API_CATEGORY_BY_LABEL[category] ?? 'Islamic');
       form.append('language', settings.language);
       if (imageAsset) {
         const imageResponse = await fetch(imageAsset.uri);
