@@ -124,11 +124,24 @@ export default function SettingsScreen() {
         style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
       >
         <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
+          <MaterialCommunityIcons name="bell-ring-outline" size={20} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowTitle, { color: colors.foreground }]}>Prayer alarms</Text>
+          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>GPS prayer times: {prayerCity.name}</Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+      </Pressable>
+      <Pressable
+        onPress={() => nav.push({ name: 'qiblaSettings' })}
+        style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+      >
+        <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
           <MaterialCommunityIcons name="compass-outline" size={20} color={colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.rowTitle, { color: colors.foreground }]}>Qibla & Adhan alarms</Text>
-          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Prayer city: {prayerCity.name} · Hanafi timings</Text>
+          <Text style={[styles.rowTitle, { color: colors.foreground }]}>Qibla direction</Text>
+          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Live compass using your GPS position</Text>
         </View>
         <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
       </Pressable>

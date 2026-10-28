@@ -236,9 +236,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               ? settingsValue.autoTranslate
               : true,
         });
-        const cityName = data[STORE_KEYS.cityName];
-        if (typeof cityName === 'string') {
-          const match = prayerCities.find((city) => city.name === cityName);
+        const storedCity = parse<unknown>(STORE_KEYS.cityName, null);
+        if (isRecord(storedCity) && typeof storedCity.name === 'string' && typeof storedCity.latitude === 'number' && typeof storedCity.longitude === 'number' && typeof storedCity.timezone === 'number') {
+          setPrayerCityState({ name: storedCity.name, latitude: storedCity.latitude, longitude: storedCity.longitude, timezone: storedCity.timezone });
+        } else if (typeof storedCity === 'string') {
+          const match = prayerCities.find((city) => city.name === storedCity);
           if (match) setPrayerCityState(match);
         }
       } catch (error) {
@@ -434,7 +436,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setPrayerCity = useCallback(
     (city: PrayerCity) => {
       setPrayerCityState(city);
-      persist([[STORE_KEYS.cityName, city.name]]);
+      persist([[STORE_KEYS.cityName, city]]);
     },
     [persist],
   );

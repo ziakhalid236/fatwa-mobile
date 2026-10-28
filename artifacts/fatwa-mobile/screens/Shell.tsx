@@ -21,6 +21,7 @@ import NotificationsScreen from '@/screens/NotificationsScreen';
 import PostDetailScreen from '@/screens/PostDetailScreen';
 import PostSubmissionScreen from '@/screens/PostSubmissionScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
+import QiblaScreen from '@/screens/QiblaScreen';
 import QuestionsScreen from '@/screens/QuestionsScreen';
 import QuestionDetailScreen from '@/screens/QuestionDetailScreen';
 import SavedScreen from '@/screens/SavedScreen';
@@ -42,6 +43,7 @@ const titles: Record<string, string> = {
   saved: 'Saved posts',
   settings: 'Settings',
   prayerSettings: 'Prayer settings',
+  qiblaSettings: 'Qibla direction',
   questionDetail: 'Answer details',
 };
 
@@ -191,6 +193,7 @@ function Shell() {
   else if (route.name === 'saved') content = <SavedScreen />;
   else if (route.name === 'settings') content = <SettingsScreen />;
   else if (route.name === 'prayerSettings') content = <AlarmScreen />;
+  else if (route.name === 'qiblaSettings') content = <QiblaScreen />;
   else if (route.name === 'questionDetail') content = <QuestionDetailScreen questionId={route.questionId} />;
   else if (tab === 'home') content = <HomeScreen />;
   else if (tab === 'fatwa') content = <FatwaScreen />;
@@ -286,24 +289,20 @@ function Shell() {
 }
 
 export default function AppShell() {
-  const { alarms, settings, pushNotification } = useApp();
-  const synced = React.useRef(false);
+  const { alarms, settings, pushNotification, hydrated } = useApp();
 
   React.useEffect(() => {
-    if (synced.current) return;
-    synced.current = true;
-    if (alarms.length) {
-      void syncAdhanAlarms(alarms, { soundEnabled: settings.adhanSound }).then((result) => {
-        if (result.scheduled > 0) {
-          pushNotification({
-            kind: 'system',
-            title: 'Adhan alarms ready',
-            body: `${result.scheduled} adhan alarm${result.scheduled === 1 ? '' : 's'} scheduled.`,
-          });
-        }
-      });
-    }
-  }, [alarms, settings.adhanSound, pushNotification]);
+    if (!hydrated || !alarms.length) return;
+    void syncAdhanAlarms(alarms, { soundEnabled: settings.adhanSound }).then((result) => {
+      if (result.scheduled > 0) {
+        pushNotification({
+          kind: 'system',
+          title: 'Adhan alarms ready',
+          body: `${result.scheduled} adhan alarm${result.scheduled === 1 ? '' : 's'} scheduled.`,
+        });
+      }
+    });
+  }, [alarms, hydrated, settings.adhanSound, pushNotification]);
 
   return <Shell />;
 }

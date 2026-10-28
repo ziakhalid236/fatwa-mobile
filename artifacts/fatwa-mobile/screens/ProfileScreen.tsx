@@ -7,7 +7,6 @@ import { Avatar, InfoBanner, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
-import { prayerCities } from '@/data/content';
 
 function ProfileRow({
   icon,
@@ -61,7 +60,6 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
     settings,
     setSettings,
     prayerCity,
-    setPrayerCity,
     clearLocalData,
   } = useApp();
 
@@ -141,10 +139,16 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
         onPress={() => nav.push({ name: 'notifications' })}
       />
       <ProfileRow
-        icon="compass"
-        title="Qibla & adhan"
-        subtitle={`Prayer city: ${prayerCity.name}`}
+        icon="bell"
+        title="Prayer alarms"
+        subtitle={`GPS prayer times · ${prayerCity.name}`}
         onPress={() => nav.push({ name: 'prayerSettings' })}
+      />
+      <ProfileRow
+        icon="compass"
+        title="Qibla direction"
+        subtitle="Open the live compass"
+        onPress={() => nav.push({ name: 'qiblaSettings' })}
       />
 
       <SectionTitle title="Preferences" />
@@ -167,29 +171,6 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
         />
       </View>
 
-      <View style={styles.cityWrap}>
-        {prayerCities.map((city) => {
-          const active = city.name === prayerCity.name;
-          return (
-            <Pressable
-              key={city.name}
-              onPress={() => setPrayerCity(city)}
-              style={[
-                styles.cityChip,
-                {
-                  backgroundColor: active ? colors.primarySoft : colors.card,
-                  borderColor: active ? colors.primary : colors.border,
-                },
-              ]}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.cityChipText, { color: active ? colors.primary : colors.foreground }]}>
-                {city.name}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
 
       <SectionTitle title="About" />
       <ProfileRow

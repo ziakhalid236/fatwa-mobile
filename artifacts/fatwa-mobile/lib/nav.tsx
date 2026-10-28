@@ -12,7 +12,8 @@ export type Route =
   | { name: 'myQuestions' }
   | { name: 'questionDetail'; questionId: string }
   | { name: 'settings' }
-  | { name: 'prayerSettings' };
+  | { name: 'prayerSettings' }
+  | { name: 'qiblaSettings' };
 
 export type Nav = {
   tab: TabKey;
