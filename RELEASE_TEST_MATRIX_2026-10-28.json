@@ -4,8 +4,8 @@
   "qa_status": "pass_with_deployment_verification_note",
   "repositories": {
     "fatwa_mobile": {
-      "latest_commit": "97ef912",
-      "latest_message": "Add Fatwa AI review panel"
+      "latest_commit": "f72bb45",
+      "latest_message": "Update final QA commit reference"
     },
     "zia_ai_agent": {
       "latest_commit": "904331f",
