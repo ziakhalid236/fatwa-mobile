@@ -70,7 +70,20 @@ async function rateLimit(env: Env, request: Request, bucket: string, limit: numb
   return true;
 }
 
-async function ensureSchema(env: Env) {
+// Schema creation is idempotent but costs a batch of DDL statements, so run it
+// at most once per Worker isolate instead of on every request.
+let schemaReady: Promise<void> | null = null;
+function ensureSchema(env: Env): Promise<void> {
+  if (!schemaReady) {
+    schemaReady = createSchema(env).catch((error) => {
+      schemaReady = null;
+      throw error;
+    });
+  }
+  return schemaReady;
+}
+
+async function createSchema(env: Env) {
   await env.DB.batch([
     env.DB.prepare('CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,last_seen_at TEXT NOT NULL,revoked_at TEXT)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS fatwa_revisions (id TEXT PRIMARY KEY,fatwa_id TEXT NOT NULL,question TEXT NOT NULL,answer TEXT NOT NULL,category TEXT NOT NULL,scholar TEXT NOT NULL,institution TEXT NOT NULL,source_url TEXT,status TEXT NOT NULL,changed_by TEXT,created_at TEXT NOT NULL)'),
@@ -162,10 +175,10 @@ async function chatReply(env: Env, turns: ChatTurn[]): Promise<string> {
 async function handle(request: Request, env: Env) {
   const origin = corsOrigin(request, env);
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'access-control-allow-headers': 'Content-Type, Authorization, X-Admin-Token', 'access-control-max-age': '86400' } });
-  await ensureSchema(env);
   const url = new URL(request.url); const path = url.pathname.replace(/^\/api/, '') || '/';
   if (path === '/' || path === '/health' || path === '/healthz') return json({ ok: true, service: 'fatwa-api', backend: 'cloudflare-d1', timestamp: now() }, 200, origin);
   try {
+    await ensureSchema(env);
     if (path === '/fatwas' && request.method === 'GET') { const search = (url.searchParams.get('search') || '').trim(); const like = `%${search}%`; const q = search ? await env.DB.prepare("SELECT * FROM fatwas WHERE status='published' AND (question LIKE ? OR answer LIKE ? OR category LIKE ? OR institution LIKE ?) ORDER BY created_at DESC").bind(like, like, like, like).all<Row>() : await env.DB.prepare("SELECT * FROM fatwas WHERE status='published' ORDER BY created_at DESC").all<Row>(); return json({ fatwas: q.results.map(publicFatwa) }, 200, origin); }
     if (path === '/posts' && request.method === 'GET') { const search = (url.searchParams.get('search') || '').trim(); const like = `%${search}%`; const q = search ? await env.DB.prepare("SELECT * FROM posts WHERE status='published' AND (title LIKE ? OR body LIKE ? OR category LIKE ?) ORDER BY created_at DESC").bind(like, like, like) .all<Row>() : await env.DB.prepare("SELECT * FROM posts WHERE status='published' ORDER BY created_at DESC").all<Row>(); return json({ posts: q.results.map(publicPost) }, 200, origin); }
     if (path === '/profile' && request.method === 'POST') { if (!await rateLimit(env, request, 'profile', 20)) return json({ error: 'Too many requests.' }, 429, origin); const body = await readJson(request); const result = await createOrUpdateUser(env, body); return json({ ok: true, sessionToken: result.sessionToken, user: { id: result.user.id, name: body.name, country: body.country, city: body.city } }, 200, origin); }
