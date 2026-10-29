@@ -202,6 +202,7 @@ function Shell() {
   else content = <ProfileScreen onOpenSettings={onSettings} />;
 
   const showTabBar = route.name === 'tabs';
+  const isAskTab = route.name === 'tabs' && tab === 'questions';
 
   return (
     <NavProvider value={nav}>
@@ -210,14 +211,14 @@ function Shell() {
         <View style={[styles.app, { backgroundColor: colors.background }]}>
           <KeyboardAwareScrollViewCompat
             style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, isAskTab && styles.chatScrollContent]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            enabled
+            enabled={!isAskTab}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
           >
             {header()}
-            {content}
+            {isAskTab ? <View style={styles.chatContent}>{content}</View> : content}
           </KeyboardAwareScrollViewCompat>
           {showTabBar ? (
             <LinearGradient
@@ -312,6 +313,8 @@ const styles = StyleSheet.create({
   app: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingBottom: 12 },
+  chatScrollContent: { flex: 1 },
+  chatContent: { flex: 1, minHeight: 0 },
   topBar: {
     minHeight: 60,
     paddingHorizontal: 20,

@@ -1,0 +1,10 @@
+# Web preview of the mobile app (Expo web export) served as a Worker with static assets.
+# Build:  EXPO_PUBLIC_API_URL=https://fatwa-api-staging.ziakhalid236.workers.dev pnpm exec expo export --platform web --output-dir dist-web --clear
+# Deploy: pnpm --dir ../../workers/fatwa-api exec wrangler deploy -c ../../artifacts/fatwa-mobile/wrangler.preview.toml
+name = "fatwa-preview"
+compatibility_date = "2026-10-29"
+workers_dev = true
+
+[assets]
+directory = "./dist-web"
+not_found_handling = "single-page-application"

@@ -157,9 +157,11 @@ export function PostCard({
           <Pressable
             onPress={() => {
               void Haptics.selectionAsync();
+              const title = post.title.trim() || excerpt.trim().slice(0, 80) || 'Fatwa App community post';
+              const message = [post.title.trim(), excerpt.trim(), post.imageUrl].filter(Boolean).join('\n\n');
               void Share.share({
-                title: post.title,
-                message: `${post.title}\n\n${excerpt}\n\nShared from Fatwa App.`,
+                title,
+                message: `${message}\n\nShared from Fatwa App.`,
               }).catch(() => undefined);
             }}
             style={({ pressed }) => [

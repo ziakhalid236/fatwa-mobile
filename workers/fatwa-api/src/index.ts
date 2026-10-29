@@ -29,6 +29,8 @@ const CHAT_SYSTEM_PROMPT = [
   '- When scholars differ, say so briefly and neutrally; do not issue a ruling on disputed matters.',
   '- Be especially careful and gentle with sensitive topics (divorce, inheritance, apostasy, medical, legal, financial disputes).',
   '- Never give a definitive fatwa. For serious, personal, or disputed matters, advise consulting a qualified mufti or scholar.',
+  '- For a specific ruling about prayer validity, missed or extra rakats, do not infer from memory. If no directly relevant verified source is provided, say you cannot verify a reliable ruling and refer the user to a qualified scholar.',
+  '- Before answering a ruling question, check that every step is consistent and that no sentence contradicts another.',
   '- Do not speak for Allah or claim certainty about the unseen.',
   '',
   'How to answer:',
@@ -95,6 +97,7 @@ async function createSchema(env: Env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY,user_id TEXT,name TEXT NOT NULL,gender TEXT NOT NULL DEFAULT 'unspecified',country TEXT,city TEXT,question TEXT NOT NULL,category TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'submitted',answer TEXT,answered_by TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS post_submissions (id TEXT PRIMARY KEY,name TEXT NOT NULL,country TEXT,city TEXT,title TEXT,body TEXT,category TEXT,language TEXT NOT NULL DEFAULT 'en',status TEXT NOT NULL DEFAULT 'pending',rejection_reason TEXT,submitter_device_id TEXT,image_url TEXT,author_image_url TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS posts (id TEXT PRIMARY KEY,title TEXT,body TEXT,category TEXT,featured INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'published',city TEXT,author TEXT,image_url TEXT,author_image_url TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS post_likes (post_id TEXT NOT NULL,device_id TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(post_id,device_id))'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,question_id TEXT,post_id TEXT,read_at TEXT,created_at TEXT NOT NULL)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at)'),
   ]);
@@ -128,7 +131,7 @@ async function createOrUpdateUser(env: Env, body: Row) {
 }
 
 function publicFatwa(row: Row) { return { id: row.id, question: row.question, answer: row.answer, category: row.category, scholar: row.scholar, institution: row.institution, sourceUrl: row.source_url || undefined, status: row.status, createdAt: row.created_at }; }
-function publicPost(row: Row) { return { id: row.id, title: row.title, body: row.body, category: row.category, featured: Boolean(row.featured), status: row.status, author: row.author || 'Fatwa editorial team', city: row.city || '', imageUrl: row.image_url || '', authorImageUrl: row.author_image_url || '', createdAt: row.created_at }; }
+function publicPost(row: Row) { return { id: row.id, title: row.title, body: row.body, category: row.category, featured: Boolean(row.featured), status: row.status, author: row.author || 'Fatwa editorial team', city: row.city || '', imageUrl: row.image_url || '', authorImageUrl: row.author_image_url || '', likes: Number(row.likes || 0), likedByDevice: Boolean(row.likedByDevice), createdAt: row.created_at }; }
 function adminQuestion(row: Row) { return { id: row.id, name: row.name, gender: row.gender, country: row.country, city: row.city, question: row.question, category: row.category, status: row.status, answer: row.answer || undefined, answeredBy: row.answered_by || undefined, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function adminSubmission(row: Row) { return { id: row.id, name: row.name, country: row.country, city: row.city, title: row.title, body: row.body, category: row.category, language: row.language, imageUrl: row.image_url || undefined, authorImageUrl: row.author_image_url || undefined, status: row.status, rejectionReason: row.rejection_reason || undefined, createdAt: row.created_at }; }
 async function notifySubmitter(env: Env, submission: Row, postId: string) {
@@ -151,6 +154,23 @@ function chatHistory(value: unknown): ChatTurn[] {
     .map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: String(item.content ?? '').slice(0, 4000) }) as ChatTurn)
     .filter((item) => item.content.trim().length > 0)
     .slice(-8);
+}
+
+function cautiousPrayerReply(message: string): string | null {
+  const hasPrayerContext = /\b(?:prayer|salah|salat|namaz|rak(?:at|ats|aah|[’']ah)|rakaat|fajr)\b/i.test(message) || /نماز|رکعت|فجر|صلاة|ركعة/.test(message);
+  if (!hasPrayerContext) return null;
+
+  const asksForRuling = /\b(?:should i|do i need to|what should i|what do i|valid|invalid|repeat|redo|mistake|accidental(?:ly)?|extra|missed|forgot)\b/i.test(message)
+    || /غلطی|اضافی|زیادہ|بھول|دوبارہ|کیا کروں|کیا حکم|صحیح|باطل|خطأ|زائد|نسيت|أعيد|ماذا أفعل|الحكم/.test(message);
+  if (!asksForRuling) return null;
+
+  if (/\b(?:prayer|salah|salat|namaz|rak(?:at|ats|aah|[’']ah)|rakaat|fajr)\b/i.test(message)) {
+    return 'Whether a prayer needs repeating or correcting depends on exactly what happened and the school of law followed. I cannot verify a reliable ruling for your specific case here. Please ask a qualified scholar before repeating or changing the prayer.';
+  }
+  if (/کیا|نماز|رکعت|فجر|غلطی|دوبارہ/.test(message)) {
+    return 'نماز دہرانے یا اس کی اصلاح کا حکم اس بات پر منحصر ہے کہ اصل میں کیا ہوا، اور اس میں فقہی تفصیل ہو سکتی ہے۔ میں اس صورت کا معتبر حکم یہاں تصدیق نہیں کر سکتا؛ نماز دہرانے یا بدلنے سے پہلے کسی مستند مفتی سے پوچھیں۔';
+  }
+  return 'حكم إعادة الصلاة أو تصحيحها يعتمد على تفاصيل ما وقع، وقد تختلف فيه الأحكام الفقهية. لا أستطيع التحقق من حكم موثوق لهذه الحالة هنا؛ اسأل عالمًا مؤهلًا قبل إعادة الصلاة أو تغييرها.';
 }
 
 function cleanAnswer(value: unknown): string {
@@ -180,7 +200,29 @@ async function handle(request: Request, env: Env) {
   try {
     await ensureSchema(env);
     if (path === '/fatwas' && request.method === 'GET') { const search = (url.searchParams.get('search') || '').trim(); const like = `%${search}%`; const q = search ? await env.DB.prepare("SELECT * FROM fatwas WHERE status='published' AND (question LIKE ? OR answer LIKE ? OR category LIKE ? OR institution LIKE ?) ORDER BY created_at DESC").bind(like, like, like, like).all<Row>() : await env.DB.prepare("SELECT * FROM fatwas WHERE status='published' ORDER BY created_at DESC").all<Row>(); return json({ fatwas: q.results.map(publicFatwa) }, 200, origin); }
-    if (path === '/posts' && request.method === 'GET') { const search = (url.searchParams.get('search') || '').trim(); const like = `%${search}%`; const q = search ? await env.DB.prepare("SELECT * FROM posts WHERE status='published' AND (title LIKE ? OR body LIKE ? OR category LIKE ?) ORDER BY created_at DESC").bind(like, like, like) .all<Row>() : await env.DB.prepare("SELECT * FROM posts WHERE status='published' ORDER BY created_at DESC").all<Row>(); return json({ posts: q.results.map(publicPost) }, 200, origin); }
+    if (path === '/posts' && request.method === 'GET') {
+      const search = (url.searchParams.get('search') || '').trim();
+      const deviceId = (url.searchParams.get('deviceId') || '').trim();
+      const selection = 'SELECT posts.*,(SELECT COUNT(*) FROM post_likes WHERE post_id=posts.id) AS likes,EXISTS(SELECT 1 FROM post_likes WHERE post_id=posts.id AND device_id=?) AS likedByDevice FROM posts';
+      const q = search
+        ? await env.DB.prepare(`${selection} WHERE status='published' AND (title LIKE ? OR body LIKE ? OR category LIKE ?) ORDER BY created_at DESC`).bind(deviceId, `%${search}%`, `%${search}%`, `%${search}%`).all<Row>()
+        : await env.DB.prepare(`${selection} WHERE status='published' ORDER BY created_at DESC`).bind(deviceId).all<Row>();
+      return json({ posts: q.results.map(publicPost) }, 200, origin);
+    }
+    const postLikeMatch = path.match(/^\/posts\/([^/]+)\/like$/);
+    if (postLikeMatch && request.method === 'POST') {
+      if (!await rateLimit(env, request, 'post-like', 120)) return json({ error: 'Too many requests.' }, 429, origin);
+      const body = await readJson(request);
+      const deviceId = String(body.deviceId || '').trim();
+      if (deviceId.length < 8 || typeof body.liked !== 'boolean') return json({ error: 'A valid device and like state are required.' }, 400, origin);
+      const postId = decodeURIComponent(postLikeMatch[1]);
+      const post = await env.DB.prepare("SELECT id FROM posts WHERE id=? AND status='published'").bind(postId).first<Row>();
+      if (!post) return json({ error: 'Post not found.' }, 404, origin);
+      if (body.liked) await env.DB.prepare('INSERT OR IGNORE INTO post_likes(post_id,device_id,created_at) VALUES(?,?,?)').bind(postId, deviceId, now()).run();
+      else await env.DB.prepare('DELETE FROM post_likes WHERE post_id=? AND device_id=?').bind(postId, deviceId).run();
+      const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM post_likes WHERE post_id=?').bind(postId).first<Row>();
+      return json({ liked: body.liked, likes: Number(count?.count || 0) }, 200, origin);
+    }
     if (path === '/profile' && request.method === 'POST') { if (!await rateLimit(env, request, 'profile', 20)) return json({ error: 'Too many requests.' }, 429, origin); const body = await readJson(request); const result = await createOrUpdateUser(env, body); return json({ ok: true, sessionToken: result.sessionToken, user: { id: result.user.id, name: body.name, country: body.country, city: body.city } }, 200, origin); }
     if (path === '/questions' && request.method === 'POST') { if (!await rateLimit(env, request, 'question', 10)) return json({ error: 'Too many requests.' }, 429, origin); const body = await readJson(request); const user = await userFor(env, request, body); if (!user) return json({ error: 'Complete your profile before submitting.' }, 401, origin); const question = String(body.question || '').trim(); const category = String(body.category || ''); if (question.length < 20 || !CATEGORIES.has(category)) return json({ error: 'Question and a valid category are required.' }, 400, origin); const timestamp = now(); const questionId = id('question'); await env.DB.prepare('INSERT INTO questions(id,user_id,name,gender,country,city,question,category,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(questionId, user.id, user.name, ['male','female'].includes(body.gender) ? body.gender : 'unspecified', user.country || body.country || '', user.city || body.city || '', question, category, 'submitted', timestamp, timestamp).run(); return json({ id: questionId, userId: user.id, status: 'submitted', createdAt: timestamp }, 201, origin); }
     if (path === '/questions' && request.method === 'GET') { const user = await userFor(env, request); const q = user ? await env.DB.prepare('SELECT id,name,gender,country,city,question,category,status,answer,answered_by AS answeredBy,created_at AS createdAt,updated_at AS updatedAt FROM questions WHERE user_id=? ORDER BY created_at DESC').bind(user.id).all<Row>() : { results: [] }; return json({ questions: q.results }, 200, origin); }
@@ -194,6 +236,8 @@ async function handle(request: Request, env: Env) {
       if (!message) return json({ error: 'Please write your question.' }, 400, origin);
       if (message.length > 4000) return json({ error: 'Question is too long.' }, 413, origin);
       const turns: ChatTurn[] = [...chatHistory(body.history), { role: 'user', content: message }];
+      const cautiousReply = cautiousPrayerReply(message);
+      if (cautiousReply) return json({ answer: cautiousReply }, 200, origin);
       if (!env.AI) return json({ error: 'The assistant is temporarily unavailable. Please try again later.' }, 503, origin);
       try {
         const answer = await chatReply(env, turns);

@@ -2,7 +2,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PrimaryButton, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
@@ -17,6 +17,8 @@ export default function PostSubmissionScreen() {
   const { profile, settings } = useApp();
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
   const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const imageUri = imageAsset?.uri ?? '';
 
@@ -30,32 +32,34 @@ export default function PostSubmissionScreen() {
       if (result.canceled) return;
       const selected = result.assets[0];
       if (!selected?.uri) {
-        Alert.alert('Could not prepare photo', 'Please choose another image and try again.');
+        setError('Could not prepare photo. Please choose another image and try again.');
         return;
       }
       if (typeof selected.fileSize === 'number' && selected.fileSize > MAX_POST_IMAGE_BYTES) {
-        Alert.alert('Photo is too large', 'Please crop the photo or choose a smaller image.');
+        setError('Photo is too large. Please crop the photo or choose a smaller image.');
         return;
       }
       const mimeType = (selected.mimeType ?? 'image/jpeg').toLowerCase();
       if (!ACCEPTED_POST_IMAGE_TYPES.has(mimeType)) {
-        Alert.alert('Unsupported photo format', 'Please choose a JPG, PNG, WEBP, or GIF image.');
+        setError('Unsupported photo format. Please choose a JPG, PNG, WEBP, or GIF image.');
         return;
       }
+      setError('');
       setImageAsset({ ...selected, mimeType });
     } catch {
-      Alert.alert('Could not open photos', 'Please try again.');
+      setError('Could not open photos. Please try again.');
     }
   };
 
   const submit = async () => {
+    setError('');
     if (profile.name.trim().length < 2 || profile.country.trim().length < 2 || profile.city.trim().length < 2) {
-      Alert.alert('Profile required', 'Settings میں اپنا نام، ملک اور شہر save کریں۔ Profile photo optional ہے۔');
+      setError('Profile required: Settings میں اپنا نام، ملک اور شہر save کریں۔ Profile photo optional ہے۔');
       nav.push({ name: 'settings' });
       return;
     }
     if (!body.trim() && !imageAsset) {
-      Alert.alert('Add content', 'Please add a description or choose an image.');
+      setError('Please add a description or choose an image.');
       return;
     }
     setBusy(true);
@@ -89,11 +93,14 @@ export default function PostSubmissionScreen() {
       if (imageAsset) {
         const mimeType = imageAsset.mimeType ?? 'image/jpeg';
         const extension = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
-        form.append('image', {
-          uri: imageAsset.uri,
-          name: imageAsset.fileName ?? `community-${Date.now()}.${extension}`,
-          type: mimeType,
-        } as unknown as Blob);
+        const fileName = imageAsset.fileName ?? `community-${Date.now()}.${extension}`;
+        if (Platform.OS === 'web') {
+          const file = imageAsset.file ?? new File([await fetch(imageAsset.uri).then((response) => response.blob())], fileName, { type: mimeType });
+          if (file.size > MAX_POST_IMAGE_BYTES) throw new Error('Photo is too large. Please choose an image under 8 MB.');
+          form.append('image', file, fileName);
+        } else {
+          form.append('image', { uri: imageAsset.uri, name: fileName, type: mimeType } as unknown as Blob);
+        }
       }
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',
@@ -101,11 +108,9 @@ export default function PostSubmissionScreen() {
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Unable to send your post');
-      Alert.alert('Sent for review', 'Your post is pending admin approval. You will receive a notification when it is approved and published.', [
-        { text: 'Done', onPress: () => nav.back() },
-      ]);
+      setSubmitted(true);
     } catch (error) {
-      Alert.alert('Could not send post', error instanceof Error ? error.message : 'Please try again.');
+      setError(error instanceof Error ? error.message : 'Could not send post. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -119,6 +124,18 @@ export default function PostSubmissionScreen() {
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Your post will be reviewed before it becomes visible to everyone.</Text>
       </View>
 
+      {submitted ? (
+        <View style={[styles.feedback, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]} accessibilityRole="alert">
+          <Feather name="check-circle" size={18} color={colors.primary} />
+          <Text style={[styles.feedbackText, { color: colors.foreground }]}>Sent for review. You will receive a notification when the post is approved and published.</Text>
+        </View>
+      ) : error ? (
+        <View style={[styles.feedback, { backgroundColor: colors.coralSoft, borderColor: colors.coral }]} accessibilityRole="alert">
+          <Feather name="alert-circle" size={18} color={colors.coral} />
+          <Text style={[styles.feedbackText, { color: colors.foreground }]}>{error}</Text>
+        </View>
+      ) : null}
+
       <SectionTitle title="Your profile" subtitle={`${profile.name || 'Guest'} · ${profile.city || 'City'}, ${profile.country || 'Country'}`} />
 
       <SectionTitle title="Post" subtitle={`It will be submitted in ${settings.language === 'ur' ? 'Urdu' : settings.language === 'ar' ? 'Arabic' : 'English'}.`} />
@@ -126,6 +143,7 @@ export default function PostSubmissionScreen() {
       <TextInput
         value={body}
         onChangeText={setBody}
+        editable={!submitted && !busy}
         placeholder="Write your reminder, reflection, or quote..."
         placeholderTextColor={colors.mutedForeground}
         multiline
@@ -134,7 +152,7 @@ export default function PostSubmissionScreen() {
       />
       <SectionTitle title="Photo (optional)" subtitle="The full image will be uploaded without forcing a crop. You can share it without a description." />
       <Pressable
-        onPress={() => void pickPhoto()}
+        onPress={() => { if (!submitted && !busy) void pickPhoto(); }}
         style={[styles.photoPicker, { backgroundColor: colors.card, borderColor: colors.border }]}
         accessibilityRole="button"
         accessibilityLabel={imageUri ? 'Change selected photo' : 'Choose a photo'}
@@ -150,12 +168,17 @@ export default function PostSubmissionScreen() {
         )}
       </Pressable>
       {imageUri ? (
-        <Pressable onPress={() => setImageAsset(null)} style={styles.removePhoto} accessibilityRole="button">
+        <Pressable onPress={() => { if (!submitted && !busy) setImageAsset(null); }} style={styles.removePhoto} accessibilityRole="button">
           <Feather name="x-circle" size={15} color={colors.coral} />
           <Text style={[styles.removePhotoText, { color: colors.coral }]}>Remove photo</Text>
         </Pressable>
       ) : null}
-      <PrimaryButton label={busy ? 'Sending…' : 'Send for approval'} icon="send" onPress={() => void submit()} loading={busy} />
+      <PrimaryButton
+        label={submitted ? 'Back to feed' : busy ? 'Sending…' : 'Send for approval'}
+        icon={submitted ? 'check' : 'send'}
+        onPress={() => { if (submitted) nav.back(); else void submit(); }}
+        loading={busy}
+      />
       <View style={styles.note}>
         <MaterialCommunityIcons name="shield-check-outline" size={17} color={colors.primary} />
         <Text style={[styles.noteText, { color: colors.mutedForeground }]}>An admin reviews every community post before publication.</Text>
@@ -169,6 +192,8 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 },
   title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.6 },
   subtitle: { fontSize: 13, lineHeight: 20, marginTop: 7 },
+  feedback: { flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderRadius: 15, padding: 13, marginBottom: 18 },
+  feedbackText: { flex: 1, fontSize: 12, lineHeight: 18, fontWeight: '600' },
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
   textarea: { minHeight: 160, borderWidth: 1, borderRadius: 18, padding: 15, fontSize: 14, lineHeight: 22, marginBottom: 17 },
   note: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', marginTop: 15 },

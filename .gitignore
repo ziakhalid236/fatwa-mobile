@@ -66,3 +66,7 @@ Thumbs.db
 /backups/
 /release-artifacts/
 /artifacts/fatwa-mobile/static-build/
+
+# Web preview build + local worker lockfile
+artifacts/fatwa-mobile/dist-web/
+workers/fatwa-api/pnpm-lock.yaml

@@ -22,3 +22,32 @@ binding = "AI"
 [observability]
 enabled = true
 head_sampling_rate = 1
+
+# ---------------------------------------------------------------------------
+# Staging: safe copy of production for previews and testing.
+#   pnpm exec wrangler deploy --env staging
+#   pnpm exec wrangler d1 migrations apply fatwa-staging --remote --env staging
+# ---------------------------------------------------------------------------
+[env.staging]
+name = "fatwa-api-staging"
+workers_dev = true
+
+[env.staging.vars]
+ALLOWED_ORIGINS = "https://fatwa-preview.ziakhalid236.workers.dev,https://fatwa-admin-staging.pages.dev,https://fatwa-admin-staging.ziakhalid236.workers.dev,http://localhost:8081"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "fatwa-staging"
+database_id = "4bff8b23-cd8a-48cb-a582-7ab97e54f110"
+migrations_dir = "migrations"
+
+[[env.staging.r2_buckets]]
+binding = "MEDIA"
+bucket_name = "fatwa-media-staging"
+
+[env.staging.ai]
+binding = "AI"
+
+[env.staging.observability]
+enabled = true
+head_sampling_rate = 1

@@ -349,8 +349,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     const loadRemote = async () => {
       try {
+        const deviceId = await getDeviceId();
         const [postsResponse, fatwasResponse] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/posts`),
+          fetch(`${API_BASE_URL}/api/posts?deviceId=${encodeURIComponent(deviceId)}`),
           fetch(`${API_BASE_URL}/api/fatwas`),
         ]);
         if (!active) return;
@@ -382,7 +383,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 imageUrl: typeof item.imageUrl === 'string' && item.imageUrl ? item.imageUrl : undefined,
                 source: typeof item.source === 'string' ? item.source : undefined,
                 views: Number(item.views ?? 0),
-                likes: Number(item.likes ?? 0),
+                likes: Math.max(0, Number(item.likes ?? 0) - (item.likedByDevice === true ? 1 : 0)),
                 date: String(item.date ?? item.createdAt ?? 'Recently'),
                 accent: String(item.accent ?? 'teal'),
                 icon: String(item.icon ?? 'book-open-outline'),
@@ -392,6 +393,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     : legacyTranslations[String(item.title ?? '')],
               })),
             ]);
+            const remoteIds = new Set(payload.posts.map((item) => String(item.id)));
+            const remoteLikedIds = payload.posts.filter((item) => item.likedByDevice === true).map((item) => String(item.id));
+            setLikedPostIds((current) => {
+              const next = [...current.filter((id) => !remoteIds.has(id)), ...remoteLikedIds];
+              persist([[STORE_KEYS.likedPosts, next]]);
+              return next;
+            });
           }
         }
         if (fatwasResponse.ok) {
@@ -475,13 +483,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const toggleLike = useCallback(
     (id: string) => {
+      const liked = !likedPostIds.includes(id);
       setLikedPostIds((current) => {
-        const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
+        const next = liked ? [...current, id] : current.filter((item) => item !== id);
         persist([[STORE_KEYS.likedPosts, next]]);
         return next;
       });
+      if (API_BASE_URL) {
+        void (async () => {
+          const deviceId = await getDeviceId();
+          const response = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(id)}/like`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId, liked }),
+          });
+          if (!response.ok) return;
+          const result = (await response.json()) as { liked?: boolean; likes?: number };
+          setLikedPostIds((current) => {
+            const next = result.liked ? [...new Set([...current, id])] : current.filter((item) => item !== id);
+            persist([[STORE_KEYS.likedPosts, next]]);
+            return next;
+          });
+          if (typeof result.likes === 'number') {
+            setRemotePosts((current) => current?.map((post) => post.id === id ? { ...post, likes: Math.max(0, result.likes! - (result.liked ? 1 : 0)) } : post) ?? null);
+          }
+        })().catch(() => undefined);
+      }
     },
-    [persist],
+    [likedPostIds, persist],
   );
 
   const toggleSaved = useCallback(

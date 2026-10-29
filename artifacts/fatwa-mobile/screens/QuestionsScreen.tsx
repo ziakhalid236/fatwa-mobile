@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { useApp, API_BASE_URL } from '@/lib/store';
 import { uiStyles } from '@/components/ui';
@@ -20,6 +20,7 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const messagesRef = useRef<ScrollView>(null);
   const lastSignal = useRef(askSignal);
 
   useEffect(() => {
@@ -28,6 +29,10 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
       setInput('');
     }
   }, [askSignal]);
+
+  useEffect(() => {
+    messagesRef.current?.scrollToEnd({ animated: true });
+  }, [messages, busy]);
 
   const send = async () => {
     const message = input.trim();
@@ -61,7 +66,7 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
   };
 
   return (
-    <View style={uiStyles.screenPadding}>
+    <KeyboardAvoidingView style={[uiStyles.screenPadding, styles.container]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.head}>
         <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>ISLAMIC GUIDANCE</Text>
         <Text style={[styles.title, { color: colors.foreground }]}>Ask your question</Text>
@@ -70,7 +75,13 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
         </Text>
       </View>
 
-      <View style={styles.messages}>
+      <ScrollView
+        ref={messagesRef}
+        style={styles.messages}
+        contentContainerStyle={styles.messageList}
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={() => messagesRef.current?.scrollToEnd({ animated: true })}
+      >
         {messages.map((item) => (
           <View key={item.id} style={[styles.messageRow, item.role === 'user' && styles.userRow]}>
             {item.role === 'assistant' ? (
@@ -93,7 +104,7 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
             </View>
           </View>
         ) : null}
-      </View>
+      </ScrollView>
 
       {error ? <Text style={[styles.error, { color: colors.coral }]}>{error}</Text> : null}
 
@@ -122,16 +133,18 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
       <Text style={[styles.footer, { color: colors.mutedForeground }]}>
         جواب کو official fatwa نہ سمجھیں۔ شائع شدہ فتوے Fatwa tab میں الگ دکھائے جاتے ہیں۔
       </Text>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, minHeight: 0 },
   head: { marginTop: 10, marginBottom: 18 },
   eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 },
   title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.6 },
   subtitle: { fontSize: 13, lineHeight: 20, marginTop: 7 },
-  messages: { gap: 12, marginBottom: 12 },
+  messages: { flex: 1, minHeight: 0, marginBottom: 12 },
+  messageList: { gap: 12, paddingBottom: 8 },
   messageRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', maxWidth: '94%' },
   userRow: { alignSelf: 'flex-end', flexDirection: 'row-reverse' },
   avatar: { width: 29, height: 29, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
