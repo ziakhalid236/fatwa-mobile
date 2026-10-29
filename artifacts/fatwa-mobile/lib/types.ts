@@ -112,6 +112,7 @@ export type AdhanAlarm = {
 
 export type Profile = {
   name: string;
+  country: string;
   city: string;
   avatarUri?: string;
 };

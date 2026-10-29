@@ -17,6 +17,14 @@ out-tsc
 # dependencies
 node_modules
 
+# local environment and signing secrets
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+key.properties
+
 # IDEs and editors
 /.idea
 .project

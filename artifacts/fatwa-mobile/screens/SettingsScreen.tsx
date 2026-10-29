@@ -68,7 +68,7 @@ export default function SettingsScreen() {
         })}
       </View>
 
-      <SectionTitle title="Account" subtitle="Stay in guest mode or add your name for personalised question replies." />
+      <SectionTitle title="Profile sign-up" subtitle="Post upload کرنے سے پہلے اپنا نام، ملک اور شہر مکمل کریں۔ Profile photo optional ہے۔" />
       <View style={[styles.accountCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.profilePhotoRow}>
           {profile.avatarUri ? <Image source={{ uri: profile.avatarUri }} style={styles.profilePhoto} contentFit="cover" /> : <View style={[styles.profilePhoto, styles.profilePhotoPlaceholder, { backgroundColor: colors.primarySoft }]}><Feather name="user" size={22} color={colors.primary} /></View>}
@@ -81,9 +81,11 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
         <Text style={[styles.inputLabel, { color: colors.foreground }]}>Your name</Text>
-        <TextInput value={profile.name} onChangeText={(value) => setProfile({ name: value })} placeholder="Guest name (optional)" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
-        <Text style={[styles.inputLabel, { color: colors.foreground }]}>City / country</Text>
-        <TextInput value={profile.city} onChangeText={(value) => setProfile({ city: value })} placeholder="Your location (optional)" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
+        <TextInput value={profile.name} onChangeText={(value) => setProfile({ name: value })} placeholder="Your name (required)" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
+        <Text style={[styles.inputLabel, { color: colors.foreground }]}>Country</Text>
+        <TextInput value={profile.country} onChangeText={(value) => setProfile({ country: value })} placeholder="Your country" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
+        <Text style={[styles.inputLabel, { color: colors.foreground }]}>City</Text>
+        <TextInput value={profile.city} onChangeText={(value) => setProfile({ city: value })} placeholder="Your city" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
       </View>
 
       <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>

@@ -57,6 +57,14 @@ router.get("/fatwas/:id", async (req, res) => {
   return res.json(fatwa);
 });
 
+router.post("/profile", async (req, res) => {
+  const { deviceId, name, country, city } = req.body ?? {};
+  if (typeof deviceId !== "string" || deviceId.trim().length < 8 || typeof name !== "string" || name.trim().length < 2 || typeof country !== "string" || country.trim().length < 2 || typeof city !== "string" || city.trim().length < 2) {
+    return res.status(400).json({ error: "deviceId, name, country, and city are required" });
+  }
+  return res.status(200).json({ ok: true, deviceId: deviceId.trim(), name: name.trim(), country: country.trim(), city: city.trim() });
+});
+
 router.post("/questions", async (req, res) => {
   const { name, gender, country, city, question, category } = req.body ?? {};
   if (typeof name !== "string" || name.trim().length < 2 || !["male", "female", "unspecified"].includes(gender) || typeof country !== "string" || country.trim().length < 2 || typeof question !== "string" || question.trim().length < 20 || !validCategory(category)) {
@@ -107,6 +115,7 @@ router.get("/admin/stats", async (_req, res) => res.json(await contentStore.stat
 router.get("/admin/fatwas", async (_req, res) => res.json({ fatwas: await contentStore.listAllFatwas() }));
 router.get("/admin/questions", async (_req, res) => res.json({ questions: await contentStore.listQuestions() }));
 router.get("/admin/post-submissions", async (_req, res) => res.json({ submissions: await contentStore.listSubmissions() }));
+router.get("/admin/users", async (_req, res) => res.json({ users: [] }));
 
 router.get("/admin/fatwa-agent", async (_req, res) => {
   try {

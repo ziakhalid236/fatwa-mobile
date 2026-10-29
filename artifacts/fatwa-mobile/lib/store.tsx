@@ -104,7 +104,7 @@ type AppState = {
 
 const AppContext = createContext<AppState | null>(null);
 
-const emptyProfile: Profile = { name: '', city: '' };
+const emptyProfile: Profile = { name: '', country: '', city: '' };
 
 function makeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -174,6 +174,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           isRecord(profileValue)
             ? {
                 name: typeof profileValue.name === 'string' ? profileValue.name : '',
+                country: typeof profileValue.country === 'string' ? profileValue.country : '',
                 city: typeof profileValue.city === 'string' ? profileValue.city : '',
                 avatarUri: typeof profileValue.avatarUri === 'string' ? profileValue.avatarUri : undefined,
               }
@@ -417,6 +418,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setProfileState((current) => {
         const next = { ...current, ...patch };
         persist([[STORE_KEYS.profile, next]]);
+        void getDeviceId().then((deviceId) => fetch(`${API_BASE_URL}/api/profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId, name: next.name, country: next.country, city: next.city }),
+        }).catch(() => undefined));
         return next;
       });
     },

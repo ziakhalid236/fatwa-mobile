@@ -14,10 +14,7 @@ const ACCEPTED_POST_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/web
 export default function PostSubmissionScreen() {
   const colors = useColors();
   const nav = useNav();
-  const { profile, settings, setProfile } = useApp();
-  const [name, setName] = useState(profile.name);
-  const [country, setCountry] = useState('');
-  const [city, setCity] = useState(profile.city);
+  const { profile, settings } = useApp();
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
@@ -27,9 +24,8 @@ export default function PostSubmissionScreen() {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.65,
+        allowsEditing: false,
+        quality: 1,
       });
       if (result.canceled) return;
       const selected = result.assets[0];
@@ -53,8 +49,13 @@ export default function PostSubmissionScreen() {
   };
 
   const submit = async () => {
-    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2 || (!body.trim() && !imageAsset)) {
-      Alert.alert('More details needed', 'Please enter your name, country, city, and a description or photo.');
+    if (profile.name.trim().length < 2 || profile.country.trim().length < 2 || profile.city.trim().length < 2) {
+      Alert.alert('Profile required', 'Settings میں اپنا نام، ملک اور شہر save کریں۔ Profile photo optional ہے۔');
+      nav.push({ name: 'settings' });
+      return;
+    }
+    if (!body.trim() && !imageAsset) {
+      Alert.alert('Add content', 'Please add a description or choose an image.');
       return;
     }
     setBusy(true);
@@ -62,9 +63,9 @@ export default function PostSubmissionScreen() {
       const deviceId = await getDeviceId();
       const form = new FormData();
       form.append('deviceId', deviceId);
-      form.append('name', name.trim());
-      form.append('country', country.trim());
-      form.append('city', city.trim());
+      form.append('name', profile.name.trim());
+      form.append('country', profile.country.trim());
+      form.append('city', profile.city.trim());
       const bodyText = body.trim();
       form.append('body', bodyText);
       form.append('language', settings.language);
@@ -85,13 +86,17 @@ export default function PostSubmissionScreen() {
           type: mimeType,
         } as unknown as Blob);
       }
+      if (profile.avatarUri) {
+        const avatarResponse = await fetch(profile.avatarUri);
+        const avatarBlob = await avatarResponse.blob();
+        form.append('avatar', avatarBlob, `avatar-${Date.now()}.jpg`);
+      }
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',
         body: form,
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Unable to send your post');
-      setProfile({ name: name.trim(), city: city.trim() });
       Alert.alert('Sent for review', 'Your post is pending admin approval. You will receive a notification when it is approved and published.', [
         { text: 'Done', onPress: () => nav.back() },
       ]);
@@ -110,12 +115,7 @@ export default function PostSubmissionScreen() {
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Your post will be reviewed before it becomes visible to everyone.</Text>
       </View>
 
-      <SectionTitle title="Your details" />
-      <TextInputField label="Name" value={name} onChangeText={setName} placeholder="Your name" colors={colors} />
-      <View style={styles.twoCol}>
-        <TextInputField label="Country" value={country} onChangeText={setCountry} placeholder="Country" colors={colors} />
-        <TextInputField label="City" value={city} onChangeText={setCity} placeholder="City" colors={colors} />
-      </View>
+      <SectionTitle title="Your profile" subtitle={`${profile.name || 'Guest'} · ${profile.city || 'City'}, ${profile.country || 'Country'}`} />
 
       <SectionTitle title="Post" subtitle={`It will be submitted in ${settings.language === 'ur' ? 'Urdu' : settings.language === 'ar' ? 'Arabic' : 'English'}.`} />
       <Text style={[styles.label, { color: colors.foreground }]}>Description (optional)</Text>
@@ -128,7 +128,7 @@ export default function PostSubmissionScreen() {
         textAlignVertical="top"
         style={[styles.textarea, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
       />
-      <SectionTitle title="Photo (optional)" subtitle="You can share a photo without a title or post text." />
+      <SectionTitle title="Photo (optional)" subtitle="The full image will be uploaded without forcing a crop. You can share it without a description." />
       <Pressable
         onPress={() => void pickPhoto()}
         style={[styles.photoPicker, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -160,24 +160,12 @@ export default function PostSubmissionScreen() {
   );
 }
 
-function TextInputField({ label, value, onChangeText, placeholder, colors }: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string; colors: ReturnType<typeof useColors> }) {
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.label, { color: colors.foreground }]}>{label}</Text>
-      <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   head: { marginTop: 10, marginBottom: 20 },
   eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 },
   title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.6 },
   subtitle: { fontSize: 13, lineHeight: 20, marginTop: 7 },
-  field: { flex: 1, marginBottom: 12 },
-  twoCol: { flexDirection: 'row', gap: 10 },
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
-  input: { minHeight: 50, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, fontSize: 13 },
   textarea: { minHeight: 160, borderWidth: 1, borderRadius: 18, padding: 15, fontSize: 14, lineHeight: 22, marginBottom: 17 },
   note: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', marginTop: 15 },
   noteText: { fontSize: 11, textAlign: 'center' },
