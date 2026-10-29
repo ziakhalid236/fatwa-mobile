@@ -61,6 +61,23 @@ export default function PostSubmissionScreen() {
     setBusy(true);
     try {
       const deviceId = await getDeviceId();
+      // Ensure the server knows this device/profile before submitting. The
+      // profile is otherwise synced fire-and-forget while typing, so a failed
+      // sync would surface here as a confusing 401.
+      const profileResponse = await fetch(`${API_BASE_URL}/api/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId,
+          name: profile.name.trim(),
+          country: profile.country.trim(),
+          city: profile.city.trim(),
+        }),
+      });
+      if (!profileResponse.ok) {
+        const failure = (await profileResponse.json().catch(() => ({}))) as { error?: string };
+        throw new Error(failure.error ?? 'Could not save your profile. Check your connection and try again.');
+      }
       const form = new FormData();
       form.append('deviceId', deviceId);
       form.append('name', profile.name.trim());
@@ -69,14 +86,6 @@ export default function PostSubmissionScreen() {
       const bodyText = body.trim();
       form.append('body', bodyText);
       form.append('language', settings.language);
-      if (profile.avatarUri?.startsWith('https://')) form.append('authorImageUrl', profile.avatarUri);
-      if (profile.avatarUri && !profile.avatarUri.startsWith('https://')) {
-        form.append('profileImage', {
-          uri: profile.avatarUri,
-          name: `profile-${Date.now()}.jpg`,
-          type: 'image/jpeg',
-        } as unknown as Blob);
-      }
       if (imageAsset) {
         const mimeType = imageAsset.mimeType ?? 'image/jpeg';
         const extension = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
@@ -85,11 +94,6 @@ export default function PostSubmissionScreen() {
           name: imageAsset.fileName ?? `community-${Date.now()}.${extension}`,
           type: mimeType,
         } as unknown as Blob);
-      }
-      if (profile.avatarUri) {
-        const avatarResponse = await fetch(profile.avatarUri);
-        const avatarBlob = await avatarResponse.blob();
-        form.append('avatar', avatarBlob, `avatar-${Date.now()}.jpg`);
       }
       const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
         method: 'POST',

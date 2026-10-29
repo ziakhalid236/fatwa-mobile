@@ -81,38 +81,13 @@ type PublishedPost = {
   createdAt: string;
 };
 
-type AgentCandidate = {
-  id: string;
-  source_url: string;
-  institution: string;
-  category?: string | null;
-  scholar?: string;
-  question?: string;
-  answer?: string;
-  urdu_draft?: string;
-  source_title?: string;
-  confidence: number;
-  status: "draft" | "needs_review" | "approved" | "rejected";
-  model?: string;
-  reasons?: string[] | string;
-  created_at: string;
-};
-
-type AgentStatus = {
-  enabled: boolean;
-  mode?: string;
-  lastRun?: { started_at?: string; finished_at?: string; status?: string; processed?: number; errors?: number | string[] | Record<string, unknown>[]; message?: string } | null;
-  candidates: AgentCandidate[];
-  sources?: Array<{ status: string; count: number }>;
-};
 
 type Stats = {
   publishedFatwas: number;
-  draftPosts: number;
+  publishedPosts: number;
   pendingQuestions: number;
-  answeredQuestions: number;
-  maleQuestions?: number;
-  femaleQuestions?: number;
+  users: number;
+  pendingPosts: number;
 };
 
 type QuestionFilter = "all" | "male" | "female" | "pending" | "answered";
@@ -131,11 +106,10 @@ const categories: Category[] = [
 const API = (import.meta.env.VITE_API_URL ?? "https://fatwa-api.ziakhalid236.workers.dev").replace(/\/$/, "");
 const metricDefinitions: Array<[string, keyof Stats, LucideIcon]> = [
   ["Published fatwas", "publishedFatwas", BookOpen],
-  ["Draft posts", "draftPosts", ClipboardList],
+  ["Published posts", "publishedPosts", ClipboardList],
   ["Pending questions", "pendingQuestions", MessageSquare],
-  ["Answered questions", "answeredQuestions", CheckCircle2],
-  ["Male questions", "maleQuestions", UserRound],
-  ["Female questions", "femaleQuestions", UserRound],
+  ["Pending posts", "pendingPosts", CheckCircle2],
+  ["Registered users", "users", UserRound],
 ];
 
 async function request<T>(path: string, options: RequestInit = {}, token = "") {
@@ -161,7 +135,7 @@ function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [fatwas, setFatwas] = useState<Fatwa[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [tab, setTab] = useState<"overview" | "fatwas" | "questions" | "submissions" | "posts" | "agent">("overview");
+  const [tab, setTab] = useState<"overview" | "fatwas" | "questions" | "submissions" | "posts">("overview");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -503,120 +477,12 @@ function App() {
   );
 }
 
-function AgentPanel({
-  status,
-  liveFatwas,
-  token,
-  onRefresh,
-  onNotice,
-}: {
-  status: AgentStatus | null;
-  liveFatwas: Fatwa[];
-  token: string;
-  onRefresh: () => Promise<void>;
-  onNotice: (message: string) => void;
-}) {
-  const candidates = status?.candidates ?? [];
-  const pending = candidates.filter((item) => item.status === "needs_review" || item.status === "draft");
-  const approved = candidates.filter((item) => item.status === "approved");
-  const rejected = candidates.filter((item) => item.status === "rejected");
-  const [section, setSection] = useState<"pending" | "approved" | "rejected" | "errors" | "live">("pending");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [editing, setEditing] = useState<Fatwa | null>(null);
-  const parseReasons = (value: AgentCandidate["reasons"]) => {
-    if (Array.isArray(value)) return value;
-    if (typeof value !== "string" || !value.trim()) return [];
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [value];
-    } catch {
-      return [value];
-    }
-  };
-  const current = section === "pending" ? pending : section === "approved" ? approved : rejected;
-  const toggleSelected = (id: string) => setSelectedIds((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
-  const bulkReview = async (action: "reject" | "delete") => {
-    if (!selectedIds.length) return;
-    if (!window.confirm(`${action === "delete" ? "Delete" : "Reject"} ${selectedIds.length} selected AI records?`)) return;
-    const count = selectedIds.length;
-    try {
-      await Promise.all(selectedIds.map((id) => request(`/admin/fatwa-agent/${encodeURIComponent(id)}`, {
-        method: action === "delete" ? "DELETE" : "PATCH",
-        ...(action === "delete" ? {} : { body: JSON.stringify({ action }) }),
-      }, token)));
-      setSelectedIds([]);
-      await onRefresh();
-      onNotice(`${count} AI records ${action === "delete" ? "deleted" : "rejected"}.`);
-    } catch (err) { window.alert(err instanceof Error ? err.message : "Unable to update selected records"); }
-  };
-  const review = async (candidate: AgentCandidate, action: "approve" | "reject" | "delete") => {
-    try {
-      await request(`/admin/fatwa-agent/${candidate.id}`, { method: action === "delete" ? "DELETE" : "PATCH", ...(action === "delete" ? {} : { body: JSON.stringify({ action }) }) }, token);
-      await onRefresh();
-      onNotice(action === "approve" ? "AI fatwa approved and published." : action === "reject" ? "AI fatwa rejected and kept private." : "AI record deleted.");
-    } catch (err) { window.alert(err instanceof Error ? err.message : "Unable to update AI record"); }
-  };
-  const errorItems = Array.isArray(status?.lastRun?.errors) ? status.lastRun.errors : [];
-  return (
-    <section className="panel agent-panel">
-      <div className="panel-heading agent-heading">
-        <div><h2>Fatwa AI Agent workspace</h2><p>{status?.enabled ? "Every AI draft stays private until an editor approves it." : "Agent bridge is not configured on the API."}</p></div>
-        <div className="agent-actions">
-          <button className="agent-action select" onClick={() => setSelectedIds(selectedIds.length === pending.length ? [] : pending.map((item) => item.id))}>Select all <span>{selectedIds.length}/{pending.length}</span></button>
-          <button className="agent-action reject" disabled={!selectedIds.length} onClick={() => void bulkReview("reject")}>Reject selected</button>
-          <button className="agent-action delete" disabled={!selectedIds.length} onClick={() => void bulkReview("delete")}>Delete selected</button>
-          <button className="agent-action refresh" onClick={() => void onRefresh()}>Refresh</button>
-        </div>
-      </div>
-      <div className="agent-run-summary">
-        <strong>Last run:</strong> {status?.lastRun?.status ?? "unknown"} · <strong>Processed:</strong> {status?.lastRun?.processed ?? 0} · <strong>Errors:</strong> {Array.isArray(status?.lastRun?.errors) ? status.lastRun.errors.length : status?.lastRun?.errors ?? 0}
-        {status?.lastRun?.message ? <span> · {status.lastRun.message}</span> : null}
-      </div>
-      {status?.sources?.length ? <div className="agent-sources">{status.sources.map((source) => <span key={source.status}>{source.status}: {source.count}</span>)}</div> : null}
-      <div className="agent-tabs" role="tablist" aria-label="AI fatwa status sections">
-        {([ ["pending", "Pending", pending.length], ["approved", "Approved", approved.length], ["rejected", "Rejected", rejected.length], ["errors", "Errors", errorItems.length || (typeof status?.lastRun?.errors === "number" ? status.lastRun.errors : 0)], ["live", "Live / published", liveFatwas.length] ] as const).map(([key, label, count]) => <button key={key} className={`agent-tab ${section === key ? "active" : ""} ${key === "errors" && count ? "has-errors" : ""}`} onClick={() => setSection(key)} role="tab" aria-selected={section === key}>{label}<b>{count}</b></button>)}
-      </div>
-      {section === "errors" ? (
-        <div className="agent-error-list">
-          <h3>Agent errors</h3>
-          {status?.lastRun?.message ? <div className="agent-error"><strong>Last run:</strong> {status.lastRun.message}</div> : null}
-          {errorItems.length ? errorItems.map((item, index) => <div className="agent-error" key={index}>{typeof item === "string" ? item : JSON.stringify(item)}</div>) : <div className="empty">No detailed error records were returned by the Worker. The run counter is {typeof status?.lastRun?.errors === "number" ? status.lastRun.errors : 0}.</div>}
-        </div>
-      ) : section === "live" ? (
-        <div className="agent-live-list">
-          <div className="section-intro"><h3>Live published fatwas</h3><p>Edit the published answer, source, scholar, or category. Changes are saved directly to the public library.</p></div>
-          {liveFatwas.map((fatwa) => <article className="agent-live-card" key={fatwa.id}><div><span className="tag">{fatwa.category}</span><h3>{fatwa.title || fatwa.question}</h3><p>{fatwa.institution} · {fatwa.scholar}</p></div><button className="agent-action edit" onClick={() => setEditing(fatwa)}>Edit live fatwa</button></article>)}
-          {!liveFatwas.length && <div className="empty">No live published fatwas yet.</div>}
-        </div>
-      ) : (
-        <div className="agent-records">
-          {current.map((candidate) => {
-            const reasons = parseReasons(candidate.reasons);
-            const missing = [!candidate.question?.trim() && "question", !candidate.answer?.trim() && "source answer", !candidate.urdu_draft?.trim() && "Urdu draft"].filter(Boolean) as string[];
-            const complete = missing.length === 0 && Boolean(candidate.source_url?.trim());
-            return <article className="agent-record" key={candidate.id}>
-              {section === "pending" ? <label className="agent-select"><input type="checkbox" checked={selectedIds.includes(candidate.id)} onChange={() => toggleSelected(candidate.id)} /> Select for bulk action</label> : null}
-              <div className="row-meta"><span className="tag">{candidate.category || "Needs category"}</span><span className={`status ${candidate.status}`}>{candidate.status.replace("_", " ")}</span><span>{Math.round((candidate.confidence || 0) * 100)}% confidence</span></div>
-              <h3>{candidate.source_title || candidate.question || "Untitled source record"}</h3><p className="questioner">{candidate.institution}{candidate.scholar ? ` · ${candidate.scholar}` : ""}</p>
-              <p className="submission-body"><strong>Question:</strong> {candidate.question?.trim() || "Not extracted"}</p><p className="submission-body"><strong>Source answer:</strong> {candidate.answer?.trim() || "Not extracted"}</p><p className="submission-body"><strong>Urdu draft:</strong> {candidate.urdu_draft?.trim() || "Not generated"}</p>
-              {missing.length ? <p className="agent-warning"><strong>Cannot approve yet:</strong> Missing {missing.join(", ")}.</p> : null}{reasons.length ? <p className="agent-reason"><strong>Review reason:</strong> {reasons.join(" ")}</p> : null}
-              <div className="agent-record-actions">{candidate.source_url ? <a className="agent-action source" href={candidate.source_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open source</a> : null}{section === "pending" ? <><button className="agent-action approve" disabled={!complete} onClick={() => void review(candidate, "approve")}>Approve & publish</button><button className="agent-action reject" onClick={() => void review(candidate, "reject")}>Reject</button><button className="agent-action delete" onClick={() => void review(candidate, "delete")}>Delete</button></> : null}</div>
-            </article>;
-          })}
-          {!current.length && <div className="empty">{section === "pending" ? "No AI drafts are waiting for review." : `No ${section} AI records are available.`}</div>}
-        </div>
-      )}
-      {editing ? <FatwaEditForm fatwa={editing} token={token} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await onRefresh(); onNotice("Live fatwa updated."); }} /> : null}
-    </section>
-  );
-}
-
 function FatwaEditForm({ fatwa, token, onClose, onSaved }: { fatwa: Fatwa; token: string; onClose: () => void; onSaved: () => Promise<void> }) {
   const [form, setForm] = useState({ question: fatwa.question, answer: fatwa.answer, category: fatwa.category, scholar: fatwa.scholar, institution: fatwa.institution, sourceUrl: fatwa.sourceUrl || "" });
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
   const valid = form.question.trim().length >= 10 && form.answer.trim().length >= 10 && form.scholar.trim().length >= 2 && form.institution.trim().length >= 2;
-  const save = async () => { setBusy(true); setError(""); try { await request(`/admin/fatwas/${fatwa.id}`, { method: "PATCH", body: JSON.stringify({ ...form, title: form.question.trim().slice(0, 120) }) }, token); await onSaved(); } catch (err) { setError(err instanceof Error ? err.message : "Unable to update live fatwa"); } finally { setBusy(false); } };
+  const save = async () => { setBusy(true); setError(""); try { await request(`/admin/fatwas/${fatwa.id}`, { method: "PATCH", body: JSON.stringify(form) }, token); await onSaved(); } catch (err) { setError(err instanceof Error ? err.message : "Unable to update live fatwa"); } finally { setBusy(false); } };
   return <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true"><div className="modal-header"><div><p className="eyebrow">LIVE RECORD</p><h2>Edit published fatwa</h2></div><button className="icon-button" onClick={onClose} aria-label="Close">×</button></div><div className="form-grid"><label>Category<select value={form.category} onChange={(event) => update("category", event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label><label>Scholar / responder<input value={form.scholar} onChange={(event) => update("scholar", event.target.value)} /></label><label className="wide">Question<textarea value={form.question} onChange={(event) => update("question", event.target.value)} /></label><label className="wide">Published answer<textarea value={form.answer} onChange={(event) => update("answer", event.target.value)} /></label><label>Institution<input value={form.institution} onChange={(event) => update("institution", event.target.value)} /></label><label>Source URL<input value={form.sourceUrl} onChange={(event) => update("sourceUrl", event.target.value)} /></label></div>{error && <div className="alert error">{error}</div>}<div className="modal-footer"><p>Changes go live after saving.</p><button className="primary" disabled={busy || !valid} onClick={() => void save()}><CheckCircle2 size={16} /> {busy ? "Saving..." : "Save live changes"}</button></div></div></div>;
 }
 

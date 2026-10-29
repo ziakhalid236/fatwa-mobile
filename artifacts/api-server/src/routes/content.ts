@@ -33,19 +33,6 @@ function validCategory(category: unknown): category is FatwaCategory {
   return typeof category === "string" && categories.includes(category as FatwaCategory);
 }
 
-async function agentRequest(path: string, options: RequestInit = {}) {
-  const base = (process.env.FATWA_AGENT_URL ?? "https://blacksite-field-ops.ziakhalid236.workers.dev").replace(/\/$/, "");
-  const token = process.env.FATWA_AGENT_ADMIN_TOKEN;
-  if (!token) throw new Error("FATWA_AGENT_ADMIN_TOKEN is not configured");
-  const response = await fetch(`${base}${path}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", "x-agent-token": token, ...(options.headers ?? {}) },
-  });
-  const body = (await response.json().catch(() => ({}))) as { error?: string } & Record<string, unknown>;
-  if (!response.ok) throw Object.assign(new Error(body?.error ?? `Fatwa agent request failed (${response.status})`), { status: response.status });
-  return body;
-}
-
 router.get("/fatwas", async (req, res) => {
   const fatwas = await contentStore.listFatwas(String(req.query.search ?? ""), String(req.query.category ?? ""));
   res.json({ fatwas });
@@ -85,6 +72,26 @@ router.get("/questions/:id", async (req, res) => {
   return res.json(question);
 });
 
+// The assistant lives in the deployed Worker (Workers AI + the shared system
+// prompt). Local development proxies to it so both environments behave alike.
+router.post("/chat", async (req, res) => {
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  if (!message) return res.status(400).json({ error: "Please write your question." });
+  const base = (process.env.FATWA_API_URL ?? "https://fatwa-api.ziakhalid236.workers.dev").replace(/\/$/, "");
+  try {
+    const response = await fetch(`${base}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history: Array.isArray(req.body?.history) ? req.body.history.slice(-8) : [], language: req.body?.language }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { answer?: string; error?: string };
+    if (!response.ok || !payload.answer) return res.status(response.ok ? 502 : response.status).json({ error: payload.error ?? "The assistant could not answer right now." });
+    return res.json({ answer: payload.answer });
+  } catch {
+    return res.status(502).json({ error: "The assistant could not answer right now." });
+  }
+});
+
 router.post("/post-submissions", postUpload.fields([{ name: "image", maxCount: 1 }, { name: "profileImage", maxCount: 1 }]), async (req, res) => {
   const { name, country, city, body, language, authorImageUrl } = req.body ?? {};
   const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
@@ -117,50 +124,18 @@ router.get("/admin/questions", async (_req, res) => res.json({ questions: await 
 router.get("/admin/post-submissions", async (_req, res) => res.json({ submissions: await contentStore.listSubmissions() }));
 router.get("/admin/users", async (_req, res) => res.json({ users: [] }));
 
-router.get("/admin/fatwa-agent", async (_req, res) => {
-  try {
-    return res.json(await agentRequest("/api/fatwa-agent/admin"));
-  } catch (error) {
-    const status = Number((error as { status?: number }).status) || 503;
-    return res.status(status).json({ error: error instanceof Error ? error.message : "Fatwa agent bridge unavailable" });
-  }
+// The mobile app reads its own notification list and marks items read against
+// the Worker in production. These keep local development at parity with that
+// contract so the app behaves the same against this server.
+router.get("/notifications", async (req, res) => {
+  const deviceId = String(req.query.deviceId ?? req.header("x-device-id") ?? "").trim();
+  if (!deviceId) return res.json({ notifications: [] });
+  return res.json({ notifications: [] });
 });
 
-router.patch("/admin/fatwa-agent/bulk", async (req, res) => {
-  const ids: string[] = Array.isArray(req.body?.ids)
-    ? req.body.ids.filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0).slice(0, 100)
-    : [];
-  const action = req.body?.action === "reject" || req.body?.action === "delete" ? req.body.action : undefined;
-  if (!action || ids.length === 0) return res.status(400).json({ error: "action and at least one candidate id are required" });
-  try {
-    const results = await Promise.all(ids.map((id) => agentRequest(`/api/fatwa-agent/admin/${encodeURIComponent(id)}`, {
-      method: action === "delete" ? "DELETE" : "PATCH",
-      ...(action === "delete" ? {} : { body: JSON.stringify({ action }) }),
-    })));
-    return res.json({ ok: true, count: results.length, results });
-  } catch (error) {
-    const status = Number((error as { status?: number }).status) || 503;
-    return res.status(status).json({ error: error instanceof Error ? error.message : "Fatwa agent bulk action unavailable" });
-  }
-});
+router.post("/notifications/read-all", async (_req, res) => res.json({ ok: true, updated: 0 }));
+router.post("/notifications/:id/read", async (_req, res) => res.json({ ok: true }));
 
-router.patch("/admin/fatwa-agent/:id", async (req, res) => {
-  try {
-    return res.json(await agentRequest(`/api/fatwa-agent/admin/${encodeURIComponent(req.params.id)}`, { method: "PATCH", body: JSON.stringify({ action: req.body?.action }) }));
-  } catch (error) {
-    const status = Number((error as { status?: number }).status) || 503;
-    return res.status(status).json({ error: error instanceof Error ? error.message : "Fatwa agent bridge unavailable" });
-  }
-});
-
-router.delete("/admin/fatwa-agent/:id", async (req, res) => {
-  try {
-    return res.json(await agentRequest(`/api/fatwa-agent/admin/${encodeURIComponent(req.params.id)}`, { method: "DELETE" }));
-  } catch (error) {
-    const status = Number((error as { status?: number }).status) || 503;
-    return res.status(status).json({ error: error instanceof Error ? error.message : "Fatwa agent bridge unavailable" });
-  }
-});
 
 router.patch("/admin/post-submissions/:id", async (req, res) => {
   const action = req.body?.action === "approve" ? "approved" : req.body?.action === "reject" ? "rejected" : undefined;

@@ -30,6 +30,8 @@ const STORE_KEYS = {
   savedPosts: '@fatwa/savedPosts',
   viewedPosts: '@fatwa/viewedPosts',
   notifications: '@fatwa/notifications',
+  notificationsReadAt: '@fatwa/notifications-read-at',
+  clearedNotifications: '@fatwa/notifications-cleared',
   alarms: '@fatwa/alarms',
   cityName: '@fatwa/prayerCity',
   settings: '@fatwa/settings',
@@ -135,12 +137,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     autoLanguage: true,
     autoTranslate: true,
   });
+
+  const settingsRef = useRef<Settings>(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
   const [remotePosts, setRemotePosts] = useState<Post[] | null>(null);
   const [remoteFatwas, setRemoteFatwas] = useState<Fatwa[] | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
   const writeQueue = useRef(Promise.resolve());
-
+  // Remember what the user cleared or read locally so a background refresh does
+  // not bring dismissed notifications back or re-flag them as unread.
+  const clearedRef = useRef<string[]>([]);
+  const readRef = useRef<string[]>([]);
   const persist = useCallback((entries: [string, unknown][]) => {
     writeQueue.current = writeQueue.current
       .then(() => AsyncStorage.multiSet(entries.map(([key, value]) => [key, JSON.stringify(value)])))
@@ -206,6 +214,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             typeof value.read === 'boolean',
           ),
         );
+        clearedRef.current = parseArray<string>(STORE_KEYS.clearedNotifications, (value): value is string => typeof value === 'string');
+        readRef.current = parseArray<string>(STORE_KEYS.notificationsReadAt, (value): value is string => typeof value === 'string');
         setAlarmsState(
           parseArray<AdhanAlarm>(STORE_KEYS.alarms, (value): value is AdhanAlarm =>
             isRecord(value) &&
@@ -259,7 +269,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!API_BASE_URL) return;
     let active = true;
-    const syncRemoteNotifications = async () => {
+    const syncRemoteNotifications = async (options: { announce?: boolean } = {}) => {
       try {
         const deviceId = await AsyncStorage.getItem(STORE_KEYS.deviceId);
         if (!deviceId || !active) return;
@@ -280,11 +290,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }))
           : [];
         setNotifications((current) => {
-          const currentIds = new Set(current.map((item) => item.id));
-          const fresh = remote.filter((item) => !currentIds.has(item.id));
-          if (fresh.length) void notifyNow(fresh[0].title, fresh[0].body, { kind: fresh[0].kind, refId: fresh[0].refId });
           const local = current.filter((item) => !item.id.startsWith('remote-'));
-          const next = [...remote, ...local].slice(0, 60);
+          const clearedIds = new Set(clearedRef.current);
+          const readIds = new Set(readRef.current);
+          const currentById = new Map(current.map((item) => [item.id, item]));
+          const fresh = remote.filter((item) => !currentById.has(item.id) && !clearedIds.has(item.id));
+          const merged = remote
+            .filter((item) => !clearedIds.has(item.id))
+            .map((item) => {
+              const existing = currentById.get(item.id);
+              // Keep a locally read notification read even if the server has not
+              // caught up yet, so the unread badge does not flicker back on.
+              return { ...item, read: item.read || Boolean(existing?.read) || readIds.has(item.id) };
+            });
+          // Announce genuinely new items once; the periodic refresh stays silent.
+          if (options.announce && fresh.length && settingsRef.current.notificationsEnabled) {
+            void notifyNow(fresh[0].title, fresh[0].body, { kind: fresh[0].kind, refId: fresh[0].refId });
+          }
+          const next = [...merged, ...local].slice(0, 60);
           persist([[STORE_KEYS.notifications, next]]);
           return next;
         });
@@ -392,17 +415,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // Bundled content remains available when the API is offline.
       }
-      await syncRemoteNotifications();
+      await syncRemoteNotifications({ announce: true });
       await syncRemoteQuestions();
     };
     void loadRemote();
+    // Periodic refreshes stay silent so a foreground app does not buzz every
+    // 30 seconds; the app only announces items discovered on resume or load.
     const interval = setInterval(() => {
       void syncRemoteNotifications();
       void syncRemoteQuestions();
     }, 30_000);
     const appState = NativeAppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        void syncRemoteNotifications();
+        void syncRemoteNotifications({ announce: true });
         void syncRemoteQuestions();
       }
     });
@@ -484,6 +509,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const pushNotification = useCallback(
     (input: { kind: NotificationKind; title: string; body: string; refId?: string }) => {
+      if (!settingsRef.current.notificationsEnabled) return;
       setNotifications((current) => {
         const next: AppNotification[] = [
           {
@@ -503,6 +529,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const markNotificationRead = useCallback(
     (id: string) => {
+      readRef.current = [...new Set([...readRef.current, id])].slice(-200);
+      persist([[STORE_KEYS.notificationsReadAt, readRef.current]]);
       setNotifications((current) => {
         const next = current.map((item) => (item.id === id ? { ...item, read: true } : item));
         persist([[STORE_KEYS.notifications, next]]);
@@ -524,15 +552,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const markAllNotificationsRead = useCallback(() => {
     setNotifications((current) => {
+      readRef.current = [...new Set([...readRef.current, ...current.map((item) => item.id)])].slice(-200);
       const next = current.map((item) => ({ ...item, read: true }));
-      persist([[STORE_KEYS.notifications, next]]);
+      persist([[STORE_KEYS.notificationsReadAt, readRef.current], [STORE_KEYS.notifications, next]]);
       return next;
     });
+    if (API_BASE_URL) {
+      void AsyncStorage.getItem(STORE_KEYS.deviceId).then((deviceId) => {
+        if (!deviceId) return;
+        return fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId }),
+        }).catch(() => undefined);
+      });
+    }
   }, [persist]);
 
   const clearNotifications = useCallback(() => {
-    setNotifications([]);
-    persist([[STORE_KEYS.notifications, []]]);
+    setNotifications((current) => {
+      // Dismiss remote notifications for good; a later refresh must not restore them.
+      clearedRef.current = [...new Set([...clearedRef.current, ...current.map((item) => item.id)])].slice(-200);
+      persist([[STORE_KEYS.clearedNotifications, clearedRef.current], [STORE_KEYS.notifications, []]]);
+      return [];
+    });
   }, [persist]);
 
   const refreshContent = useCallback(() => {
