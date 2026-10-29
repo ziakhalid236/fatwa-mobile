@@ -44,7 +44,8 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message,
-          history: nextMessages.slice(-8).map(({ role, text }) => ({ role, content: text })),
+          // Exclude the message we are about to send; the Worker appends it.
+          history: messages.slice(-8).map(({ role, text }) => ({ role, content: text })),
           language: settings.language,
           name: profile.name.trim() || undefined,
         }),

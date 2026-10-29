@@ -118,6 +118,14 @@ function publicFatwa(row: Row) { return { id: row.id, question: row.question, an
 function publicPost(row: Row) { return { id: row.id, title: row.title, body: row.body, category: row.category, featured: Boolean(row.featured), status: row.status, author: row.author || 'Fatwa editorial team', city: row.city || '', imageUrl: row.image_url || '', authorImageUrl: row.author_image_url || '', createdAt: row.created_at }; }
 function adminQuestion(row: Row) { return { id: row.id, name: row.name, gender: row.gender, country: row.country, city: row.city, question: row.question, category: row.category, status: row.status, answer: row.answer || undefined, answeredBy: row.answered_by || undefined, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function adminSubmission(row: Row) { return { id: row.id, name: row.name, country: row.country, city: row.city, title: row.title, body: row.body, category: row.category, language: row.language, imageUrl: row.image_url || undefined, authorImageUrl: row.author_image_url || undefined, status: row.status, rejectionReason: row.rejection_reason || undefined, createdAt: row.created_at }; }
+async function notifySubmitter(env: Env, submission: Row, postId: string) {
+  const deviceId = String(submission.submitter_device_id || '');
+  if (!deviceId) return;
+  const user = await env.DB.prepare('SELECT id FROM users WHERE device_id=?').bind(deviceId).first<Row>();
+  if (!user) return;
+  await env.DB.prepare('INSERT INTO notifications(id,user_id,title,body,question_id,post_id,read_at,created_at) VALUES(?,?,?,?,?,?,?,?)').bind(id('notification'), user.id, 'Your post was published', 'Your community post is now live in the app.', null, postId, null, now()).run();
+}
+
 async function adminOk(env: Env, request: Request) { const token = bearer(request); return Boolean(token && env.ADMIN_TOKEN && token === env.ADMIN_TOKEN); }
 async function audit(env: Env, action: string, entityType: string, entityId: string | null, metadata: Row = {}) { await env.DB.prepare('INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,metadata_json,created_at) VALUES(?,?,?,?,?,?,?)').bind(id('audit'), 'admin', action, entityType, entityId, JSON.stringify(metadata), now()).run(); }
 
@@ -270,8 +278,10 @@ async function handle(request: Request, env: Env) {
         const body = await readJson(request).catch(() => ({} as Row));
         const timestamp = now();
         if (submissionMatch[2] === 'approve') {
-          await env.DB.prepare('INSERT INTO posts(id,title,body,category,featured,status,created_at,updated_at,city,author,image_url,author_image_url) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(id('post'), submission.title, submission.body, submission.category, 0, 'published', timestamp, timestamp, submission.city || '', submission.name, submission.image_url, submission.author_image_url).run();
+          const postId = id('post');
+          await env.DB.prepare('INSERT INTO posts(id,title,body,category,featured,status,created_at,updated_at,city,author,image_url,author_image_url) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(postId, submission.title, submission.body, submission.category, 0, 'published', timestamp, timestamp, submission.city || '', submission.name, submission.image_url, submission.author_image_url).run();
           await env.DB.prepare('UPDATE post_submissions SET status=?,updated_at=? WHERE id=?').bind('approved', timestamp, submission.id).run();
+          await notifySubmitter(env, submission, postId);
         } else {
           await env.DB.prepare('UPDATE post_submissions SET status=?,rejection_reason=?,updated_at=? WHERE id=?').bind('rejected', String(body.reason || 'Not approved'), timestamp, submission.id).run();
         }
@@ -287,7 +297,9 @@ async function handle(request: Request, env: Env) {
         const timestamp = now();
         if (action === 'approve') {
           if (submission.status !== 'approved') {
-            await env.DB.prepare('INSERT INTO posts(id,title,body,category,featured,status,created_at,updated_at,city,author,image_url,author_image_url) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(id('post'), submission.title, submission.body, submission.category, 0, 'published', timestamp, timestamp, submission.city || '', submission.name, submission.image_url, submission.author_image_url).run();
+            const postId = id('post');
+            await env.DB.prepare('INSERT INTO posts(id,title,body,category,featured,status,created_at,updated_at,city,author,image_url,author_image_url) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(postId, submission.title, submission.body, submission.category, 0, 'published', timestamp, timestamp, submission.city || '', submission.name, submission.image_url, submission.author_image_url).run();
+            await notifySubmitter(env, submission, postId);
           }
           await env.DB.prepare('UPDATE post_submissions SET status=?,updated_at=? WHERE id=?').bind('approved', timestamp, submission.id).run();
         } else {

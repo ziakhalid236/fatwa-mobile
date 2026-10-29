@@ -124,6 +124,19 @@ router.get("/admin/questions", async (_req, res) => res.json({ questions: await 
 router.get("/admin/post-submissions", async (_req, res) => res.json({ submissions: await contentStore.listSubmissions() }));
 router.get("/admin/users", async (_req, res) => res.json({ users: [] }));
 
+// The mobile app reads its own notification list and marks items read against
+// the Worker in production. These keep local development at parity with that
+// contract so the app behaves the same against this server.
+router.get("/notifications", async (req, res) => {
+  const deviceId = String(req.query.deviceId ?? req.header("x-device-id") ?? "").trim();
+  if (!deviceId) return res.json({ notifications: [] });
+  return res.json({ notifications: [] });
+});
+
+router.post("/notifications/read-all", async (_req, res) => res.json({ ok: true, updated: 0 }));
+router.post("/notifications/:id/read", async (_req, res) => res.json({ ok: true }));
+
+
 router.patch("/admin/post-submissions/:id", async (req, res) => {
   const action = req.body?.action === "approve" ? "approved" : req.body?.action === "reject" ? "rejected" : undefined;
   if (!action) return res.status(400).json({ error: "action must be approve or reject" });
