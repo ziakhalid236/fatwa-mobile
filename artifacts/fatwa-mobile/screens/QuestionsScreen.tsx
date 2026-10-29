@@ -7,16 +7,16 @@ import { uiStyles } from '@/components/ui';
 
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
 
+const WELCOME: Message = {
+  id: 'welcome',
+  role: 'assistant',
+  text: 'السلام علیکم۔ اپنا سوال لکھیں، میں سمجھ کر اسی زبان میں جواب دوں گا جس میں آپ لکھیں گے۔',
+};
+
 export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number }) {
   const colors = useColors();
-  const { profile } = useApp();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: 'السلام علیکم۔ میں اسلامی رہنمائی کے لیے حاضر ہوں۔ اپنا سوال لکھیں؛ میں فقہ حنفی اور علمائے دیوبند کے اصولوں کے مطابق عمومی جواب دوں گا۔ یہ چیٹ باقاعدہ فتویٰ نہیں ہے۔',
-    },
-  ]);
+  const { profile, settings } = useApp();
+  const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -45,7 +45,8 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
         body: JSON.stringify({
           message,
           history: nextMessages.slice(-8).map(({ role, text }) => ({ role, content: text })),
-          language: 'ur',
+          language: settings.language,
+          name: profile.name.trim() || undefined,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { answer?: string; error?: string };
@@ -60,36 +61,46 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
 
   return (
     <View style={uiStyles.screenPadding}>
-      <View style={[styles.hero, { backgroundColor: colors.forest }]}>
-        <View style={styles.heroIcon}><MaterialCommunityIcons name="chat-processing-outline" size={23} color={colors.gold} /></View>
-        <Text style={styles.heroEyebrow}>ISLAMIC GUIDANCE</Text>
-        <Text style={styles.heroTitle}>Ask your question</Text>
-        <Text style={styles.heroCopy}>A private conversation for general Islamic guidance. Official fatwas are published separately by the admin team.</Text>
-      </View>
-
-      <View style={styles.notice}>
-        <Feather name="info" size={15} color={colors.primary} />
-        <Text style={[styles.noticeText, { color: colors.mutedForeground }]}>چیٹ کا جواب عمومی رہنمائی ہے؛ ذاتی یا حساس معاملے میں مستند مفتی سے رجوع کریں۔</Text>
+      <View style={styles.head}>
+        <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>ISLAMIC GUIDANCE</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Ask your question</Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+          Write in English, اردو or العربية. Answers are general guidance, not a formal fatwa.
+        </Text>
       </View>
 
       <View style={styles.messages}>
         {messages.map((item) => (
           <View key={item.id} style={[styles.messageRow, item.role === 'user' && styles.userRow]}>
-            {item.role === 'assistant' ? <View style={[styles.avatar, { backgroundColor: colors.primary }]}><MaterialCommunityIcons name="book-open-page-variant" size={16} color="#FFFFFF" /></View> : null}
+            {item.role === 'assistant' ? (
+              <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+                <MaterialCommunityIcons name="book-open-page-variant" size={16} color="#FFFFFF" />
+              </View>
+            ) : null}
             <View style={[styles.bubble, item.role === 'user' ? { backgroundColor: colors.primary } : { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.bubbleText, { color: item.role === 'user' ? colors.primaryForeground : colors.foreground }]}>{item.text}</Text>
             </View>
           </View>
         ))}
-        {busy ? <View style={styles.messageRow}><View style={[styles.avatar, { backgroundColor: colors.primary }]}><MaterialCommunityIcons name="book-open-page-variant" size={16} color="#FFFFFF" /></View><View style={[styles.bubble, { backgroundColor: colors.card, borderColor: colors.border }]}><ActivityIndicator color={colors.primary} /></View></View> : null}
+        {busy ? (
+          <View style={styles.messageRow}>
+            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+              <MaterialCommunityIcons name="book-open-page-variant" size={16} color="#FFFFFF" />
+            </View>
+            <View style={[styles.bubble, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          </View>
+        ) : null}
       </View>
 
       {error ? <Text style={[styles.error, { color: colors.coral }]}>{error}</Text> : null}
+
       <View style={[styles.composer, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <TextInput
           value={input}
           onChangeText={setInput}
-          placeholder={`السلام علیکم ${profile.name ? profile.name : ''}، اپنا سوال لکھیں`}
+          placeholder="اپنا سوال لکھیں…"
           placeholderTextColor={colors.mutedForeground}
           style={[styles.input, { color: colors.foreground }]}
           multiline
@@ -97,23 +108,28 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
           textAlignVertical="top"
           onSubmitEditing={() => void send()}
         />
-        <Pressable onPress={() => void send()} disabled={!input.trim() || busy} style={[styles.send, { backgroundColor: input.trim() && !busy ? colors.primary : colors.muted }]} accessibilityRole="button" accessibilityLabel="Send question">
+        <Pressable
+          onPress={() => void send()}
+          disabled={!input.trim() || busy}
+          style={[styles.send, { backgroundColor: input.trim() && !busy ? colors.primary : colors.muted }]}
+          accessibilityRole="button"
+          accessibilityLabel="Send question"
+        >
           <Feather name="send" size={17} color="#FFFFFF" />
         </Pressable>
       </View>
-      <Text style={[styles.footer, { color: colors.mutedForeground }]}>جواب کو official fatwa نہ سمجھیں۔ شائع شدہ فتوے Fatwa tab میں الگ دکھائے جاتے ہیں۔</Text>
+      <Text style={[styles.footer, { color: colors.mutedForeground }]}>
+        جواب کو official fatwa نہ سمجھیں۔ شائع شدہ فتوے Fatwa tab میں الگ دکھائے جاتے ہیں۔
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: { borderRadius: 25, padding: 20, marginTop: 5, marginBottom: 14 },
-  heroIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)', marginBottom: 14 },
-  heroEyebrow: { color: '#BFE6D2', fontSize: 10, fontWeight: '800', letterSpacing: 1.3 },
-  heroTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 31, fontWeight: '800', marginTop: 6 },
-  heroCopy: { color: '#D5E7DB', fontSize: 12.5, lineHeight: 19, marginTop: 8 },
-  notice: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', padding: 12, borderRadius: 14, backgroundColor: '#EAF6F0', marginBottom: 16 },
-  noticeText: { flex: 1, fontSize: 11.5, lineHeight: 17 },
+  head: { marginTop: 10, marginBottom: 18 },
+  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 },
+  title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.6 },
+  subtitle: { fontSize: 13, lineHeight: 20, marginTop: 7 },
   messages: { gap: 12, marginBottom: 12 },
   messageRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', maxWidth: '94%' },
   userRow: { alignSelf: 'flex-end', flexDirection: 'row-reverse' },
