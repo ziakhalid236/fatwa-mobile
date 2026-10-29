@@ -85,6 +85,26 @@ router.get("/questions/:id", async (req, res) => {
   return res.json(question);
 });
 
+// The assistant lives in the deployed Worker (Workers AI + the shared system
+// prompt). Local development proxies to it so both environments behave alike.
+router.post("/chat", async (req, res) => {
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  if (!message) return res.status(400).json({ error: "Please write your question." });
+  const base = (process.env.FATWA_API_URL ?? "https://fatwa-api.ziakhalid236.workers.dev").replace(/\/$/, "");
+  try {
+    const response = await fetch(`${base}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history: Array.isArray(req.body?.history) ? req.body.history.slice(-8) : [], language: req.body?.language }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { answer?: string; error?: string };
+    if (!response.ok || !payload.answer) return res.status(response.ok ? 502 : response.status).json({ error: payload.error ?? "The assistant could not answer right now." });
+    return res.json({ answer: payload.answer });
+  } catch {
+    return res.status(502).json({ error: "The assistant could not answer right now." });
+  }
+});
+
 router.post("/post-submissions", postUpload.fields([{ name: "image", maxCount: 1 }, { name: "profileImage", maxCount: 1 }]), async (req, res) => {
   const { name, country, city, body, language, authorImageUrl } = req.body ?? {};
   const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;

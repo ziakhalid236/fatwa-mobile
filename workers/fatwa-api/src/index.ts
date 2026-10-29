@@ -1,6 +1,7 @@
 interface Env {
   DB: D1Database;
   MEDIA: R2Bucket;
+  AI?: { run: (model: string, input: unknown) => Promise<unknown> };
   ADMIN_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
 }
@@ -9,6 +10,36 @@ type Row = Record<string, any>;
 const MAX_BODY = 2 * 1024 * 1024;
 const IMAGE_MAX = 8 * 1024 * 1024;
 const CATEGORIES = new Set(['Aqeedah', 'Namaz', 'Roza', 'Zakat', 'Hajj & Umrah', 'Nikah & Family', 'Muamalat', 'Tafseer & Quran']);
+
+const CHAT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+
+const CHAT_SYSTEM_PROMPT = [
+  'You are the Islamic guidance assistant inside the Fatwa mobile app.',
+  'Purpose: help Muslims understand their religion and give general, respectful Islamic guidance.',
+  '',
+  'Language:',
+  '- Understand the user first, then answer in the SAME language the user wrote in.',
+  '- You may answer in any language (Urdu, Arabic, English, Pashto, Sindhi, Punjabi, Bengali, Turkish, etc.).',
+  '- If the user mixes languages, reply in the dominant one. Keep the tone warm, calm and respectful.',
+  '',
+  'Islamic adab (always respect these):',
+  '- Open with a short greeting such as "السلام علیکم" when it fits, and keep a humble, kind tone.',
+  '- Base answers on the Quran, authentic Sunnah, and mainstream scholarship (Hanafi fiqh and the scholars of Deoband unless the user asks for another school).',
+  '- Quote a Quran verse or hadith only when you are confident it is accurate. Never invent verses, hadith, references, or numbers.',
+  '- When scholars differ, say so briefly and neutrally; do not issue a ruling on disputed matters.',
+  '- Be especially careful and gentle with sensitive topics (divorce, inheritance, apostasy, medical, legal, financial disputes).',
+  '- Never give a definitive fatwa. For serious, personal, or disputed matters, advise consulting a qualified mufti or scholar.',
+  '- Do not speak for Allah or claim certainty about the unseen.',
+  '',
+  'How to answer:',
+  '- First show you understood the question in one short line.',
+  '- Then give a clear, well-organised answer in short paragraphs or a few bullets.',
+  '- Prefer practical guidance the person can act on today.',
+  '- If the question is unclear, ask one focused follow-up question instead of guessing.',
+  '- If the question is outside Islamic guidance (e.g. coding, politics, harmful requests), politely redirect to what you can help with.',
+  '- Keep answers concise: aim for a few short paragraphs, not an essay.',
+  '- End with a brief reminder that this is general guidance, not a formal fatwa, when the topic is a ruling.',
+].join('\n');
 
 const id = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 const now = () => new Date().toISOString();
@@ -81,6 +112,36 @@ function publicPost(row: Row) { return { id: row.id, title: row.title, body: row
 async function adminOk(env: Env, request: Request) { const token = bearer(request); return Boolean(token && env.ADMIN_TOKEN && token === env.ADMIN_TOKEN); }
 async function audit(env: Env, action: string, entityType: string, entityId: string | null, metadata: Row = {}) { await env.DB.prepare('INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,metadata_json,created_at) VALUES(?,?,?,?,?,?,?)').bind(id('audit'), 'admin', action, entityType, entityId, JSON.stringify(metadata), now()).run(); }
 
+type ChatTurn = { role: 'user' | 'assistant' | 'system'; content: string };
+
+function chatHistory(value: unknown): ChatTurn[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Row => Boolean(item) && typeof item === 'object')
+    .map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: String(item.content ?? '').slice(0, 4000) }) as ChatTurn)
+    .filter((item) => item.content.trim().length > 0)
+    .slice(-8);
+}
+
+function cleanAnswer(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (value && typeof value === 'object') {
+    const record = value as Row;
+    for (const key of ['response', 'answer', 'text', 'result']) {
+      if (typeof record[key] === 'string') return record[key].trim();
+    }
+  }
+  return '';
+}
+
+async function chatReply(env: Env, turns: ChatTurn[]): Promise<string> {
+  if (!env.AI) throw new Error('ai_unavailable');
+  const result = await env.AI.run(CHAT_MODEL, { messages: [{ role: 'system', content: CHAT_SYSTEM_PROMPT }, ...turns], max_tokens: 1024, temperature: 0.3 });
+  const answer = cleanAnswer(result);
+  if (!answer) throw new Error('empty_answer');
+  return answer;
+}
+
 async function handle(request: Request, env: Env) {
   const origin = corsOrigin(request, env);
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'access-control-allow-headers': 'Content-Type, Authorization, X-Admin-Token', 'access-control-max-age': '86400' } });
@@ -95,6 +156,22 @@ async function handle(request: Request, env: Env) {
     if (path === '/questions' && request.method === 'GET') { const user = await userFor(env, request); const q = user ? await env.DB.prepare('SELECT id,name,gender,country,city,question,category,status,answer,answered_by AS answeredBy,created_at AS createdAt,updated_at AS updatedAt FROM questions WHERE user_id=? ORDER BY created_at DESC').bind(user.id).all<Row>() : { results: [] }; return json({ questions: q.results }, 200, origin); }
     if (path === '/notifications' && request.method === 'GET') { const user = await userFor(env, request); const q = user ? await env.DB.prepare('SELECT id,title,body,question_id AS questionId,post_id AS postId,read_at AS readAt,created_at AS createdAt FROM notifications WHERE user_id=? ORDER BY created_at DESC').bind(user.id).all<Row>() : { results: [] }; return json({ notifications: q.results }, 200, origin); }
     if (/^\/notifications\/[^/]+\/read$/.test(path) && request.method === 'POST') { const user = await userFor(env, request, await readJson(request)); if (!user) return json({ error: 'Notification not found.' }, 404, origin); const notificationId = path.split('/')[2]; await env.DB.prepare('UPDATE notifications SET read_at=? WHERE id=? AND user_id=?').bind(now(), notificationId, user.id).run(); return json({ ok: true }, 200, origin); }
+    if (path === '/chat' && request.method === 'POST') {
+      if (!await rateLimit(env, request, 'chat', 20)) return json({ error: 'Too many requests. Please wait a moment and try again.' }, 429, origin);
+      const body = await readJson(request);
+      const message = String(body.message || '').trim();
+      if (!message) return json({ error: 'Please write your question.' }, 400, origin);
+      if (message.length > 4000) return json({ error: 'Question is too long.' }, 413, origin);
+      const turns: ChatTurn[] = [...chatHistory(body.history), { role: 'user', content: message }];
+      if (!env.AI) return json({ error: 'The assistant is temporarily unavailable. Please try again later.' }, 503, origin);
+      try {
+        const answer = await chatReply(env, turns);
+        return json({ answer }, 200, origin);
+      } catch (error) {
+        console.error('chat error', String(error));
+        return json({ error: 'The assistant could not answer right now. Please try again.' }, 502, origin);
+      }
+    }
     if (path === '/post-submissions' && request.method === 'POST') { if (!await rateLimit(env, request, 'post', 10)) return json({ error: 'Too many requests.' }, 429, origin); const form = await request.formData(); const body = String(form.get('body') || '').trim(); const deviceId = String(form.get('deviceId') || '').trim(); const user = await userFor(env, request, { deviceId }); if (!user) return json({ error: 'Complete your profile before submitting.' }, 401, origin); const image = form.get('image'); if (!body && !(image instanceof File)) return json({ error: 'Description or image is required.' }, 400, origin); let imageUrl = ''; if (image instanceof File) { if (!/^image\/(jpeg|png|webp|gif)$/.test(image.type)) return json({ error: 'Only JPG, PNG, WEBP or GIF images are allowed.' }, 415, origin); if (image.size > IMAGE_MAX) return json({ error: 'Image must be smaller than 8 MB.' }, 413, origin); const key = `posts/${crypto.randomUUID()}.${image.type.split('/')[1].replace('jpeg','jpg')}`; await env.MEDIA.put(key, image.stream(), { httpMetadata: { contentType: image.type } }); imageUrl = `${url.origin}/api/media/${encodeURIComponent(key)}`; } const timestamp = now(); const submissionId = id('submission'); await env.DB.prepare('INSERT INTO post_submissions(id,name,country,city,title,body,category,language,status,rejection_reason,submitter_device_id,image_url,author_image_url,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(submissionId, user.name, user.country || '', user.city || '', body.slice(0, 80) || 'Community image', body, String(form.get('category') || ''), ['ur','ar'].includes(String(form.get('language'))) ? String(form.get('language')) : 'en', 'pending', null, user.device_id, imageUrl || null, user.avatar_url || null, timestamp, timestamp).run(); return json({ id: submissionId, status: 'pending', createdAt: timestamp, imageUrl }, 201, origin); }
     if (path.startsWith('/media/') && request.method === 'GET') { const key = decodeURIComponent(path.slice(7)); const object = await env.MEDIA.get(key); if (!object) return text('Not found', 404, origin); const headers = new Headers({ 'cache-control': 'public, max-age=31536000, immutable', 'access-control-allow-origin': origin, 'x-content-type-options': 'nosniff' }); if (object.httpMetadata?.contentType) headers.set('content-type', object.httpMetadata.contentType); return new Response(object.body, { headers }); }
     if (path.startsWith('/admin')) { if (!await adminOk(env, request)) return json({ error: 'Admin authentication required.' }, 401, origin); if (path === '/admin/stats' && request.method === 'GET') { const [posts, fatwas, questions, users, submissions] = await Promise.all(['posts','fatwas','questions','users','post_submissions'].map((t) => env.DB.prepare(`SELECT COUNT(*) AS count FROM ${t}`).first<Row>())); return json({ publishedPosts: Number(posts?.count || 0), publishedFatwas: Number(fatwas?.count || 0), pendingQuestions: Number(questions?.count || 0), users: Number(users?.count || 0), pendingPosts: Number(submissions?.count || 0) }, 200, origin); }
