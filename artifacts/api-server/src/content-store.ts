@@ -249,9 +249,10 @@ export class ContentStore {
     await this.ready;
     return {
       publishedFatwas: this.data.fatwas.filter((item) => item.status === "published").length,
-      draftPosts: this.data.fatwas.filter((item) => item.status === "draft").length,
+      publishedPosts: this.data.fatwas.filter((item) => item.status === "draft").length,
       pendingQuestions: this.data.questions.filter((item) => item.status !== "answered").length,
-      answeredQuestions: this.data.questions.filter((item) => item.status === "answered").length,
+      users: 0,
+      pendingPosts: this.data.submissions.filter((item) => item.status === "pending").length,
     };
   }
 }
