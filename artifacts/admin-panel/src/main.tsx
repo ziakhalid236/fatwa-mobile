@@ -84,11 +84,10 @@ type PublishedPost = {
 
 type Stats = {
   publishedFatwas: number;
-  draftPosts: number;
+  publishedPosts: number;
   pendingQuestions: number;
-  answeredQuestions: number;
-  maleQuestions?: number;
-  femaleQuestions?: number;
+  users: number;
+  pendingPosts: number;
 };
 
 type QuestionFilter = "all" | "male" | "female" | "pending" | "answered";
@@ -107,11 +106,10 @@ const categories: Category[] = [
 const API = (import.meta.env.VITE_API_URL ?? "https://fatwa-api.ziakhalid236.workers.dev").replace(/\/$/, "");
 const metricDefinitions: Array<[string, keyof Stats, LucideIcon]> = [
   ["Published fatwas", "publishedFatwas", BookOpen],
-  ["Draft posts", "draftPosts", ClipboardList],
+  ["Published posts", "publishedPosts", ClipboardList],
   ["Pending questions", "pendingQuestions", MessageSquare],
-  ["Answered questions", "answeredQuestions", CheckCircle2],
-  ["Male questions", "maleQuestions", UserRound],
-  ["Female questions", "femaleQuestions", UserRound],
+  ["Pending posts", "pendingPosts", CheckCircle2],
+  ["Registered users", "users", UserRound],
 ];
 
 async function request<T>(path: string, options: RequestInit = {}, token = "") {
@@ -484,7 +482,7 @@ function FatwaEditForm({ fatwa, token, onClose, onSaved }: { fatwa: Fatwa; token
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
   const valid = form.question.trim().length >= 10 && form.answer.trim().length >= 10 && form.scholar.trim().length >= 2 && form.institution.trim().length >= 2;
-  const save = async () => { setBusy(true); setError(""); try { await request(`/admin/fatwas/${fatwa.id}`, { method: "PATCH", body: JSON.stringify({ ...form, title: form.question.trim().slice(0, 120) }) }, token); await onSaved(); } catch (err) { setError(err instanceof Error ? err.message : "Unable to update live fatwa"); } finally { setBusy(false); } };
+  const save = async () => { setBusy(true); setError(""); try { await request(`/admin/fatwas/${fatwa.id}`, { method: "PATCH", body: JSON.stringify(form) }, token); await onSaved(); } catch (err) { setError(err instanceof Error ? err.message : "Unable to update live fatwa"); } finally { setBusy(false); } };
   return <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true"><div className="modal-header"><div><p className="eyebrow">LIVE RECORD</p><h2>Edit published fatwa</h2></div><button className="icon-button" onClick={onClose} aria-label="Close">×</button></div><div className="form-grid"><label>Category<select value={form.category} onChange={(event) => update("category", event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label><label>Scholar / responder<input value={form.scholar} onChange={(event) => update("scholar", event.target.value)} /></label><label className="wide">Question<textarea value={form.question} onChange={(event) => update("question", event.target.value)} /></label><label className="wide">Published answer<textarea value={form.answer} onChange={(event) => update("answer", event.target.value)} /></label><label>Institution<input value={form.institution} onChange={(event) => update("institution", event.target.value)} /></label><label>Source URL<input value={form.sourceUrl} onChange={(event) => update("sourceUrl", event.target.value)} /></label></div>{error && <div className="alert error">{error}</div>}<div className="modal-footer"><p>Changes go live after saving.</p><button className="primary" disabled={busy || !valid} onClick={() => void save()}><CheckCircle2 size={16} /> {busy ? "Saving..." : "Save live changes"}</button></div></div></div>;
 }
 
