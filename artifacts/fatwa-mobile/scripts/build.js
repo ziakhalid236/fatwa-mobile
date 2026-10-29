@@ -69,10 +69,7 @@ function getDeploymentDomain() {
     return stripProtocol(process.env.EXPO_PUBLIC_DOMAIN);
   }
 
-  console.error(
-    'ERROR: No deployment domain found. Set REPLIT_INTERNAL_APP_DOMAIN, REPLIT_DEV_DOMAIN, or EXPO_PUBLIC_DOMAIN',
-  );
-  process.exit(1);
+  return null;
 }
 
 function prepareDirectories(timestamp) {
@@ -527,6 +524,16 @@ async function main() {
   setupSignalHandlers();
 
   const domain = getDeploymentDomain();
+
+  // This static-export build only makes sense on a host that serves the Expo
+  // bundle (Replit). Cloudflare Workers Builds runs `pnpm run build` from the
+  // repository root, where there is no such host and no domain to bake in.
+  // Skip instead of failing, so the Worker deploy step can still run.
+  if (!domain) {
+    console.log('No Expo deployment domain configured; skipping the static web export.');
+    return;
+  }
+
   const expoPublicReplId = getExpoPublicReplId();
   const baseUrl = `https://${domain}`;
   const timestamp = `${Date.now()}-${process.pid}`;
