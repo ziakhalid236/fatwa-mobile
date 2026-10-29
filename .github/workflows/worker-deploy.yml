@@ -1,19 +1,20 @@
-name: Apply fatwa-api D1 migrations
+name: Deploy fatwa-api Worker
 
-# Cloudflare Workers Builds owns the Worker deploy for this repository. This
-# workflow only applies D1 migrations and smoke-tests the live API, so the two
-# do not race to deploy the same Worker.
+# Applies D1 migrations, deploys the Worker, and smoke-tests the live API.
+# Requires the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository
+# secrets. The job skips cleanly (with a warning) when they are absent.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'workers/fatwa-api/migrations/**'
-      - '.github/workflows/worker-migrations.yml'
+      - 'workers/fatwa-api/**'
+      - 'wrangler.toml'
+      - '.github/workflows/worker-deploy.yml'
   workflow_dispatch:
 
 concurrency:
-  group: worker-migrations-${{ github.ref }}
+  group: worker-deploy-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -25,8 +26,8 @@ env:
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
-  migrate:
-    name: Apply migrations and smoke test
+  deploy:
+    name: Migrate, deploy and smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -38,7 +39,7 @@ jobs:
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are not set; skipping migrations."
+            echo "::warning::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are not set; skipping deploy."
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
@@ -58,10 +59,20 @@ jobs:
         working-directory: workers/fatwa-api
         run: pnpm install --no-frozen-lockfile --ignore-scripts
 
+      - name: Typecheck Worker
+        if: steps.creds.outputs.ready == 'true'
+        working-directory: workers/fatwa-api
+        run: pnpm exec tsc --noEmit
+
       - name: Apply D1 migrations
         if: steps.creds.outputs.ready == 'true'
         working-directory: workers/fatwa-api
         run: pnpm exec wrangler d1 migrations apply fatwa-web-content --remote
+
+      - name: Deploy Worker
+        if: steps.creds.outputs.ready == 'true'
+        working-directory: workers/fatwa-api
+        run: pnpm exec wrangler deploy
 
       - name: Smoke test
         if: steps.creds.outputs.ready == 'true'
@@ -71,4 +82,5 @@ jobs:
           curl -fsS "$base/health" | grep -q '"ok":true'
           curl -fsS "$base/fatwas" | grep -q '"fatwas"'
           curl -fsS "$base/posts" | grep -q '"posts"'
+          curl -fsS -X POST "$base/chat" -H 'Content-Type: application/json' -d '{"message":"salam","history":[]}' | grep -qv '"error"'
           echo "Smoke test passed."
