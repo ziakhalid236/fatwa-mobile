@@ -1,15 +1,19 @@
-name: Deploy fatwa-api Worker
+name: Apply fatwa-api D1 migrations
+
+# Cloudflare Workers Builds owns the Worker deploy for this repository. This
+# workflow only applies D1 migrations and smoke-tests the live API, so the two
+# do not race to deploy the same Worker.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'workers/fatwa-api/**'
-      - '.github/workflows/worker-deploy.yml'
+      - 'workers/fatwa-api/migrations/**'
+      - '.github/workflows/worker-migrations.yml'
   workflow_dispatch:
 
 concurrency:
-  group: worker-deploy-${{ github.ref }}
+  group: worker-migrations-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -21,8 +25,8 @@ env:
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
-  deploy:
-    name: Apply migrations and deploy
+  migrate:
+    name: Apply migrations and smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -34,7 +38,7 @@ jobs:
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are not set; skipping deploy."
+            echo "::warning::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are not set; skipping migrations."
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
@@ -54,20 +58,10 @@ jobs:
         working-directory: workers/fatwa-api
         run: pnpm install --no-frozen-lockfile --ignore-scripts
 
-      - name: Typecheck Worker
-        if: steps.creds.outputs.ready == 'true'
-        working-directory: workers/fatwa-api
-        run: pnpm exec tsc --noEmit
-
       - name: Apply D1 migrations
         if: steps.creds.outputs.ready == 'true'
         working-directory: workers/fatwa-api
         run: pnpm exec wrangler d1 migrations apply fatwa-web-content --remote
-
-      - name: Deploy Worker
-        if: steps.creds.outputs.ready == 'true'
-        working-directory: workers/fatwa-api
-        run: pnpm exec wrangler deploy
 
       - name: Smoke test
         if: steps.creds.outputs.ready == 'true'
