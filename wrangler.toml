@@ -1,0 +1,30 @@
+# Cloudflare Workers Builds runs the deploy command from the repository root by
+# default. This monorepo keeps the Worker in workers/fatwa-api, so without a root
+# configuration the build has nothing to deploy and fails. Keep these bindings in
+# sync with workers/fatwa-api/wrangler.toml, which is still used for local
+# development and by the GitHub Actions deploy workflow.
+
+name = "fatwa-api"
+main = "workers/fatwa-api/src/index.ts"
+compatibility_date = "2026-10-29"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGINS = "https://fatwa-admin.pages.dev,https://fatwa-api.ziakhalid236.workers.dev"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fatwa-web-content"
+database_id = "c07cb62b-83d3-48b3-a84f-f7959b134005"
+migrations_dir = "workers/fatwa-api/migrations"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "fatwa-media"
+
+[ai]
+binding = "AI"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
