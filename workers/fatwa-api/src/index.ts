@@ -1,0 +1,114 @@
+interface Env {
+  DB: D1Database;
+  MEDIA: R2Bucket;
+  ADMIN_TOKEN?: string;
+  ALLOWED_ORIGINS?: string;
+}
+
+type Row = Record<string, any>;
+const MAX_BODY = 2 * 1024 * 1024;
+const IMAGE_MAX = 8 * 1024 * 1024;
+const CATEGORIES = new Set(['Aqeedah', 'Namaz', 'Roza', 'Zakat', 'Hajj & Umrah', 'Nikah & Family', 'Muamalat', 'Tafseer & Quran']);
+
+const id = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
+const now = () => new Date().toISOString();
+const json = (body: unknown, status = 200, origin = '*') => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'access-control-allow-headers': 'Content-Type, Authorization, X-Admin-Token', 'access-control-max-age': '86400', 'x-content-type-options': 'nosniff' } });
+const text = (body: string, status: number, origin: string) => new Response(body, { status, headers: { 'content-type': 'text/plain; charset=utf-8', 'access-control-allow-origin': origin, 'x-content-type-options': 'nosniff' } });
+
+function corsOrigin(request: Request, env: Env) {
+  const requestOrigin = request.headers.get('origin') || '';
+  const allowed = (env.ALLOWED_ORIGINS || '').split(',').map((v) => v.trim()).filter(Boolean);
+  return allowed.includes(requestOrigin) ? requestOrigin : (allowed[0] || '*');
+}
+function clientKey(request: Request) { return request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || 'unknown'; }
+async function hash(value: string) { const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join(''); }
+async function readJson(request: Request) { const length = Number(request.headers.get('content-length') || 0); if (length > MAX_BODY) throw new Error('payload_too_large'); return await request.json() as Row; }
+function bearer(request: Request) { return (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim() || request.headers.get('x-admin-token') || ''; }
+function safeError(error: unknown) { const message = String(error); if (message.includes('payload_too_large')) return ['Payload is too large.', 413] as const; console.error('worker error', message); return ['Request could not be completed.', 500] as const; }
+
+async function rateLimit(env: Env, request: Request, bucket: string, limit: number) {
+  const key = `${bucket}:${clientKey(request)}`;
+  const window = Math.floor(Date.now() / 60_000) * 60_000;
+  const row = await env.DB.prepare('SELECT window_started_at, count FROM rate_limits WHERE key=?').bind(key).first<Row>();
+  if (!row || Number(row.window_started_at) !== window) {
+    await env.DB.prepare('INSERT INTO rate_limits(key,window_started_at,count) VALUES(?,?,1) ON CONFLICT(key) DO UPDATE SET window_started_at=excluded.window_started_at,count=1').bind(key, window).run();
+    return true;
+  }
+  if (Number(row.count) >= limit) return false;
+  await env.DB.prepare('UPDATE rate_limits SET count=count+1 WHERE key=?').bind(key).run();
+  return true;
+}
+
+async function ensureSchema(env: Env) {
+  await env.DB.batch([
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,last_seen_at TEXT NOT NULL,revoked_at TEXT)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS fatwa_revisions (id TEXT PRIMARY KEY,fatwa_id TEXT NOT NULL,question TEXT NOT NULL,answer TEXT NOT NULL,category TEXT NOT NULL,scholar TEXT NOT NULL,institution TEXT NOT NULL,source_url TEXT,status TEXT NOT NULL,changed_by TEXT,created_at TEXT NOT NULL)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS notification_deliveries (id TEXT PRIMARY KEY,notification_id TEXT NOT NULL,channel TEXT NOT NULL DEFAULT \'in_app\',status TEXT NOT NULL DEFAULT \'pending\',failure_reason TEXT,attempted_at TEXT,delivered_at TEXT)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS admin_audit_logs (id TEXT PRIMARY KEY,admin_id TEXT NOT NULL,action TEXT NOT NULL,entity_type TEXT NOT NULL,entity_id TEXT,metadata_json TEXT,created_at TEXT NOT NULL)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY,window_started_at INTEGER NOT NULL,count INTEGER NOT NULL DEFAULT 0)'),
+  ]);
+}
+
+async function userFor(env: Env, request: Request, body?: Row) {
+  const token = bearer(request);
+  if (token) {
+    const tokenHash = await hash(token);
+    const session = await env.DB.prepare('SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.revoked_at IS NULL AND s.expires_at>?').bind(tokenHash, now()).first<Row>();
+    if (session) return session;
+  }
+  const deviceId = String(body?.deviceId || new URL(request.url).searchParams.get('deviceId') || '').trim();
+  if (!deviceId) return null;
+  return await env.DB.prepare('SELECT * FROM users WHERE device_id=?').bind(deviceId).first<Row>();
+}
+
+async function createOrUpdateUser(env: Env, body: Row) {
+  const deviceId = String(body.deviceId || '').trim();
+  const name = String(body.name || '').trim();
+  const country = String(body.country || '').trim();
+  const city = String(body.city || '').trim();
+  if (deviceId.length < 8 || name.length < 2 || country.length < 2 || city.length < 2) throw new Error('invalid_profile');
+  const timestamp = now();
+  let user = await env.DB.prepare('SELECT * FROM users WHERE device_id=?').bind(deviceId).first<Row>();
+  if (user) await env.DB.prepare('UPDATE users SET name=?,country=?,city=?,updated_at=? WHERE id=?').bind(name, country, city, timestamp, user.id).run();
+  else { user = { id: id('user'), device_id: deviceId, name, country, city, created_at: timestamp, updated_at: timestamp }; await env.DB.prepare('INSERT INTO users(id,device_id,name,country,city,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(user.id, deviceId, name, country, city, timestamp, timestamp).run(); }
+  const rawToken = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+  await env.DB.prepare('INSERT INTO sessions(id,user_id,token_hash,expires_at,created_at,last_seen_at) VALUES(?,?,?,?,?,?)').bind(id('session'), user.id, await hash(rawToken), new Date(Date.now() + 30 * 86400000).toISOString(), timestamp, timestamp).run();
+  return { user, sessionToken: rawToken };
+}
+
+function publicFatwa(row: Row) { return { id: row.id, question: row.question, answer: row.answer, category: row.category, scholar: row.scholar, institution: row.institution, sourceUrl: row.source_url || undefined, status: row.status, createdAt: row.created_at }; }
+function publicPost(row: Row) { return { id: row.id, title: row.title, body: row.body, category: row.category, featured: Boolean(row.featured), status: row.status, author: row.author || 'Fatwa editorial team', city: row.city || '', imageUrl: row.image_url || '', authorImageUrl: row.author_image_url || '', createdAt: row.created_at }; }
+async function adminOk(env: Env, request: Request) { const token = bearer(request); return Boolean(token && env.ADMIN_TOKEN && token === env.ADMIN_TOKEN); }
+async function audit(env: Env, action: string, entityType: string, entityId: string | null, metadata: Row = {}) { await env.DB.prepare('INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,metadata_json,created_at) VALUES(?,?,?,?,?,?,?)').bind(id('audit'), 'admin', action, entityType, entityId, JSON.stringify(metadata), now()).run(); }
+
+async function handle(request: Request, env: Env) {
+  const origin = corsOrigin(request, env);
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'access-control-allow-headers': 'Content-Type, Authorization, X-Admin-Token', 'access-control-max-age': '86400' } });
+  await ensureSchema(env);
+  const url = new URL(request.url); const path = url.pathname.replace(/^\/api/, '') || '/';
+  if (path === '/' || path === '/health' || path === '/healthz') return json({ ok: true, service: 'fatwa-api', backend: 'cloudflare-d1', timestamp: now() }, 200, origin);
+  try {
+    if (path === '/fatwas' && request.method === 'GET') { const search = (url.searchParams.get('search') || '').trim(); const like = `%${search}%`; const q = search ? await env.DB.prepare("SELECT * FROM fatwas WHERE status='published' AND (question LIKE ? OR answer LIKE ? OR category LIKE ? OR institution LIKE ?) ORDER BY created_at DESC").bind(like, like, like, like).all<Row>() : await env.DB.prepare("SELECT * FROM fatwas WHERE status='published' ORDER BY created_at DESC").all<Row>(); return json({ fatwas: q.results.map(publicFatwa) }, 200, origin); }
+    if (path === '/posts' && request.method === 'GET') { const search = (url.searchParams.get('search') || '').trim(); const like = `%${search}%`; const q = search ? await env.DB.prepare("SELECT * FROM posts WHERE status='published' AND (title LIKE ? OR body LIKE ? OR category LIKE ?) ORDER BY created_at DESC").bind(like, like, like) .all<Row>() : await env.DB.prepare("SELECT * FROM posts WHERE status='published' ORDER BY created_at DESC").all<Row>(); return json({ posts: q.results.map(publicPost) }, 200, origin); }
+    if (path === '/profile' && request.method === 'POST') { if (!await rateLimit(env, request, 'profile', 20)) return json({ error: 'Too many requests.' }, 429, origin); const body = await readJson(request); const result = await createOrUpdateUser(env, body); return json({ ok: true, sessionToken: result.sessionToken, user: { id: result.user.id, name: body.name, country: body.country, city: body.city } }, 200, origin); }
+    if (path === '/questions' && request.method === 'POST') { if (!await rateLimit(env, request, 'question', 10)) return json({ error: 'Too many requests.' }, 429, origin); const body = await readJson(request); const user = await userFor(env, request, body); if (!user) return json({ error: 'Complete your profile before submitting.' }, 401, origin); const question = String(body.question || '').trim(); const category = String(body.category || ''); if (question.length < 20 || !CATEGORIES.has(category)) return json({ error: 'Question and a valid category are required.' }, 400, origin); const timestamp = now(); const questionId = id('question'); await env.DB.prepare('INSERT INTO questions(id,user_id,name,gender,country,city,question,category,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(questionId, user.id, user.name, ['male','female'].includes(body.gender) ? body.gender : 'unspecified', user.country || body.country || '', user.city || body.city || '', question, category, 'submitted', timestamp, timestamp).run(); return json({ id: questionId, userId: user.id, status: 'submitted', createdAt: timestamp }, 201, origin); }
+    if (path === '/questions' && request.method === 'GET') { const user = await userFor(env, request); const q = user ? await env.DB.prepare('SELECT id,name,gender,country,city,question,category,status,answer,answered_by AS answeredBy,created_at AS createdAt,updated_at AS updatedAt FROM questions WHERE user_id=? ORDER BY created_at DESC').bind(user.id).all<Row>() : { results: [] }; return json({ questions: q.results }, 200, origin); }
+    if (path === '/notifications' && request.method === 'GET') { const user = await userFor(env, request); const q = user ? await env.DB.prepare('SELECT id,title,body,question_id AS questionId,post_id AS postId,read_at AS readAt,created_at AS createdAt FROM notifications WHERE user_id=? ORDER BY created_at DESC').bind(user.id).all<Row>() : { results: [] }; return json({ notifications: q.results }, 200, origin); }
+    if (/^\/notifications\/[^/]+\/read$/.test(path) && request.method === 'POST') { const user = await userFor(env, request, await readJson(request)); if (!user) return json({ error: 'Notification not found.' }, 404, origin); const notificationId = path.split('/')[2]; await env.DB.prepare('UPDATE notifications SET read_at=? WHERE id=? AND user_id=?').bind(now(), notificationId, user.id).run(); return json({ ok: true }, 200, origin); }
+    if (path === '/post-submissions' && request.method === 'POST') { if (!await rateLimit(env, request, 'post', 10)) return json({ error: 'Too many requests.' }, 429, origin); const form = await request.formData(); const body = String(form.get('body') || '').trim(); const deviceId = String(form.get('deviceId') || '').trim(); const user = await userFor(env, request, { deviceId }); if (!user) return json({ error: 'Complete your profile before submitting.' }, 401, origin); const image = form.get('image'); if (!body && !(image instanceof File)) return json({ error: 'Description or image is required.' }, 400, origin); let imageUrl = ''; if (image instanceof File) { if (!/^image\/(jpeg|png|webp|gif)$/.test(image.type)) return json({ error: 'Only JPG, PNG, WEBP or GIF images are allowed.' }, 415, origin); if (image.size > IMAGE_MAX) return json({ error: 'Image must be smaller than 8 MB.' }, 413, origin); const key = `posts/${crypto.randomUUID()}.${image.type.split('/')[1].replace('jpeg','jpg')}`; await env.MEDIA.put(key, image.stream(), { httpMetadata: { contentType: image.type } }); imageUrl = `${url.origin}/api/media/${encodeURIComponent(key)}`; } const timestamp = now(); const submissionId = id('submission'); await env.DB.prepare('INSERT INTO post_submissions(id,name,country,city,title,body,category,language,status,rejection_reason,submitter_device_id,image_url,author_image_url,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(submissionId, user.name, user.country || '', user.city || '', body.slice(0, 80) || 'Community image', body, String(form.get('category') || ''), ['ur','ar'].includes(String(form.get('language'))) ? String(form.get('language')) : 'en', 'pending', null, user.device_id, imageUrl || null, user.avatar_url || null, timestamp, timestamp).run(); return json({ id: submissionId, status: 'pending', createdAt: timestamp, imageUrl }, 201, origin); }
+    if (path.startsWith('/media/') && request.method === 'GET') { const key = decodeURIComponent(path.slice(7)); const object = await env.MEDIA.get(key); if (!object) return text('Not found', 404, origin); const headers = new Headers({ 'cache-control': 'public, max-age=31536000, immutable', 'access-control-allow-origin': origin, 'x-content-type-options': 'nosniff' }); if (object.httpMetadata?.contentType) headers.set('content-type', object.httpMetadata.contentType); return new Response(object.body, { headers }); }
+    if (path.startsWith('/admin')) { if (!await adminOk(env, request)) return json({ error: 'Admin authentication required.' }, 401, origin); if (path === '/admin/stats' && request.method === 'GET') { const [posts, fatwas, questions, users, submissions] = await Promise.all(['posts','fatwas','questions','users','post_submissions'].map((t) => env.DB.prepare(`SELECT COUNT(*) AS count FROM ${t}`).first<Row>())); return json({ publishedPosts: Number(posts?.count || 0), publishedFatwas: Number(fatwas?.count || 0), pendingQuestions: Number(questions?.count || 0), users: Number(users?.count || 0), pendingPosts: Number(submissions?.count || 0) }, 200, origin); }
+      if (path === '/admin/users' && request.method === 'GET') { const q = await env.DB.prepare('SELECT id,name,country,city,avatar_url AS avatarUrl,device_id AS deviceId,created_at AS createdAt,updated_at AS updatedAt FROM users ORDER BY updated_at DESC').all<Row>(); return json({ users: q.results }, 200, origin); }
+      if (path === '/admin/posts' && request.method === 'GET') { const q = await env.DB.prepare('SELECT * FROM posts ORDER BY created_at DESC').all<Row>(); return json({ posts: q.results.map(publicPost) }, 200, origin); }
+      if (path === '/admin/fatwas' && request.method === 'GET') { const q = await env.DB.prepare('SELECT * FROM fatwas ORDER BY created_at DESC').all<Row>(); return json({ fatwas: q.results.map(publicFatwa) }, 200, origin); }
+      if (path === '/admin/questions' && request.method === 'GET') { const q = await env.DB.prepare('SELECT * FROM questions ORDER BY created_at DESC').all<Row>(); return json({ questions: q.results }, 200, origin); }
+      if (path === '/admin/post-submissions' && request.method === 'GET') { const q = await env.DB.prepare('SELECT * FROM post_submissions ORDER BY created_at DESC').all<Row>(); return json({ submissions: q.results }, 200, origin); }
+      const match = path.match(/^\/admin\/post-submissions\/([^/]+)\/(approve|reject)$/); if (match && request.method === 'POST') { const submission = await env.DB.prepare('SELECT * FROM post_submissions WHERE id=?').bind(match[1]).first<Row>(); if (!submission) return json({ error: 'Submission not found.' }, 404, origin); const body = await readJson(request).catch(() => ({} as Row)); const timestamp = now(); if (match[2] === 'approve') { await env.DB.prepare('INSERT INTO posts(id,title,body,category,featured,status,created_at,updated_at,city,author,image_url,author_image_url) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').bind(id('post'), submission.title, submission.body, submission.category, 0, 'published', timestamp, timestamp, submission.city || '', submission.name, submission.image_url, submission.author_image_url).run(); await env.DB.prepare('UPDATE post_submissions SET status=?,updated_at=? WHERE id=?').bind('approved', timestamp, submission.id).run(); } else await env.DB.prepare('UPDATE post_submissions SET status=?,rejection_reason=?,updated_at=? WHERE id=?').bind('rejected', String(body.reason || 'Not approved'), timestamp, submission.id).run(); await audit(env, match[2], 'post_submission', submission.id, { reason: body.reason || null }); return json({ ok: true, status: match[2] === 'approve' ? 'approved' : 'rejected' }, 200, origin); }
+      if (path === '/admin/fatwas' && request.method === 'POST') { const body = await readJson(request); if (!String(body.question || '').trim() || !String(body.answer || '').trim() || !CATEGORIES.has(String(body.category || ''))) return json({ error: 'Question, answer and valid category are required.' }, 400, origin); const timestamp = now(); const fatwaId = id('fatwa'); await env.DB.prepare('INSERT INTO fatwas(id,question,answer,category,scholar,institution,source_url,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(fatwaId, String(body.question).trim(), String(body.answer).trim(), body.category, String(body.scholar || 'Qualified scholar'), String(body.institution || ''), String(body.sourceUrl || ''), body.status === 'draft' ? 'draft' : 'published', timestamp, timestamp).run(); await audit(env, 'create', 'fatwa', fatwaId); return json({ ok: true, id: fatwaId }, 201, origin); }
+      if (path === '/admin/audit' && request.method === 'GET') { const q = await env.DB.prepare('SELECT * FROM admin_audit_logs ORDER BY created_at DESC LIMIT 100').all<Row>(); return json({ audit: q.results }, 200, origin); }
+    }
+    return json({ error: 'Not found.' }, 404, origin);
+  } catch (error) { const [message, status] = safeError(error); return json({ error: message }, status, origin); }
+}
+
+export default { fetch(request: Request, env: Env) { return handle(request, env); } };
