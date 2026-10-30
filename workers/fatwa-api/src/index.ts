@@ -1,6 +1,7 @@
 import { processPushQueue, pushSchemaStatements, queueBroadcast, registerPushToken } from './push';
 import { libraryRoute } from './library';
 import { withTurso } from './turso';
+import { adminExtras, extraColumns, extraSchema, publicExtras, type Ctx } from './extras';
 import { expandQuery, tokens as kbTokens, kbSchemaStatements, searchKb, kbContext, publicHit, ingest as kbIngest, importScholars, kbStats, kbMigrate, reseq as kbReseq, type KbHit } from './kb';
 interface Env {
   DB: D1Database;
@@ -14,6 +15,11 @@ interface Env {
   TURSO_DB_TOKEN?: string;
   TURSO_KB_URL?: string;
   TURSO_KB_TOKEN?: string;
+  GOOGLE_CLIENT_IDS?: string;
+  RESEND_API_KEY?: string;
+  MAIL_FROM?: string;
+  SMTP_USER?: string;
+  SMTP_PASS?: string;
 }
 
 type Row = Record<string, any>;
@@ -111,6 +117,7 @@ async function createSchema(env: Env) {
   await step('kb-schema', () => env.KB.batch(kbSchemaStatements(env.KB)));
   await step('kb-migrate', () => kbMigrate(env.KB));
   await step('push-schema', () => env.DB.batch(pushSchemaStatements(env.DB)));
+  await step('extra-schema', () => env.DB.batch(extraSchema(env.DB)));
   await env.DB.batch([
     env.DB.prepare('CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,last_seen_at TEXT NOT NULL,revoked_at TEXT)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS fatwa_revisions (id TEXT PRIMARY KEY,fatwa_id TEXT NOT NULL,question TEXT NOT NULL,answer TEXT NOT NULL,category TEXT NOT NULL,scholar TEXT NOT NULL,institution TEXT NOT NULL,source_url TEXT,status TEXT NOT NULL,changed_by TEXT,created_at TEXT NOT NULL)'),
@@ -129,7 +136,7 @@ async function createSchema(env: Env) {
   // Additive columns (idempotent, safe on production data).
   const wanted: Record<string, Array<[string, string]>> = {
     posts: [['country', 'TEXT'], ['user_id', 'TEXT'], ['notified_at', 'TEXT']],
-    users: [['notify_posts', 'INTEGER NOT NULL DEFAULT 1']],
+    users: [['notify_posts', 'INTEGER NOT NULL DEFAULT 1'], ...extraColumns.users],
     post_submissions: [['user_id', 'TEXT']],
     notifications: [['kind', 'TEXT'], ['image_url', 'TEXT']],
   };
@@ -147,10 +154,10 @@ async function userFor(env: Env, request: Request, _body?: Row) {
   const token = bearer(request);
   if (!token) return null;
   const tokenHash = await hash(token);
-  return await env.DB.prepare('SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.revoked_at IS NULL AND s.expires_at>?').bind(tokenHash, now()).first<Row>() || null;
+  return await env.DB.prepare('SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.revoked_at IS NULL AND u.banned_at IS NULL AND s.expires_at>?').bind(tokenHash, now()).first<Row>() || null;
 }
 
-function publicUser(user: Row) { return { notifyPosts: user.notify_posts !== 0 && user.notify_posts !== '0', id: user.id, name: user.name, country: user.country || '', city: user.city || '', avatarUrl: user.avatar_url || '' }; }
+function publicUser(user: Row) { return { notifyPosts: user.notify_posts !== 0 && user.notify_posts !== '0', id: user.id, name: user.name, country: user.country || '', city: user.city || '', avatarUrl: user.avatar_url || '', email: user.email || '', bio: user.bio || '' }; }
 
 async function saveProfile(env: Env, existing: Row | null, request: Request, body: Row) {
   const name = String(body.name || '').trim();
@@ -370,6 +377,8 @@ async function handle(request: Request, env: Env) {
       const result = await saveProfile(env, await userFor(env, request), request, body);
       return json({ ok: true, sessionToken: result.sessionToken, user: publicUser(result.user) }, 200, origin);
     }
+    const xc: Ctx = { env, request, url, path, origin, json, id, now, hash, readJson, userFor, rateLimit, storeImage, publicUser, audit, notify, chat: (message) => chatReply(env, [{ role: 'user', content: message }], message) };
+    if (!path.startsWith('/admin')) { const r = await publicExtras(xc); if (r) return r; }
     if (path === '/push-token' && request.method === 'POST') {
       const user = await userFor(env, request); if (!user) return json({ error: 'Sign in required.' }, 401, origin);
       const body = await readJson(request); const token = String(body.token || '').trim();
@@ -435,6 +444,7 @@ async function handle(request: Request, env: Env) {
     if (path.startsWith('/admin')) {
       if (!await adminOk(env, request)) return json({ error: 'Admin authentication required.' }, 401, origin);
 
+      { const r = await adminExtras(xc); if (r) return r; }
       if (path === '/admin/stats' && request.method === 'GET') {
         const [posts, fatwas, questions, users, submissions] = await Promise.all([
           env.DB.prepare("SELECT COUNT(*) AS count FROM posts").first<Row>(),

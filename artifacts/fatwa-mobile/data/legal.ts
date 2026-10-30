@@ -66,7 +66,7 @@ export const LEGAL_PAGES: LegalPage[] = [
       {
         "heading": "Contact",
         "paragraphs": [
-          "Questions: use the support email shown on the app store listing."
+          "Questions: use our support email (contactfatwaapp@gmail.com)."
         ]
       }
     ]
@@ -139,7 +139,7 @@ export const LEGAL_PAGES: LegalPage[] = [
       {
         "heading": "Contact",
         "paragraphs": [
-          "For privacy questions or deletion requests use the support email shown on the app store listing."
+          "For privacy questions or deletion requests use our support email (contactfatwaapp@gmail.com)."
         ]
       }
     ]
@@ -177,7 +177,7 @@ export const LEGAL_PAGES: LegalPage[] = [
       {
         "heading": "Report a mistake",
         "paragraphs": [
-          "If you see an error in a text or an answer, tell us through the support email shown on the app store listing."
+          "If you see an error in a text or an answer, tell us through our support email (contactfatwaapp@gmail.com)."
         ]
       }
     ]
@@ -209,7 +209,7 @@ export const LEGAL_PAGES: LegalPage[] = [
       {
         "heading": "Reporting",
         "paragraphs": [
-          "To report a post, use the support email shown on the app store listing. We aim to review reports promptly."
+          "To report a post, use our support email (contactfatwaapp@gmail.com). We aim to review reports promptly."
         ]
       }
     ]
@@ -223,7 +223,7 @@ export const LEGAL_PAGES: LegalPage[] = [
       {
         "heading": "Delete your data",
         "paragraphs": [
-          "Send a deletion request using the support email shown on the app store listing, from the device or with the profile name you used. We delete your profile, picture, posts, likes, notifications and push token."
+          "Send a deletion request using our support email (contactfatwaapp@gmail.com), from the device or with the profile name you used. We delete your profile, picture, posts, likes, notifications and push token."
         ]
       },
       {
