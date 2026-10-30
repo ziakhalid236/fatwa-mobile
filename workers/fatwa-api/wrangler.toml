@@ -7,7 +7,7 @@ workers_dev = true
 crons = ["17 3 * * *", "* * * * *"]
 
 [vars]
-ALLOWED_ORIGINS = "https://fatwa-admin.pages.dev,https://fatwa-api.ziakhalid236.workers.dev"
+ALLOWED_ORIGINS = "https://fatwa-admin.pages.dev,https://fatwa-preview.ziakhalid236.workers.dev,https://fatwa-api.ziakhalid236.workers.dev"
 
 [[d1_databases]]
 binding = "DB"
