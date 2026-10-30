@@ -22,7 +22,8 @@ export const kbSchemaStatements = (db: D1Database) => [
 // Older databases lack the reading-order column; add it, then index it.
 export async function kbMigrate(db: D1Database) {
   try { await db.prepare('ALTER TABLE kb_passages ADD COLUMN seq INTEGER').run(); } catch { /* already present */ }
-  await db.prepare('CREATE INDEX IF NOT EXISTS idx_kb_passages_seq ON kb_passages(work_id, seq)').run();
+  // The index only speeds up ordered reading; never let a failure here take the API down.
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_kb_passages_seq ON kb_passages(work_id, seq)').run(); } catch (error) { console.error('kb index', String(error)); }
 }
 
 // Removes Arabic harakat/tatweel and unifies Arabic/Urdu/Persian letter variants so one search matches all spellings.

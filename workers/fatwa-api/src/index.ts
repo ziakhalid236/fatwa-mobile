@@ -102,9 +102,10 @@ function ensureSchema(env: Env): Promise<void> {
 }
 
 async function createSchema(env: Env) {
-  await env.KB.batch(kbSchemaStatements(env.KB));
-  await kbMigrate(env.KB);
-  await env.DB.batch(pushSchemaStatements(env.DB));
+  const step = async <T>(label: string, fn: () => Promise<T>) => { try { return await fn(); } catch (e) { throw new Error(label + ': ' + String(e)); } };
+  await step('kb-schema', () => env.KB.batch(kbSchemaStatements(env.KB)));
+  await step('kb-migrate', () => kbMigrate(env.KB));
+  await step('push-schema', () => env.DB.batch(pushSchemaStatements(env.DB)));
   await env.DB.batch([
     env.DB.prepare('CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,last_seen_at TEXT NOT NULL,revoked_at TEXT)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS fatwa_revisions (id TEXT PRIMARY KEY,fatwa_id TEXT NOT NULL,question TEXT NOT NULL,answer TEXT NOT NULL,category TEXT NOT NULL,scholar TEXT NOT NULL,institution TEXT NOT NULL,source_url TEXT,status TEXT NOT NULL,changed_by TEXT,created_at TEXT NOT NULL)'),

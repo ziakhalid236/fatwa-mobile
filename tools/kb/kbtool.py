@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """Knowledge-library ingestion. Usage: kbtool.py <API_URL> <ADMIN_TOKEN_FILE> <job> [args]
-Jobs: quran | hadith <book...> | openiti <AuthorDir/WorkDir>... | scholars <xlsx>
+Jobs: all [scholars.xlsx] | quran | hadith <book...> | openiti <AuthorDir/WorkDir>... | scholars <xlsx> | darulifta [jsonl]
+Env: KB_CACHE (corpus dir), KB_STATE (resume file), RESEQ=1 (only set reading order).
+Stops cleanly with exit 'DAILY_WRITE_LIMIT' when Cloudflare D1's free daily write limit is reached; re-run later and it resumes.
 Batches are cached in /tmp/kb_cache so the same corpus can be replayed to another API (production)."""
 import sys, json, re, os, time, hashlib, urllib.request, urllib.parse, concurrent.futures as cf
 
 API, TOKEN_FILE, JOB, *ARGS = sys.argv[1:]
 TOKEN = open(TOKEN_FILE).read().strip()
-CACHE = '/tmp/kb_cache'; os.makedirs(CACHE, exist_ok=True)
+CACHE = os.environ.get('KB_CACHE', '/tmp/kb_cache'); os.makedirs(CACHE, exist_ok=True)
+STATE_FILE = os.environ.get('KB_STATE', CACHE + '/state_' + re.sub(r'\W+', '_', API) + '.json')
+STATE = set(json.load(open(STATE_FILE))) if os.path.exists(STATE_FILE) else set()
+def save_state(): json.dump(sorted(STATE), open(STATE_FILE, 'w'))
 
 def http(url, data=None, headers=None, timeout=90):
     h = {'User-Agent': 'Mozilla/5.0 fatwa-kb-ingest'}; h.update(headers or {})
+    if 'api.github.com' in url and os.environ.get('GITHUB_TOKEN'): h['Authorization'] = 'Bearer ' + os.environ['GITHUB_TOKEN']
     req = urllib.request.Request(url, data=data, headers=h)
     return urllib.request.urlopen(req, timeout=timeout).read()
 
@@ -35,15 +41,27 @@ def send_batches(source, work, passages, size=60):
                 'hashes': [hashlib.sha1(p['text'].strip().encode()).hexdigest() for p in ps]})
         with cf.ThreadPoolExecutor(4) as ex: list(ex.map(one, chunks))
         print(f'  reseq {work["title"][:40]}: {len(passages)}', flush=True); return
-    batches = [passages[i:i + size] for i in range(0, len(passages), size)]
+    batches = [(i, passages[i:i + size]) for i in range(0, len(passages), size)]
+    todo = [(i, b) for i, b in batches if f"{work['title']}#{i}" not in STATE]
     done = 0
-    def one(b):
-        return post('/api/admin/kb/ingest', {'source': source, 'work': work, 'passages': b})
+    def one(item):
+        i, b = item
+        try: post('/api/admin/kb/ingest', {'source': source, 'work': work, 'passages': b}, retries=3)
+        except RuntimeError as e:
+            if 'exceeded' in str(e): raise SystemExit('DAILY_WRITE_LIMIT')
+            raise
+        return i
     with cf.ThreadPoolExecutor(3) as ex:
-        for r in ex.map(one, batches):
-            done += 1
-            if done % 25 == 0: print(f'  {work["title"][:40]}: {done}/{len(batches)} batches', flush=True)
-    print(f'  done {work["title"]}: {len(passages)} passages', flush=True)
+        futures = [ex.submit(one, t) for t in todo]
+        try:
+            for f in cf.as_completed(futures):
+                STATE.add(f"{work['title']}#{f.result()}"); done += 1
+                if done % 25 == 0: save_state(); print(f'  {work["title"][:40]}: {done}/{len(todo)} batches', flush=True)
+        except BaseException:
+            for f in futures: f.cancel()
+            save_state(); raise
+    save_state()
+    print(f'  done {work["title"]}: {len(passages)} passages ({len(todo)} sent)', flush=True)
 
 def cached(name, build):
     path = f'{CACHE}/{name}.json'
@@ -149,7 +167,34 @@ def scholars(xlsx):
     for i in range(0, len(rows), 100): post('/api/admin/kb/scholars', {'scholars': rows[i:i + 100]})
     print('scholars', len(rows))
 
-if JOB == 'quran': quran()
+def darulifta(path):
+    src = {'name': 'Darul Ifta Deoband (fatwa archive)', 'url': 'https://darulifta-deoband.com/', 'type': 'fatwa', 'rights_status': 'link_only', 'license_note': 'Public fatwa archive of Darul Uloom Deoband. Used for retrieval with attribution and a link to the original page; confirm permission before republishing in full.'}
+    cats = {}
+    for line in open(path):
+        r = json.loads(line); cats.setdefault(r['cat'], []).append(r)
+    for cat, rows in cats.items():
+        cat = next((r['category'] for r in rows if r['category']), cat)
+        rows.sort(key=lambda r: int(re.sub(r'\D', '', str(r['fatwa'])) or 0))
+        ps = [{'ref': f"Fatwa {r['fatwa']} · {r['date']}", 'text': r['text'], 'lang': 'ur', 'url': f"https://darulifta-deoband.com/home/ur/{r['cat']}/{r['id']}"} for r in rows]
+        send_batches(src, {'title': f'دارالافتاء دیوبند — {cat}', 'author': 'Darul Ifta, Darul Uloom Deoband', 'lang': 'ur', 'genre': 'fiqh_hanafi', 'url': 'https://darulifta-deoband.com/', 'verification_status': 'institution_published'}, ps, 40)
+
+def run_all():
+    # Priority order: what users read and ask about most comes first, so a partial load is still useful.
+    quran()
+    hadith(['bukhari', 'muslim', 'abudawud', 'tirmidhi', 'nasai', 'ibnmajah', 'malik', 'nawawi'])
+    for x in ARGS[:1]: scholars(x)
+    if os.path.exists(CACHE + '/darulifta.jsonl'): darulifta(CACHE + '/darulifta.jsonl')
+    openiti(OITI_ALL)
+
+OITI_ALL = ['0593BurhanDinFarghaniMarghinani/0593BurhanDinFarghaniMarghinani.HidayaFiSharhBidaya', '0428AbuHusaynQuduri/0428AbuHusaynQuduri.Mukhtasar', '0321AbuJacfarTahawi/0321AbuJacfarTahawi.Mukhtasar', '1088IbnCaliHaskafi/1088IbnCaliHaskafi.DurrMukhtar', '1252IbnCabidinDimashqi/1252IbnCabidinDimashqi.RaddMukhtar', '0587IbnMascudCalaDinKasani/0587IbnMascudCalaDinKasani.BadaicSanaic', '0743FakhrDinZaylaci/0743FakhrDinZaylaci.TabyinHaqaiq', '0970IbnIbrahimIbnNujaymMisri/0970IbnIbrahimIbnNujaymMisri.BahrRaiq', '0861IbnHumam/0861IbnHumam.SharhFathQadir', '0483IbnAhmadSarakhsi/0483IbnAhmadSarakhsi.Mabsut']
+
+if JOB == 'all':
+    try: run_all()
+    except SystemExit as e:
+        if str(e) == 'DAILY_WRITE_LIMIT': print('Stopped: daily D1 write limit reached. Re-run after 00:00 UTC; progress is saved.'); sys.exit(0)
+        raise
+elif JOB == 'darulifta': darulifta(ARGS[0] if ARGS else CACHE + '/darulifta.jsonl')
+elif JOB == 'quran': quran()
 elif JOB == 'hadith': hadith(ARGS)
 elif JOB == 'openiti': openiti(ARGS)
 elif JOB == 'scholars': scholars(ARGS[0])
