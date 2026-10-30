@@ -465,7 +465,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void syncRemoteNotifications();
       void syncRemoteQuestions();
     }, 30_000);
-    const appState = NativeNativeAppState.addEventListener('change', (state) => {
+    const appState = NativeAppState.addEventListener('change', (state) => {
       if (state === 'active') {
         void syncRemoteNotifications({ announce: true });
         void syncRemoteQuestions();
