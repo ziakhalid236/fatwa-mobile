@@ -1,12 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
-import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useMemo, useState } from 'react';
 import { BackHandler, Platform, Pressable, RefreshControl, StatusBar, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { LogoMark } from '@/components/ui';
+import { TabBar } from '@/components/TabBar';
 import { useColors } from '@/hooks/useColors';
 import { NavProvider, type Nav, type Route } from '@/lib/nav';
 import { AppProvider, useApp } from '@/lib/store';
@@ -16,6 +16,8 @@ import type { TabKey } from '@/lib/types';
 import AlarmScreen from '@/screens/AlarmScreen';
 import FatwaDetailScreen from '@/screens/FatwaDetailScreen';
 import FatwaScreen from '@/screens/FatwaScreen';
+import LibraryScreen, { QuranListScreen, ReaderScreen, SurahScreen } from '@/screens/LibraryScreen';
+import LegalScreen, { LegalIndex } from '@/screens/LegalScreen';
 import HomeScreen from '@/screens/HomeScreen';
 import NotificationsScreen from '@/screens/NotificationsScreen';
 import PostDetailScreen from '@/screens/PostDetailScreen';
@@ -27,18 +29,13 @@ import QuestionDetailScreen from '@/screens/QuestionDetailScreen';
 import SavedScreen from '@/screens/SavedScreen';
 import SettingsScreen from '@/screens/SettingsScreen';
 
-const tabs: Array<{ key: TabKey; label: string; icon: keyof typeof Feather.glyphMap }> = [
-  { key: 'home', label: 'Home', icon: 'home' },
-  { key: 'fatwa', label: 'Fatwa', icon: 'book-open' },
-  { key: 'questions', label: 'Ask', icon: 'message-circle' },
-  { key: 'alarm', label: 'Notifications', icon: 'bell' },
-  { key: 'profile', label: 'Profile', icon: 'user' },
-];
-
 const titles: Record<string, string> = {
   post: 'Post',
   postSubmit: 'Share a reminder',
   fatwa: 'Fatwa',
+  fatwaList: 'Published rulings',
+  quranList: 'Quran',
+  legalIndex: 'About & legal',
   notifications: 'Notifications',
   saved: 'Saved posts',
   settings: 'Settings',
@@ -49,7 +46,6 @@ const titles: Record<string, string> = {
 
 function Shell() {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   const { alarms, settings, unreadCount, pushNotification, refreshContent, notifications, hydrated, markNotificationRead } = useApp();
 
   const [tab, setTab] = useState<TabKey>('home');
@@ -146,7 +142,7 @@ function Shell() {
   const onSettings = useCallback(() => push({ name: 'settings' }), [push]);
 
   const header = () => {
-    const title = titles[route.name] ?? (route.name === 'tabs' && tab === 'alarm' ? 'Notifications' : undefined);
+    const title = route.name === 'surah' || route.name === 'reader' ? route.title : titles[route.name] ?? (route.name === 'tabs' && tab === 'alarm' ? 'Notifications' : undefined);
     const canGoBack = stack.length > 0 || tab !== 'home';
     return (
       <View style={[styles.topBar, { paddingTop: Platform.OS === 'web' ? 67 : 6 }]}>
@@ -189,6 +185,12 @@ function Shell() {
   if (route.name === 'post') content = <PostDetailScreen postId={route.postId} />;
   else if (route.name === 'postSubmit') content = <PostSubmissionScreen />;
   else if (route.name === 'fatwa') content = <FatwaDetailScreen fatwaId={route.fatwaId} />;
+  else if (route.name === 'fatwaList') content = <FatwaScreen />;
+  else if (route.name === 'legalIndex') content = <LegalIndex />;
+  else if (route.name === 'legal') content = <LegalScreen pageKey={route.pageKey} />;
+  else if (route.name === 'quranList') content = <QuranListScreen />;
+  else if (route.name === 'surah') content = <SurahScreen number={route.number} />;
+  else if (route.name === 'reader') content = <ReaderScreen workId={route.workId} />;
   else if (route.name === 'notifications') content = <NotificationsScreen />;
   else if (route.name === 'saved') content = <SavedScreen />;
   else if (route.name === 'settings') content = <SettingsScreen />;
@@ -196,7 +198,7 @@ function Shell() {
   else if (route.name === 'qiblaSettings') content = <QiblaScreen />;
   else if (route.name === 'questionDetail') content = <QuestionDetailScreen questionId={route.questionId} />;
   else if (tab === 'home') content = <HomeScreen />;
-  else if (tab === 'fatwa') content = <FatwaScreen />;
+  else if (tab === 'library') content = <LibraryScreen />;
   else if (tab === 'questions') content = <QuestionsScreen askSignal={askSignal} />;
   else if (tab === 'alarm') content = <NotificationsScreen />;
   else content = <ProfileScreen onOpenSettings={onSettings} />;
@@ -220,69 +222,7 @@ function Shell() {
             {header()}
             {isAskTab ? <View style={styles.chatContent}>{content}</View> : content}
           </KeyboardAwareScrollViewCompat>
-          {showTabBar ? (
-            <LinearGradient
-              colors={[colors.card, colors.cardMuted]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[
-                styles.tabBar,
-                {
-                  borderTopColor: colors.border,
-                  paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 30 : 8),
-                },
-              ]}
-            >
-              {tabs.map((item) => {
-                const selected = tab === item.key;
-                const badge = item.key === 'alarm' ? unreadCount : 0;
-                return (
-                  <Pressable
-                    key={item.key}
-                    onPress={() => goTab(item.key)}
-                    style={[styles.tabItem, selected && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={item.label}
-                    testID={`tab-${item.key}`}
-                  >
-                    <View style={[styles.tabIcon, selected && { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-                      <Feather
-                        name={item.icon}
-                        size={20}
-                        color={selected ? colors.primaryForeground : colors.mutedForeground}
-                      />
-                      {badge > 0 ? (
-                        <View style={[styles.tabBadge, { backgroundColor: colors.coral }]}>
-                          <Text style={styles.tabBadgeText}>{badge > 9 ? '9+' : badge}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text
-                      style={[
-                        styles.tabLabel,
-                        { color: selected ? colors.primaryForeground : colors.mutedForeground },
-                      ]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                    >
-                      {item.key === 'alarm' ? 'Alerts' : item.label}
-                    </Text>
-                    {selected ? (
-                      <LinearGradient
-                        colors={selected ? [colors.gold, colors.goldSoft] : [colors.border, colors.border]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.activeDot}
-                      />
-                    ) : (
-                      <View style={styles.activeDot} />
-                    )}
-                  </Pressable>
-                );
-              })}
-            </LinearGradient>
-          ) : null}
+          {showTabBar ? <TabBar tab={tab} badge={unreadCount} onSelect={goTab} /> : null}
         </View>
       </SafeAreaView>
     </NavProvider>

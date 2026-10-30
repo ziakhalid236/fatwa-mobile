@@ -16,6 +16,20 @@ export function formatCount(value: number): string {
   return String(value);
 }
 
+export function timeAgo(value?: string): string {
+  if (!value) return '';
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return '';
+  const minutes = Math.max(0, Math.round((Date.now() - time) / 60000));
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d`;
+  return new Date(time).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
 export function PostCard({
   post,
   liked,
@@ -25,6 +39,7 @@ export function PostCard({
   onToggleSave,
   onOpen,
   onShare,
+  nearby = false,
 }: {
   post: Post;
   liked: boolean;
@@ -34,11 +49,17 @@ export function PostCard({
   onToggleSave: () => void;
   onOpen: () => void;
   onShare: () => void;
+  nearby?: boolean;
 }) {
   const colors = useColors();
   const excerpt = cleanPostBody(post.title, post.body);
   const imageOnly = Boolean(post.imageUrl && !post.body.trim());
   const isRtl = containsArabic(`${post.title}\n${excerpt}`);
+  // Community posts get an automatic title from the first words of the text; do not print it twice.
+  const titleIsPrefix = Boolean(post.title.trim()) && post.body.trim().startsWith(post.title.trim());
+  const showTitle = Boolean(post.title.trim()) && !titleIsPrefix;
+  const bodyText = titleIsPrefix ? post.body.trim() : excerpt;
+  const meta = [post.city, timeAgo(post.createdAt)].filter(Boolean).join(' · ');
 
   return (
     <View
@@ -47,7 +68,6 @@ export function PostCard({
         {
           backgroundColor: colors.card,
           borderColor: colors.border,
-          borderTopColor: colors.gold,
           shadowColor: colors.shadow,
         },
       ]}
@@ -60,23 +80,26 @@ export function PostCard({
             <Text style={[styles.author, { color: colors.foreground }]} numberOfLines={1}>
               {post.author}
             </Text>
-            {post.city ? <View style={styles.metaLine}><Feather name="map-pin" size={11} color={colors.mutedForeground} /><Text style={[styles.date, { color: colors.mutedForeground }]} numberOfLines={1}>{post.city}</Text></View> : null}
+            {meta ? <View style={styles.metaLine}><Feather name="map-pin" size={11} color={colors.mutedForeground} /><Text style={[styles.date, { color: colors.mutedForeground }]} numberOfLines={1}>{meta}</Text></View> : null}
           </View>
+          {nearby ? <View style={[styles.nearby, { backgroundColor: colors.primarySoft }]}><Text style={[styles.nearbyText, { color: colors.primary }]}>Near you</Text></View> : null}
         </View>
 
         {!imageOnly ? <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={post.title}>
-          <Text
-            style={[styles.title, isRtl && styles.rtlTitle, { color: colors.foreground }]}
-            numberOfLines={isRtl ? 3 : 2}
-          >
-            {post.title}
-          </Text>
-          {excerpt ? <Text style={[styles.excerpt, isRtl && styles.rtlExcerpt, { color: colors.mutedForeground }]} numberOfLines={isRtl ? 6 : POST_CARD_BODY_LINES}>{excerpt}</Text> : null}
+          {showTitle ? (
+            <Text
+              style={[styles.title, isRtl && styles.rtlTitle, { color: colors.foreground }]}
+              numberOfLines={isRtl ? 3 : 2}
+            >
+              {post.title}
+            </Text>
+          ) : null}
+          {bodyText ? <Text style={[styles.excerpt, !showTitle && styles.excerptMain, isRtl && styles.rtlExcerpt, { color: showTitle ? colors.mutedForeground : colors.foreground }]} numberOfLines={isRtl ? 6 : POST_CARD_BODY_LINES}>{bodyText}</Text> : null}
         </Pressable> : null}
 
         {post.imageUrl ? (
           <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel="Open post photo">
-            <Image source={{ uri: post.imageUrl }} style={styles.postImage} contentFit="contain" />
+            <Image source={{ uri: post.imageUrl }} style={[styles.postImage, { backgroundColor: colors.cardMuted }]} contentFit="contain" />
           </Pressable>
         ) : null}
 
@@ -184,15 +207,14 @@ export function PostCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 24,
+    borderRadius: 26,
     borderWidth: 1,
-    borderTopWidth: 3,
-    marginBottom: 14,
+    marginBottom: 16,
     overflow: 'hidden',
-    shadowOpacity: 0.065,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   body: { padding: 17 },
   authorHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
@@ -203,7 +225,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, lineHeight: 29, fontWeight: '800', letterSpacing: -0.2, marginBottom: 9 },
   rtlTitle: { fontSize: 20, lineHeight: 34, letterSpacing: 0, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   excerpt: { fontSize: 14, lineHeight: 23, marginBottom: 15 },
-  postImage: { width: '100%', height: 220, borderRadius: 18, marginTop: 2 },
+  excerptMain: { fontSize: 15.5, lineHeight: 25 },
+  nearby: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  nearbyText: { fontSize: 10.5, fontWeight: '800' },
+  postImage: { width: '100%', height: 240, borderRadius: 20, marginTop: 2, marginBottom: 4 },
   rtlExcerpt: { fontSize: 16, lineHeight: 30, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   author: { fontSize: 13, fontWeight: '700' },
   authorAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E5F2EC' },
@@ -218,6 +243,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 17,
     gap: 6,
   },
-  action: { flex: 1, minWidth: 0, minHeight: 40, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4 },
+  action: { flex: 1, minWidth: 0, minHeight: 40, borderRadius: 999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4 },
   actionText: { fontSize: 11, fontWeight: '800' },
 });

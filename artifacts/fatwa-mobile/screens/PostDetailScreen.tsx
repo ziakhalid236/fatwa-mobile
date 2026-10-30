@@ -63,6 +63,7 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
   const saved = savedPostIds.includes(post.id);
   const accent = (colors as unknown as Record<string, string>)[post.accent] ?? colors.primary;
   const imageOnly = Boolean(post.imageUrl && !post.body.trim());
+  const titleIsPrefix = post.title.trim() === '' || post.body.trim().startsWith(post.title.trim());
 
   const related = posts.filter((item) => item.id !== post.id && item.category === post.category).slice(0, 3);
 
@@ -80,7 +81,7 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
 
       <View style={uiStyles.screenPadding}>
         <View style={[styles.bodyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {!imageOnly ? <Text style={[styles.contentTitle, { color: colors.foreground }]}>{post.title}</Text> : null}
+          {!imageOnly && !titleIsPrefix ? <Text style={[styles.contentTitle, { color: colors.foreground }]}>{post.title}</Text> : null}
           {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={[styles.postImage, imageOnly && styles.imageOnlyPost]} contentFit="contain" /> : null}
           {post.body.trim() ? <Text style={[styles.bodyText, { color: colors.foreground }]}>{post.body}</Text> : null}
           {post.source ? (

@@ -1,4 +1,4 @@
-export type TabKey = 'home' | 'fatwa' | 'questions' | 'alarm' | 'profile';
+export type TabKey = 'home' | 'library' | 'questions' | 'alarm' | 'profile';
 
 export type PostCategory =
   | 'Islamic'
@@ -41,8 +41,10 @@ export type Post = {
   author: string;
   authorImageUrl?: string;
   city?: string;
+  country?: string;
   imageUrl?: string;
   source?: string;
+  createdAt?: string;
   views: number;
   likes: number;
   date: string;
@@ -100,6 +102,8 @@ export type AppNotification = {
   createdAt: string;
   read: boolean;
   refId?: string;
+  imageUrl?: string;
+  tone?: 'pending' | 'approved' | 'rejected' | 'broadcast';
 };
 
 export type PrayerName = 'Fajr' | 'Dhuhr' | 'Asr' | 'Maghrib' | 'Isha';

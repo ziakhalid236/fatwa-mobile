@@ -7,6 +7,12 @@ export type Route =
   | { name: 'postSubmit' }
   | { name: 'fatwa'; fatwaId: string }
   | { name: 'ask' }
+  | { name: 'fatwaList' }
+  | { name: 'quranList' }
+  | { name: 'legalIndex' }
+  | { name: 'legal'; pageKey: string }
+  | { name: 'surah'; number: number; title: string }
+  | { name: 'reader'; workId: number; title: string }
   | { name: 'notifications' }
   | { name: 'saved' }
   | { name: 'myQuestions' }

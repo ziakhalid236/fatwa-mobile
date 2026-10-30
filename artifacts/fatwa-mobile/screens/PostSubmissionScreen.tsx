@@ -2,11 +2,12 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PrimaryButton, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
-import { API_BASE_URL, getDeviceId, useApp } from '@/lib/store';
+import { API_BASE_URL, useApp } from '@/lib/store';
+import { IMAGE_PICKER_OPTIONS, uploadImage } from '@/lib/upload';
 
 const MAX_POST_IMAGE_BYTES = 8 * 1024 * 1024;
 const ACCEPTED_POST_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -14,7 +15,7 @@ const ACCEPTED_POST_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/web
 export default function PostSubmissionScreen() {
   const colors = useColors();
   const nav = useNav();
-  const { profile, settings } = useApp();
+  const { profile, settings, signedIn, authHeaders, refreshContent } = useApp();
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -24,11 +25,7 @@ export default function PostSubmissionScreen() {
 
   const pickPhoto = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 1,
-      });
+      const result = await ImagePicker.launchImageLibraryAsync({ ...IMAGE_PICKER_OPTIONS, allowsEditing: false });
       if (result.canceled) return;
       const selected = result.assets[0];
       if (!selected?.uri) {
@@ -53,8 +50,8 @@ export default function PostSubmissionScreen() {
 
   const submit = async () => {
     setError('');
-    if (profile.name.trim().length < 2 || profile.country.trim().length < 2 || profile.city.trim().length < 2) {
-      setError('Profile required: Settings میں اپنا نام، ملک اور شہر save کریں۔ Profile photo optional ہے۔');
+    if (!signedIn) {
+      setError('Create your account first (name, country and city) from Settings, then share your post.');
       nav.push({ name: 'settings' });
       return;
     }
@@ -64,50 +61,18 @@ export default function PostSubmissionScreen() {
     }
     setBusy(true);
     try {
-      const deviceId = await getDeviceId();
-      // Ensure the server knows this device/profile before submitting. The
-      // profile is otherwise synced fire-and-forget while typing, so a failed
-      // sync would surface here as a confusing 401.
-      const profileResponse = await fetch(`${API_BASE_URL}/api/profile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deviceId,
-          name: profile.name.trim(),
-          country: profile.country.trim(),
-          city: profile.city.trim(),
-        }),
-      });
-      if (!profileResponse.ok) {
-        const failure = (await profileResponse.json().catch(() => ({}))) as { error?: string };
-        throw new Error(failure.error ?? 'Could not save your profile. Check your connection and try again.');
-      }
-      const form = new FormData();
-      form.append('deviceId', deviceId);
-      form.append('name', profile.name.trim());
-      form.append('country', profile.country.trim());
-      form.append('city', profile.city.trim());
-      const bodyText = body.trim();
-      form.append('body', bodyText);
-      form.append('language', settings.language);
+      const fields = { body: body.trim(), language: settings.language, category: '' };
+      let response: Response;
       if (imageAsset) {
-        const mimeType = imageAsset.mimeType ?? 'image/jpeg';
-        const extension = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
-        const fileName = imageAsset.fileName ?? `community-${Date.now()}.${extension}`;
-        if (Platform.OS === 'web') {
-          const file = imageAsset.file ?? new File([await fetch(imageAsset.uri).then((response) => response.blob())], fileName, { type: mimeType });
-          if (file.size > MAX_POST_IMAGE_BYTES) throw new Error('Photo is too large. Please choose an image under 8 MB.');
-          form.append('image', file, fileName);
-        } else {
-          form.append('image', { uri: imageAsset.uri, name: fileName, type: mimeType } as unknown as Blob);
-        }
+        response = await uploadImage(`${API_BASE_URL}/api/post-submissions`, imageAsset, 'image', fields, authHeaders());
+      } else {
+        const form = new FormData();
+        for (const [key, value] of Object.entries(fields)) form.append(key, value);
+        response = await fetch(`${API_BASE_URL}/api/post-submissions`, { method: 'POST', body: form, headers: authHeaders() });
       }
-      const response = await fetch(`${API_BASE_URL}/api/post-submissions`, {
-        method: 'POST',
-        body: form,
-      });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Unable to send your post');
+      refreshContent();
       setSubmitted(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not send post. Please try again.');
@@ -138,7 +103,7 @@ export default function PostSubmissionScreen() {
 
       <SectionTitle title="Your profile" subtitle={`${profile.name || 'Guest'} · ${profile.city || 'City'}, ${profile.country || 'Country'}`} />
 
-      <SectionTitle title="Post" subtitle={`It will be submitted in ${settings.language === 'ur' ? 'Urdu' : settings.language === 'ar' ? 'Arabic' : 'English'}.`} />
+      <SectionTitle title="Post" subtitle="Your post is reviewed before it is published." />
       <Text style={[styles.label, { color: colors.foreground }]}>Description (optional)</Text>
       <TextInput
         value={body}

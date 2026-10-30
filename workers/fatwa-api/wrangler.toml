@@ -3,6 +3,9 @@ main = "src/index.ts"
 compatibility_date = "2026-10-29"
 workers_dev = true
 
+[triggers]
+crons = ["17 3 * * *", "* * * * *"]
+
 [vars]
 ALLOWED_ORIGINS = "https://fatwa-admin.pages.dev,https://fatwa-api.ziakhalid236.workers.dev"
 
@@ -11,6 +14,11 @@ binding = "DB"
 database_name = "fatwa-web-content"
 database_id = "c07cb62b-83d3-48b3-a84f-f7959b134005"
 migrations_dir = "migrations"
+
+[[d1_databases]]
+binding = "KB"
+database_name = "fatwa-kb"
+database_id = "e97351d5-d5d2-4ee1-b6d3-140617211977"
 
 [[r2_buckets]]
 binding = "MEDIA"
@@ -32,6 +40,9 @@ head_sampling_rate = 1
 name = "fatwa-api-staging"
 workers_dev = true
 
+[env.staging.triggers]
+crons = ["17 3 * * *", "* * * * *"]
+
 [env.staging.vars]
 ALLOWED_ORIGINS = "https://fatwa-preview.ziakhalid236.workers.dev,https://fatwa-admin-staging.pages.dev,https://fatwa-admin-staging.ziakhalid236.workers.dev,http://localhost:8081"
 
@@ -40,6 +51,11 @@ binding = "DB"
 database_name = "fatwa-staging"
 database_id = "4bff8b23-cd8a-48cb-a582-7ab97e54f110"
 migrations_dir = "migrations"
+
+[[env.staging.d1_databases]]
+binding = "KB"
+database_name = "fatwa-kb-staging"
+database_id = "983b4678-755d-43df-bbc1-2592e52a03cb"
 
 [[env.staging.r2_buckets]]
 binding = "MEDIA"

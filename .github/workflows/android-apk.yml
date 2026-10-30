@@ -51,9 +51,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      # versionCode rises on every run, so each build can be uploaded to Google Play as an update.
+      # Base 100 keeps it above the versionCode already used by earlier manual builds.
+      - name: Compute version
+        run: echo "APP_VERSION_CODE=$((100 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+
       - name: Generate Android project
         working-directory: artifacts/fatwa-mobile
         run: pnpm exec expo prebuild --platform android --no-install --no-clean
+
+      - name: Sign release with the upload keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set. The build is signed with the debug key and cannot be uploaded to Google Play."
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload-key.p12"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload-key.p12" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> "$GITHUB_ENV"
+          python3 scripts/ci/apply-signing.py artifacts/fatwa-mobile/android/app/build.gradle
 
       - name: Enforce Google Play API 36 target
         working-directory: artifacts/fatwa-mobile/android
@@ -78,14 +101,14 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fatwa-mobile-preview-apk
+          name: fatwa-mobile-apk-build-${{ github.run_number }}
           path: artifacts/fatwa-mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
       - name: Upload Play Store AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fatwa-mobile-play-store-aab
+          name: fatwa-mobile-play-store-aab-build-${{ github.run_number }}
           path: artifacts/fatwa-mobile/android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 30

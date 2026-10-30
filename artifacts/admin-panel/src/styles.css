@@ -5,3 +5,8 @@
 .submission-image{display:block;width:min(100%,520px);max-height:520px;object-fit:contain;background:#f1f7f2;border-radius:16px;margin:12px 0;border:1px solid #dbeae2}
 
 .section-intro p{margin:0 0 13px;color:#829b91;font-size:11px}
+
+.author-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid #dbeae2}
+.submission-body{white-space:pre-wrap;unicode-bidi:plaintext}
+
+.notify-select{border:1px solid #cfe3d8;border-radius:12px;padding:9px 10px;background:#fff;font:inherit;font-size:13px;margin-right:8px}

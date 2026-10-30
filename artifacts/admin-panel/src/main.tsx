@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
+  Bell,
   CheckCircle2,
   ClipboardList,
   ExternalLink,
@@ -422,13 +423,14 @@ function App() {
             {posts.map((post) => (
               <article className="question-card" key={post.id}>
                 <div className="row-meta"><span className="status approved">{post.featured ? "Pinned" : "Live"}</span><span>{post.category}</span></div>
-                <h3>{post.body?.split(/\r?\n/)[0] || "Image post"}</h3>
+                {post.body && post.body.trim().split(/\r?\n/).length > 1 ? <h3>{post.body.split(/\r?\n/)[0]}</h3> : !post.body ? <h3>Image post</h3> : null}
                 <p className="questioner">By {post.author}{post.city ? ` · ${post.city}` : ""}</p>
-                {post.authorImageUrl ? <img className="submission-image" src={post.authorImageUrl} alt={`${post.author} profile`} loading="lazy" /> : null}
+                {post.authorImageUrl ? <img className="author-avatar" src={post.authorImageUrl} alt={`${post.author} profile`} loading="lazy" /> : null}
                 {post.imageUrl ? <img className="submission-image" src={post.imageUrl} alt="Published post attachment" loading="lazy" /> : null}
                 <p className="submission-body">{post.body}</p>
                 <div className="answer-footer">
                   <button className="primary small" onClick={async () => { await request(`/admin/posts/${post.id}`, { method: "PATCH", body: JSON.stringify({ action: post.featured ? "unpin" : "pin" }) }, token); await load(); setNotice(post.featured ? "Post unpinned." : "Post pinned."); }}><Pin size={15} /> {post.featured ? "Unpin" : "Pin"}</button>
+                  <button className="primary small" onClick={async () => { const scope = window.prompt("Send a notification about this post to: all / country / city", "all"); if (!scope) return; try { const r = await request<{ notified?: number; already?: boolean; skipped?: boolean }>(`/admin/posts/${post.id}/notify`, { method: "POST", body: JSON.stringify({ scope: scope.trim().toLowerCase(), force: true }) }, token); setNotice(r.skipped ? "Nothing sent (invalid option)." : `Notification sent to ${r.notified ?? 0} user(s).`); } catch (err) { window.alert(err instanceof Error ? err.message : "Could not send"); } }}><Bell size={15} /> Notify</button>
                   <button className="icon-button danger" onClick={async () => { if (!window.confirm("Delete this published post?")) return; await request(`/admin/posts/${post.id}`, { method: "DELETE" }, token); await load(); setNotice("Published post deleted."); }} title="Delete published post"><Trash2 size={16} /></button>
                 </div>
               </article>
@@ -595,11 +597,13 @@ function SubmissionRow({
   afterReview: (message: string) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [notify, setNotify] = useState("none");
   const review = async (action: "approve" | "reject") => {
     setBusy(true);
     try {
-      await request(`/admin/post-submissions/${submission.id}`, { method: "PATCH", body: JSON.stringify({ action }) }, token);
-      await afterReview(action === "approve" ? "Post approved and published." : "Post rejected and kept private.");
+      const result = await request<{ broadcast?: { notified?: number; queuedPush?: number } | null }>(`/admin/post-submissions/${submission.id}`, { method: "PATCH", body: JSON.stringify({ action, notify: action === "approve" ? notify : undefined }) }, token);
+      const sent = result?.broadcast?.notified;
+      await afterReview(action === "approve" ? `Post approved and published.${sent !== undefined ? ` Notified ${sent} user(s).` : ""}` : "Post rejected and kept private.");
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "Unable to review submission");
     } finally {
@@ -612,12 +616,18 @@ function SubmissionRow({
         <span className={`status ${submission.status}`}>{submission.status}</span>
         <span>{submission.language.toUpperCase()}</span>
       </div>
-      <h3>{submission.body?.split(/\r?\n/)[0] || "Image post"}</h3>
+      {submission.body && submission.body.trim().split(/\r?\n/).length > 1 ? <h3>{submission.body.split(/\r?\n/)[0]}</h3> : !submission.body ? <h3>Image post</h3> : null}
       <p className="questioner">By {submission.name}{submission.city ? ` · ${submission.city}` : ""}{submission.country ? `, ${submission.country}` : ""}</p>
       {submission.imageUrl ? <img className="submission-image" src={submission.imageUrl} alt="Submitted post attachment" loading="lazy" /> : null}
       {submission.body ? <p className="submission-body">{submission.body}</p> : null}
       {submission.status === "pending" ? (
         <div className="answer-footer">
+          <select className="notify-select" value={notify} onChange={(event) => setNotify(event.target.value)} aria-label="Send notification to users" disabled={busy}>
+            <option value="none">Don't notify users</option>
+            <option value="all">Notify everyone</option>
+            <option value="country">Notify same country</option>
+            <option value="city">Notify same city</option>
+          </select>
           <button className="primary small" disabled={busy} onClick={() => void review("approve")}><CheckCircle2 size={15} /> Approve & publish</button>
           <button className="icon-button danger" disabled={busy} onClick={() => void review("reject")} title="Reject submission">Reject</button>
         </div>

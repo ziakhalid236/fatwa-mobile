@@ -9,7 +9,7 @@ import { useApp } from '@/lib/store';
 export default function HomeScreen() {
   const colors = useColors();
   const nav = useNav();
-  const { posts, settings, profile, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView } = useApp();
+  const { posts, profile, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView } = useApp();
   const [search, setSearch] = useState('');
 
   const visiblePosts = useMemo(() => {
@@ -17,9 +17,10 @@ export default function HomeScreen() {
     const filtered = posts.filter((post) => {
       return !query || `${post.title} ${post.body} ${post.author}`.toLowerCase().includes(query);
     });
-    const city = profile.city.trim().toLowerCase();
-    return city ? [...filtered].sort((a, b) => Number((b.city ?? '').toLowerCase() === city) - Number((a.city ?? '').toLowerCase() === city)) : filtered;
-  }, [posts, profile.city, search, settings.language]);
+    // The server already orders posts: same city, then same country, then the rest.
+    return filtered;
+  }, [posts, search]);
+  const myCity = profile.city.trim().toLowerCase();
 
   return (
     <View style={styles.container}>
@@ -41,8 +42,8 @@ export default function HomeScreen() {
 
       {visiblePosts.map((post) => (
         <PostCard
-          key={`${post.id}-${settings.language}`}
-          post={!settings.autoTranslate || settings.language === 'en' || !post.translations?.[settings.language] ? post : { ...post, ...post.translations[settings.language] }}
+          key={post.id}
+          post={post}
           liked={likedPostIds.includes(post.id)}
           saved={savedPostIds.includes(post.id)}
           views={post.views + (viewedPostIds.includes(post.id) ? 1 : 0)}
@@ -52,6 +53,7 @@ export default function HomeScreen() {
             registerView(post.id);
             nav.push({ name: 'post', postId: post.id });
           }}
+          nearby={Boolean(myCity) && (post.city ?? '').trim().toLowerCase() === myCity}
           onShare={() => undefined}
         />
       ))}

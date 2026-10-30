@@ -11,6 +11,9 @@ import React, {
 import { AppState as NativeAppState } from 'react-native';
 import { defaultCity, prayerCities } from '@/data/content';
 import { notifyNow } from '@/lib/adhan';
+import { registerDevicePush } from '@/lib/push';
+import { uploadImage } from '@/lib/upload';
+import type * as ImagePicker from 'expo-image-picker';
 import type {
   AdhanAlarm,
   AppNotification,
@@ -25,6 +28,8 @@ import type {
 const STORE_KEYS = {
   profile: '@fatwa/profile',
   deviceId: '@fatwa/device-id',
+  token: '@fatwa/session-token',
+  onboarded: '@fatwa/onboarded',
   questions: '@fatwa/questions',
   likedPosts: '@fatwa/likedPosts',
   savedPosts: '@fatwa/savedPosts',
@@ -75,6 +80,12 @@ type AppState = {
   prayerCity: PrayerCity;
   settings: Settings;
   unreadCount: number;
+  signedIn: boolean;
+  onboarded: boolean;
+  completeOnboarding: () => void;
+  saveProfile: (input: { name: string; country: string; city: string; notifyPosts?: boolean }) => Promise<void>;
+  uploadAvatar: (asset: ImagePicker.ImagePickerAsset) => Promise<void>;
+  authHeaders: () => Record<string, string>;
   setProfile: (patch: Partial<Profile>) => void;
   setSettings: (patch: Partial<Settings>) => void;
   setPrayerCity: (city: PrayerCity) => void;
@@ -123,6 +134,11 @@ export async function getDeviceId(): Promise<string> {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [profile, setProfileState] = useState<Profile>(emptyProfile);
+  const [sessionToken, setSessionToken] = useState('');
+  const [onboarded, setOnboarded] = useState(false);
+  const tokenRef = useRef('');
+  const profileRef = useRef<Profile>(emptyProfile);
+  useEffect(() => { profileRef.current = profile; }, [profile]);
   const [questions, setQuestions] = useState<UserQuestion[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [likedPostIds, setLikedPostIds] = useState<string[]>([]);
@@ -177,6 +193,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const value = parse<unknown>(key, []);
           return Array.isArray(value) ? value.filter(isValid) : [];
         };
+        const storedToken = parse<unknown>(STORE_KEYS.token, '');
+        if (typeof storedToken === 'string' && storedToken) { tokenRef.current = storedToken; setSessionToken(storedToken); }
+        setOnboarded(parse<unknown>(STORE_KEYS.onboarded, false) === true);
         const profileValue = parse<unknown>(STORE_KEYS.profile, emptyProfile);
         setProfileState(
           isRecord(profileValue)
@@ -267,21 +286,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!hydrated || !sessionToken || !API_BASE_URL) return;
+    void registerDevicePush(API_BASE_URL, sessionToken);
+  }, [hydrated, sessionToken, settings.notificationsEnabled]);
+
+  const feedCity = profile.city.trim();
+  const feedCountry = profile.country.trim();
+  useEffect(() => {
     if (!API_BASE_URL) return;
     let active = true;
     const syncRemoteNotifications = async (options: { announce?: boolean } = {}) => {
       try {
-        const deviceId = await AsyncStorage.getItem(STORE_KEYS.deviceId);
-        if (!deviceId || !active) return;
-        const response = await fetch(`${API_BASE_URL}/api/notifications?deviceId=${encodeURIComponent(deviceId)}`);
+        if (!tokenRef.current || !active) return;
+        const response = await fetch(`${API_BASE_URL}/api/notifications`, { headers: { Authorization: `Bearer ${tokenRef.current}` } });
         if (!response.ok || !active) return;
         const payload = (await response.json()) as {
-          notifications?: Array<{ id?: string; title?: string; body?: string; createdAt?: string; readAt?: string | null; questionId?: string; postId?: string }>;
+          notifications?: Array<{ id?: string; title?: string; body?: string; kind?: string; imageUrl?: string | null; createdAt?: string; readAt?: string | null; questionId?: string; postId?: string }>;
         };
         const remote = Array.isArray(payload.notifications)
           ? payload.notifications.map((item): AppNotification => ({
               id: `remote-${String(item.id ?? makeId('note'))}`,
-              kind: typeof item.postId === 'string' ? 'post' : String(item.title ?? '').toLowerCase().includes('answered') ? 'answer' : 'system',
+              kind: item.kind === 'post_approved' || typeof item.postId === 'string' ? 'post' : item.kind === 'question_answered' || String(item.title ?? '').toLowerCase().includes('answered') ? 'answer' : 'system',
+              imageUrl: typeof item.imageUrl === 'string' && item.imageUrl ? item.imageUrl : undefined,
+              tone: item.kind === 'broadcast' ? 'broadcast' : item.kind === 'post_pending' ? 'pending' : item.kind === 'post_approved' ? 'approved' : item.kind === 'post_rejected' ? 'rejected' : undefined,
               title: String(item.title ?? 'Fatwa update'),
               body: String(item.body ?? ''),
               createdAt: String(item.createdAt ?? new Date().toISOString()),
@@ -294,7 +321,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const clearedIds = new Set(clearedRef.current);
           const readIds = new Set(readRef.current);
           const currentById = new Map(current.map((item) => [item.id, item]));
-          const fresh = remote.filter((item) => !currentById.has(item.id) && !clearedIds.has(item.id));
+          const fresh = remote.filter((item) => !currentById.has(item.id) && !clearedIds.has(item.id) && item.tone !== 'broadcast');
           const merged = remote
             .filter((item) => !clearedIds.has(item.id))
             .map((item) => {
@@ -317,9 +344,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     const syncRemoteQuestions = async () => {
       try {
-        const deviceId = await AsyncStorage.getItem(STORE_KEYS.deviceId);
-        if (!deviceId || !active) return;
-        const response = await fetch(`${API_BASE_URL}/api/questions?deviceId=${encodeURIComponent(deviceId)}`);
+        if (!tokenRef.current || !active) return;
+        const response = await fetch(`${API_BASE_URL}/api/questions`, { headers: { Authorization: `Bearer ${tokenRef.current}` } });
         if (!response.ok || !active) return;
         const payload = (await response.json()) as { questions?: Array<Record<string, unknown>> };
         if (!Array.isArray(payload.questions)) return;
@@ -351,7 +377,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const deviceId = await getDeviceId();
         const [postsResponse, fatwasResponse] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/posts?deviceId=${encodeURIComponent(deviceId)}`),
+          fetch(`${API_BASE_URL}/api/posts?deviceId=${encodeURIComponent(deviceId)}&city=${encodeURIComponent(feedCity)}&country=${encodeURIComponent(feedCountry)}`),
           fetch(`${API_BASE_URL}/api/fatwas`),
         ]);
         if (!active) return;
@@ -380,6 +406,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 author: String(item.author ?? 'Community contributor'),
                 authorImageUrl: typeof item.authorImageUrl === 'string' && item.authorImageUrl ? item.authorImageUrl : undefined,
                 city: typeof item.city === 'string' ? item.city : undefined,
+                country: typeof item.country === 'string' ? item.country : undefined,
+                createdAt: typeof item.createdAt === 'string' ? item.createdAt : undefined,
                 imageUrl: typeof item.imageUrl === 'string' && item.imageUrl ? item.imageUrl : undefined,
                 source: typeof item.source === 'string' ? item.source : undefined,
                 views: Number(item.views ?? 0),
@@ -444,23 +472,96 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(interval);
       appState.remove();
     };
-  }, [persist, refreshNonce]);
+  }, [persist, refreshNonce, sessionToken, feedCity, feedCountry]);
 
+  const authHeaders = useCallback((): Record<string, string> => (tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {}), []);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const storeSession = useCallback((token: string) => {
+    tokenRef.current = token;
+    setSessionToken(token);
+    persist([[STORE_KEYS.token, token]]);
+  }, [persist]);
+
+  const saveProfile = useCallback(
+    async (input: { name: string; country: string; city: string; notifyPosts?: boolean }) => {
+      const deviceId = await getDeviceId();
+      const response = await fetch(`${API_BASE_URL}/api/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ deviceId, name: input.name.trim(), country: input.country.trim(), city: input.city.trim(), ...(typeof input.notifyPosts === 'boolean' ? { notifyPosts: input.notifyPosts } : {}) }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; sessionToken?: string; user?: { avatarUrl?: string } };
+      if (!response.ok || !payload.sessionToken) throw new Error(payload.error ?? 'Could not save your profile. Check your connection and try again.');
+      storeSession(payload.sessionToken);
+      const next: Profile = { ...profileRef.current, name: input.name.trim(), country: input.country.trim(), city: input.city.trim() };
+      if (payload.user?.avatarUrl) next.avatarUri = payload.user.avatarUrl;
+      profileRef.current = next;
+      setProfileState(next);
+      persist([[STORE_KEYS.profile, next]]);
+    },
+    [authHeaders, persist, storeSession],
+  );
+
+  const uploadAvatar = useCallback(
+    async (asset: ImagePicker.ImagePickerAsset) => {
+      if (!tokenRef.current) throw new Error('Create your profile first.');
+      const response = await uploadImage(`${API_BASE_URL}/api/profile/avatar`, asset, 'avatar', {}, authHeaders());
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; user?: { avatarUrl?: string } };
+      if (!response.ok || !payload.user?.avatarUrl) throw new Error(payload.error ?? 'Could not upload your picture.');
+      const next: Profile = { ...profileRef.current, avatarUri: payload.user.avatarUrl };
+      profileRef.current = next;
+      setProfileState(next);
+      persist([[STORE_KEYS.profile, next]]);
+    },
+    [authHeaders, persist],
+  );
+
+  const completeOnboarding = useCallback(() => {
+    setOnboarded(true);
+    persist([[STORE_KEYS.onboarded, true]]);
+  }, [persist]);
+
+  // Local profile edits (for example the detected city) are saved on this device
+  // and synced to the server shortly afterwards when the user has an account.
   const setProfile = useCallback(
     (patch: Partial<Profile>) => {
       setProfileState((current) => {
         const next = { ...current, ...patch };
+        profileRef.current = next;
         persist([[STORE_KEYS.profile, next]]);
-        void getDeviceId().then((deviceId) => fetch(`${API_BASE_URL}/api/profile`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deviceId, name: next.name, country: next.country, city: next.city }),
-        }).catch(() => undefined));
         return next;
       });
+      if (!tokenRef.current) return;
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+      syncTimer.current = setTimeout(() => {
+        const { name, country, city } = profileRef.current;
+        if (name.trim().length >= 2 && country.trim().length >= 2 && city.trim().length >= 2) void saveProfile({ name, country, city }).catch(() => undefined);
+      }, 1500);
     },
-    [persist],
+    [persist, saveProfile],
   );
+
+  // Installs from before accounts existed only have a local profile: create the account once.
+  // Keep the server's "send me community post alerts" flag in line with the Notifications switch.
+  const syncedAlertsRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!hydrated || !sessionToken || !API_BASE_URL) return;
+    const wanted = settings.notificationsEnabled;
+    if (syncedAlertsRef.current === null) { syncedAlertsRef.current = wanted; if (wanted) return; }
+    if (syncedAlertsRef.current === wanted && wanted) return;
+    const current = profileRef.current;
+    if (current.name.trim().length < 2 || current.country.trim().length < 2 || current.city.trim().length < 2) return;
+    syncedAlertsRef.current = wanted;
+    void saveProfile({ name: current.name, country: current.country, city: current.city, notifyPosts: wanted }).catch(() => { syncedAlertsRef.current = null; });
+  }, [hydrated, sessionToken, settings.notificationsEnabled, saveProfile]);
+
+  useEffect(() => {
+    if (!hydrated || sessionToken) return;
+    const { name, country, city } = profile;
+    if (name.trim().length >= 2 && country.trim().length >= 2 && city.trim().length >= 2) void saveProfile({ name, country, city }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
 
   const setSettings = useCallback(
     (patch: Partial<Settings>) => {
@@ -566,17 +667,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
       if (id.startsWith('remote-') && API_BASE_URL) {
-        void AsyncStorage.getItem(STORE_KEYS.deviceId).then((deviceId) => {
-          if (!deviceId) return;
-          return fetch(`${API_BASE_URL}/api/notifications/${encodeURIComponent(id.slice(7))}/read`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ deviceId }),
-          }).catch(() => undefined);
-        });
+        void fetch(`${API_BASE_URL}/api/notifications/${encodeURIComponent(id.slice(7))}/read`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: '{}',
+        }).catch(() => undefined);
       }
     },
-    [persist],
+    [persist, authHeaders],
   );
 
   const markAllNotificationsRead = useCallback(() => {
@@ -587,16 +685,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
     if (API_BASE_URL) {
-      void AsyncStorage.getItem(STORE_KEYS.deviceId).then((deviceId) => {
-        if (!deviceId) return;
-        return fetch(`${API_BASE_URL}/api/notifications/read-all`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deviceId }),
-        }).catch(() => undefined);
-      });
+      void fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: '{}',
+      }).catch(() => undefined);
     }
-  }, [persist]);
+  }, [persist, authHeaders]);
 
   const clearNotifications = useCallback(() => {
     setNotifications((current) => {
@@ -669,16 +764,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         body: 'Your question has been sent for review. You will be notified when an answer is ready.',
         refId: entry.id,
       });
-      setProfile({ name: input.name, city: input.city });
 
       if (API_BASE_URL) {
         try {
-          const deviceId = await getDeviceId();
           const response = await fetch(`${API_BASE_URL}/api/questions`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({
-              deviceId,
               name: input.name,
               gender: input.gender,
               city: input.city,
@@ -739,11 +831,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       return returnedEntry;
     },
-    [persist, pushNotification, setProfile],
+    [persist, pushNotification, authHeaders],
   );
 
   const clearLocalData = useCallback(() => {
     setProfileState(emptyProfile);
+    tokenRef.current = '';
+    setSessionToken('');
+    setOnboarded(false);
     setQuestions([]);
     setNotifications([]);
     setLikedPostIds([]);
@@ -778,6 +873,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       prayerCity,
       settings,
       unreadCount,
+      signedIn: Boolean(sessionToken),
+      onboarded,
+      completeOnboarding,
+      saveProfile,
+      uploadAvatar,
+      authHeaders,
       setProfile,
       setSettings,
       setPrayerCity,
@@ -808,6 +909,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       prayerCity,
       settings,
       unreadCount,
+      sessionToken,
+      onboarded,
+      completeOnboarding,
+      saveProfile,
+      uploadAvatar,
+      authHeaders,
       setProfile,
       setSettings,
       setPrayerCity,

@@ -1,10 +1,12 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { EmptyState, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
+import { containsArabic } from '@/lib/post-text';
 import type { AppNotification } from '@/lib/types';
 
 const kindMeta: Record<
@@ -72,7 +74,12 @@ export default function NotificationsScreen() {
           </View>
 
           {notifications.map((item) => {
-            const meta = kindMeta[item.kind];
+            const baseMeta = kindMeta[item.kind];
+            const meta = item.tone === 'broadcast' ? { icon: 'bullhorn-outline' as const, tone: 'gold' as const }
+              : item.tone === 'pending' ? { icon: 'clock-outline' as const, tone: 'muted' as const }
+              : item.tone === 'approved' ? { icon: 'check-circle-outline' as const, tone: 'primary' as const }
+              : item.tone === 'rejected' ? { icon: 'close-circle-outline' as const, tone: 'muted' as const }
+              : baseMeta;
             const tone = toneColor[meta.tone];
             return (
               <Pressable
@@ -103,7 +110,9 @@ export default function NotificationsScreen() {
                     </Text>
                     {!item.read ? <View style={[styles.dot, { backgroundColor: colors.primary }]} /> : null}
                   </View>
-                  <Text style={[styles.noteBody, { color: colors.mutedForeground }]}>{item.body}</Text>
+                  <Text style={[styles.noteBody, containsArabic(item.body) && { textAlign: 'right', writingDirection: 'rtl' }, { color: colors.mutedForeground }]} numberOfLines={3}>{item.body}</Text>
+                  {item.imageUrl ? <Image source={{ uri: item.imageUrl }} style={styles.notePreview} contentFit="cover" accessibilityLabel="Post preview" /> : null}
+                  {item.kind === 'post' && item.refId ? <Text style={[styles.noteLink, { color: colors.primary }]}>View post</Text> : null}
                   <Text style={[styles.noteTime, { color: colors.mutedForeground }]}>
                     {relativeTime(item.createdAt)}
                   </Text>
@@ -154,5 +163,7 @@ const styles = StyleSheet.create({
   noteTitle: { fontSize: 14, fontWeight: '800', flex: 1 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   noteBody: { fontSize: 12.5, lineHeight: 19, marginTop: 5 },
+  notePreview: { width: '100%', height: 130, borderRadius: 14, marginTop: 10, backgroundColor: '#E5F2EC' },
+  noteLink: { fontSize: 12, fontWeight: '800', marginTop: 10 },
   noteTime: { fontSize: 10.5, marginTop: 8, fontWeight: '600' },
 });

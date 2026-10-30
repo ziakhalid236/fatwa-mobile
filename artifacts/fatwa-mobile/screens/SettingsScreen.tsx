@@ -1,9 +1,11 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { SectionTitle, uiStyles } from '@/components/ui';
+import { PrimaryButton, SectionTitle, uiStyles } from '@/components/ui';
+import { IMAGE_PICKER_OPTIONS } from '@/lib/upload';
+import { detectPlace } from '@/lib/geo';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
@@ -11,18 +13,52 @@ import { useApp } from '@/lib/store';
 export default function SettingsScreen() {
   const colors = useColors();
   const nav = useNav();
-  const { settings, setSettings, prayerCity, profile, setProfile } = useApp();
-  const languages = [
-    { key: 'en' as const, label: 'English' },
-    { key: 'ur' as const, label: 'اردو' },
-    { key: 'ar' as const, label: 'العربية' },
-  ];
+  const { settings, setSettings, prayerCity, profile, saveProfile, uploadAvatar, signedIn } = useApp();
+  const [name, setName] = useState(profile.name);
+  const [country, setCountry] = useState(profile.country);
+  const [city, setCity] = useState(profile.city);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const dirty = name.trim() !== profile.name || country.trim() !== profile.country || city.trim() !== profile.city || !signedIn;
 
   const chooseProfilePhoto = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return;
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.85 });
-    if (!result.canceled && result.assets[0]?.uri) setProfile({ avatarUri: result.assets[0].uri });
+    setMessage(null);
+    if (!signedIn) { setMessage({ kind: 'error', text: 'Save your name, country and city first, then add a picture.' }); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ ...IMAGE_PICKER_OPTIONS, allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+    if (result.canceled || !result.assets[0]?.uri) return;
+    setBusy(true);
+    try {
+      await uploadAvatar(result.assets[0]);
+      setMessage({ kind: 'ok', text: 'Profile picture updated.' });
+    } catch (err) {
+      setMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Could not upload your picture.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const useMyLocation = async () => {
+    const found = await detectPlace();
+    if (found.place?.city) setCity(found.place.city);
+    if (found.place?.country) setCountry(found.place.country);
+    if (!found.place) setMessage({ kind: 'error', text: 'Could not detect your location. Please type your city and country.' });
+  };
+
+  const save = async () => {
+    setMessage(null);
+    if (name.trim().length < 2 || country.trim().length < 2 || city.trim().length < 2) {
+      setMessage({ kind: 'error', text: 'Please enter your name, country and city.' });
+      return;
+    }
+    setBusy(true);
+    try {
+      await saveProfile({ name, country, city });
+      setMessage({ kind: 'ok', text: 'Profile saved.' });
+    } catch (err) {
+      setMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Could not save your profile.' });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -50,74 +86,30 @@ export default function SettingsScreen() {
         />
       </View>
 
-      <SectionTitle title="Content language" subtitle="Choose English, اردو, or العربية. Location detection can set the country language automatically." />
-      <View style={styles.languageRow}>
-        {languages.map((language) => {
-          const active = settings.language === language.key;
-          return (
-            <Pressable
-              key={language.key}
-              onPress={() => setSettings({ language: language.key, autoLanguage: false })}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              style={[styles.languageChip, { backgroundColor: active ? colors.primary : colors.card, borderColor: active ? colors.primary : colors.border }]}
-            >
-              <Text style={[styles.languageText, { color: active ? colors.primaryForeground : colors.foreground }]}>{language.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <SectionTitle title="Profile sign-up" subtitle="Post upload کرنے سے پہلے اپنا نام، ملک اور شہر مکمل کریں۔ Profile photo optional ہے۔" />
+      <SectionTitle title="Your account" subtitle="Your name, picture and city appear on your posts. Nearby posts are shown first in your feed." />
       <View style={[styles.accountCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.profilePhotoRow}>
           {profile.avatarUri ? <Image source={{ uri: profile.avatarUri }} style={styles.profilePhoto} contentFit="cover" /> : <View style={[styles.profilePhoto, styles.profilePhotoPlaceholder, { backgroundColor: colors.primarySoft }]}><Feather name="user" size={22} color={colors.primary} /></View>}
           <View style={{ flex: 1 }}>
-            <Text style={[styles.inputLabel, { color: colors.foreground }]}>Profile photo</Text>
-            <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Stored privately on this device.</Text>
+            <Text style={[styles.inputLabel, { color: colors.foreground }]}>Profile picture</Text>
+            <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Shown next to your posts.</Text>
           </View>
-          <Pressable onPress={() => void chooseProfilePhoto()} style={[styles.photoButton, { borderColor: colors.border }]} accessibilityRole="button">
+          <Pressable onPress={() => void chooseProfilePhoto()} disabled={busy} style={[styles.photoButton, { borderColor: colors.border }]} accessibilityRole="button" testID="settings-avatar">
             <Text style={[styles.photoButtonText, { color: colors.primary }]}>{profile.avatarUri ? 'Change' : 'Add'}</Text>
           </Pressable>
         </View>
         <Text style={[styles.inputLabel, { color: colors.foreground }]}>Your name</Text>
-        <TextInput value={profile.name} onChangeText={(value) => setProfile({ name: value })} placeholder="Your name (required)" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
+        <TextInput value={name} onChangeText={setName} placeholder="Your name (required)" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" testID="settings-name" />
         <Text style={[styles.inputLabel, { color: colors.foreground }]}>Country</Text>
-        <TextInput value={profile.country} onChangeText={(value) => setProfile({ country: value })} placeholder="Your country" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
+        <TextInput value={country} onChangeText={setCountry} placeholder="Your country" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" testID="settings-country" />
         <Text style={[styles.inputLabel, { color: colors.foreground }]}>City</Text>
-        <TextInput value={profile.city} onChangeText={(value) => setProfile({ city: value })} placeholder="Your city" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" />
-      </View>
-
-      <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
-          <MaterialCommunityIcons name="crosshairs-gps" size={19} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.rowTitle, { color: colors.foreground }]}>Use location language</Text>
-          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Pakistan → اردو · Arab countries → العربية</Text>
-        </View>
-        <Switch
-          value={settings.autoLanguage}
-          onValueChange={(value) => setSettings({ autoLanguage: value })}
-          trackColor={{ false: colors.border, true: colors.teal }}
-          thumbColor="#FFFFFF"
-        />
-      </View>
-
-      <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
-          <MaterialCommunityIcons name="translate" size={19} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.rowTitle, { color: colors.foreground }]}>Translate posts automatically</Text>
-          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Use Urdu or Arabic translations in the feed</Text>
-        </View>
-        <Switch
-          value={settings.autoTranslate}
-          onValueChange={(value) => setSettings({ autoTranslate: value })}
-          trackColor={{ false: colors.border, true: colors.teal }}
-          thumbColor="#FFFFFF"
-        />
+        <TextInput value={city} onChangeText={setCity} placeholder="Your city" placeholderTextColor={colors.mutedForeground} style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} autoCapitalize="words" testID="settings-city" />
+        <Pressable onPress={() => void useMyLocation()} style={styles.locateRow} accessibilityRole="button">
+          <MaterialCommunityIcons name="crosshairs-gps" size={16} color={colors.primary} />
+          <Text style={[styles.photoButtonText, { color: colors.primary }]}>Use my current location</Text>
+        </Pressable>
+        {message ? <Text style={[styles.rowSubtitle, { color: message.kind === 'ok' ? colors.primary : colors.coral, marginBottom: 10 }]} accessibilityRole="alert">{message.text}</Text> : null}
+        <PrimaryButton label={busy ? 'Saving…' : signedIn ? 'Save changes' : 'Create account'} icon="check" onPress={() => void save()} disabled={!dirty} loading={busy} testID="settings-save" />
       </View>
 
       <SectionTitle title="Prayer tools" />
@@ -163,6 +155,23 @@ export default function SettingsScreen() {
           thumbColor="#FFFFFF"
         />
       </View>
+
+      <SectionTitle title="About" />
+      <Pressable
+        onPress={() => nav.push({ name: 'legalIndex' })}
+        style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
+        accessibilityRole="button"
+        testID="settings-legal"
+      >
+        <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
+          <MaterialCommunityIcons name="shield-check-outline" size={20} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowTitle, { color: colors.foreground }]}>Terms, privacy & sources</Text>
+          <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>Terms of Use, Privacy Policy, AI disclaimer, data deletion</Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+      </Pressable>
     </View>
   );
 }
@@ -176,13 +185,11 @@ const styles = StyleSheet.create({
   icon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { fontSize: 14, fontWeight: '800', marginBottom: 4 },
   rowSubtitle: { fontSize: 12 },
-  languageRow: { flexDirection: 'row', gap: 8, marginBottom: 18 },
-  languageChip: { borderWidth: 1, borderRadius: 17, paddingHorizontal: 15, paddingVertical: 10 },
-  languageText: { fontSize: 12.5, fontWeight: '700' },
   accountCard: { borderWidth: 1, borderRadius: 21, padding: 16, marginBottom: 16 },
   profilePhotoRow: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 16 },
   profilePhoto: { width: 52, height: 52, borderRadius: 26 },
   profilePhotoPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  locateRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
   photoButton: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8 },
   photoButtonText: { fontSize: 12, fontWeight: '800' },
   inputLabel: { fontSize: 11.5, fontWeight: '700', marginBottom: 6 },
