@@ -78,7 +78,7 @@ export function PostCard({
     >
       <View style={styles.body}>
         <Pressable style={styles.authorHeader} onPress={onAuthor} disabled={!onAuthor} accessibilityRole={onAuthor ? 'button' : undefined}>
-          {post.authorImageUrl ? <Image source={{ uri: post.authorImageUrl }} style={styles.authorAvatar} contentFit="cover" /> : <Avatar size={38} icon="user" />}
+          {post.authorImageUrl ? <Image source={{ uri: post.authorImageUrl }} cachePolicy="disk" style={styles.authorAvatar} contentFit="cover" /> : <Avatar size={38} icon="user" />}
           <View style={styles.authorMeta}>
             <Text style={[styles.author, { color: colors.foreground }]} numberOfLines={1}>
               {post.author}
@@ -102,11 +102,11 @@ export function PostCard({
 
         {post.imageUrl ? (
           <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel="Open post photo">
-            <Image source={{ uri: post.imageUrl }} style={[styles.postImage, { backgroundColor: colors.cardMuted }]} contentFit="contain" />
+            <Image source={{ uri: post.imageUrl }} cachePolicy="disk" style={[styles.postImage, { backgroundColor: colors.cardMuted }]} contentFit="contain" />
           </Pressable>
         ) : null}
 
-        <View style={[styles.footer, { borderTopColor: colors.border }]}> 
+        <View style={[styles.footer, { borderTopColor: colors.border }]}>
           <Pressable
             onPress={() => {
               void Haptics.selectionAsync();

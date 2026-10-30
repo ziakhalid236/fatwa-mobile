@@ -14,7 +14,6 @@ import { NavProvider, type Nav, type Route } from '@/lib/nav';
 import { AppProvider, useApp } from '@/lib/store';
 import { postIdFromUrl } from '@/lib/share';
 import { syncAdhanAlarms } from '@/lib/adhan';
-import { formatIslamicDate } from '@/lib/islamic-date';
 import type { TabKey } from '@/lib/types';
 import AlarmScreen from '@/screens/AlarmScreen';
 import FatwaDetailScreen from '@/screens/FatwaDetailScreen';
@@ -85,7 +84,7 @@ function NetworkBanner() {
 
 function Shell() {
   const colors = useColors();
-  const { alarms, settings, unreadCount, pushNotification, refreshContent, notifications, hydrated, markNotificationRead } = useApp();
+  const { alarms, unreadCount, pushNotification, refreshContent, notifications, hydrated, markNotificationRead } = useApp();
 
   const [tab, setTab] = useState<TabKey>('home');
   const [stack, setStack] = useState<Route[]>([]);
@@ -221,7 +220,6 @@ function Shell() {
             <LogoMark size={36} />
             <View>
               <Text style={[styles.brandName, { color: colors.forest }]}>Fatwa</Text>
-              <Text style={[styles.hijriDate, { color: colors.mutedForeground }]}>{formatIslamicDate(new Date(), settings.language)}</Text>
             </View>
           </View>
         )}

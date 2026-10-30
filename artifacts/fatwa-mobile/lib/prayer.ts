@@ -145,3 +145,12 @@ export function formatCountdown(totalMinutes: number): string {
   if (hours <= 0) return `${minutes} min`;
   return `${hours}h ${String(minutes).padStart(2, '0')}m`;
 }
+
+/** Convert the internal 24-hour HH:MM value into a compact 12-hour display. */
+export function formatClockTime(time: string): string {
+  const [hours, minutes] = time.split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return time;
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  const hour = hours % 12 || 12;
+  return `${hour}:${String(minutes).padStart(2, '0')} ${suffix}`;
+}
