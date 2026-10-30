@@ -1,3 +1,4 @@
+import { queueBroadcast } from './push';
 import { mailEnabled, otpMail, sendMail, welcomeMail } from './mail';
 // Reports, public profiles, account control, dashboard stats and Google / email-OTP sign-in.
 type Row = Record<string, any>;
@@ -171,6 +172,17 @@ export async function adminExtras(c: Ctx): Promise<Response | null> {
   }
   const sub = path.match(/^\/admin\/post-submissions\/([^/]+)$/);
   if (sub && m === 'DELETE') { await env.DB.prepare('DELETE FROM post_submissions WHERE id=?').bind(sub[1]).run(); await c.audit(env, 'delete', 'post_submission', sub[1]); return json({ ok: true }, 200, origin); }
+  if (path === '/admin/broadcast' && m === 'POST') {
+    const b = await c.readJson(request); const title = String(b.title || '').trim().slice(0, 80); const body = String(b.body || '').trim().slice(0, 240);
+    if (!title || !body) return json({ error: 'Title and message are required.' }, 400, origin);
+    let filter = 'u.notify_posts<>0'; const binds: unknown[] = [];
+    if (b.scope === 'country' && b.value) { filter += ' AND LOWER(TRIM(u.country))=?'; binds.push(String(b.value).trim().toLowerCase()); }
+    if (b.scope === 'city' && b.value) { filter += ' AND LOWER(TRIM(u.city))=?'; binds.push(String(b.value).trim().toLowerCase()); }
+    const ins = await env.DB.prepare(`INSERT INTO notifications(id,user_id,title,body,question_id,post_id,kind,image_url,read_at,created_at) SELECT 'notification-'||lower(hex(randomblob(16))),u.id,?,?,NULL,NULL,'announcement',NULL,NULL,? FROM users u WHERE ${filter}`).bind(title, body, c.now(), ...binds).run();
+    const queued = await queueBroadcast(env, filter, binds, { title, body, data: { type: 'announcement', kind: 'announcement' } }).catch(() => 0);
+    await c.audit(env, 'broadcast', 'notification', null, { title, scope: b.scope || 'all' });
+    return json({ ok: true, notified: Number(ins.meta?.changes || 0), queuedPush: queued }, 200, origin);
+  }
   if (path === '/admin/ai/test' && m === 'POST' && c.chat) {
     const b = await c.readJson(request); const msg = String(b.message || '').trim(); if (!msg) return json({ error: 'Message required.' }, 400, origin);
     const t0 = Date.now(); try { const r: any = await c.chat(msg); return json({ ...r, ms: Date.now() - t0 }, 200, origin); } catch (e) { return json({ error: String(e), ms: Date.now() - t0 }, 502, origin); }
