@@ -9,6 +9,9 @@
 - 30 دن بعد پوسٹس کا خاتمہ، براڈکاسٹ نوٹیفکیشن (سرور)، پریمیم ٹیب بار، کراس لینگویج جوابات۔
 - دارالافتاء دیوبند کے 1,904 فتاویٰ (`data/kb/darulifta.jsonl.gz`) لائبریری میں شامل ہیں۔
 
+- سپورٹ ای میل (contactfatwaapp@gmail.com) تمام پالیسی صفحات اور ایپ میں شامل ہے۔
+- پش نوٹیفکیشن: Firebase پروجیکٹ `fatwa-app-2626a` بن گیا، `google-services.json` ریپو میں اور `FCM_SERVICE_ACCOUNT` GitHub secret میں ہے۔ نیا APK بنانے اور Worker ڈیپلائے کے بعد فعال۔
+
 ## ڈیٹا بیس: Turso (مفت پلان)
 Cloudflare D1 کی مفت حد کی وجہ سے ڈیٹا بیس Turso پر منتقل کر دیا گیا۔ API Worker Cloudflare پر ہی ہے۔
 - پروڈکشن: `fatwa-app` (صارفین، پوسٹس، نوٹیفکیشن) اور `fatwa-kb` (علمی لائبریری)۔ اسٹیجنگ کے الگ ڈیٹا بیس ہیں۔
@@ -22,8 +25,6 @@ GitHub → Actions → "Deploy fatwa-api Worker" → Run workflow → staging ی
 دستی لوڈ: `python tools/kb/kbtool.py <API_URL> <ٹوکن فائل> all data/kb/scholars.xlsx`
 
 ## باقی / آپ کے فیصلے
-- سپورٹ ای میل: پالیسی صفحات میں فی الحال عارضی عبارت ہے؛ اصل ای میل شامل کریں۔
-- پش نوٹیفکیشن کے لیے Firebase پروجیکٹ (`google-services.json` + `FCM_SERVICE_ACCOUNT`) درکار ہے۔
 - تمام کتب "غیر تصدیق شدہ" ہیں؛ "دیوبندی تصدیق شدہ" کہنا درست نہیں۔ OpenITI کا لائسنس غیر تجارتی (CC BY-NC-SA) ہے، حدیث تراجم کے حقوق واضح نہیں۔
 - "ٹریننگ" دراصل retrieval ہے: AI جواب دیتے وقت ڈیٹا تلاش کر کے حوالہ دیتا ہے، ماڈل دوبارہ تربیت نہیں ہوتا۔
 - کوئی اسٹور منٹوں میں منظور نہیں کرتا۔ فوری: GitHub Release/اپنا APK لنک۔ Huawei/Amazon چند دن، Google Play $25 + 12 ٹیسٹر × 14 دن۔
