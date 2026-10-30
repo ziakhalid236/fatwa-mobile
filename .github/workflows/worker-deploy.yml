@@ -58,15 +58,14 @@ jobs:
       - name: Deploy Worker with Turso connections
         working-directory: workers/fatwa-api
         run: |
-          if [ "$TARGET" = "production" ]; then ENVFLAG=""; else ENVFLAG="--env staging"; fi
+          if [ "$TARGET" = "production" ]; then ENVFLAG="--env="; else ENVFLAG="--env=staging"; fi
           echo "ENVFLAG=$ENVFLAG" >> "$GITHUB_ENV"
           python3 - <<'PY' > "$RUNNER_TEMP/secrets.json"
           import json, os
           print(json.dumps({"TURSO_DB_URL": os.environ["TURSO_APP_URL"], "TURSO_DB_TOKEN": os.environ["TURSO_APP_TOKEN"],
                             "TURSO_KB_URL": os.environ["TURSO_KB_URL"], "TURSO_KB_TOKEN": os.environ["TURSO_KB_TOKEN"], **({"ADMIN_TOKEN": os.environ["ADMIN_TOKEN"]} if os.environ.get("ADMIN_TOKEN") else {})}))
           PY
-          pnpm exec wrangler secret bulk "$RUNNER_TEMP/secrets.json" $ENVFLAG
-          pnpm exec wrangler deploy $ENVFLAG --keep-vars
+          pnpm exec wrangler deploy $ENVFLAG --keep-vars --secrets-file "$RUNNER_TEMP/secrets.json"
           rm -f "$RUNNER_TEMP/secrets.json"
 
       - name: Smoke test
