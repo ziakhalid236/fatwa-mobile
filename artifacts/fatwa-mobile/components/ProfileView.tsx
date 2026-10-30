@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StarPattern } from '@/components/Art';
 import { timeAgo } from '@/components/PostCard';
 import { useColors } from '@/hooks/useColors';
@@ -20,13 +20,19 @@ type PublicProfile = { user: { id: string; name: string; city: string; country: 
 export function ProfileView({ userId, self, onEdit }: { userId: string; self?: boolean; onEdit?: () => void }) {
   const colors = useColors();
   const nav = useNav();
-  const { authHeaders, profile, setBio, uploadAvatar, refreshContent, signedIn } = useApp();
+  const { authHeaders, profile, saveProfile, setBio, uploadAvatar, refreshContent, signedIn } = useApp();
   const [data, setData] = useState<PublicProfile | null>(null);
   const [mine, setMine] = useState<ProfilePost[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [editingBio, setEditingBio] = useState(false);
   const [bioDraft, setBioDraft] = useState(profile.bio ?? '');
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState(profile.name);
+  const [cityDraft, setCityDraft] = useState(profile.city);
+  const [countryDraft, setCountryDraft] = useState(profile.country);
+  const [emailDraft, setEmailDraft] = useState(profile.email ?? '');
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,6 +87,35 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
     Alert.alert('Cover photo', 'The photo is cropped to a wide 2:1 banner (best size 1200 x 600), exactly as it appears on your profile.', buttons);
   };
 
+  const openEditor = () => {
+    setNameDraft(profile.name);
+    setBioDraft(profile.bio ?? '');
+    setCityDraft(profile.city);
+    setCountryDraft(profile.country);
+    setEmailDraft(profile.email ?? '');
+    setEditorOpen(true);
+  };
+
+  const saveEditor = async () => {
+    if (nameDraft.trim().length < 2) {
+      Alert.alert('Name required', 'Please enter at least 2 characters for your username.');
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await saveProfile({ name: nameDraft, city: cityDraft, country: countryDraft });
+      await setBio(bioDraft);
+      // Email is intentionally shown in the editor but remains managed by the
+      // sign-in provider until a dedicated server-side email-change flow exists.
+      setEditorOpen(false);
+      void load();
+    } catch (e) {
+      Alert.alert('Could not save profile', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   const u = data?.user;
   const cover = u?.coverUrl;
   const avatar = self ? profile.avatarUri || u?.avatarUrl : u?.avatarUrl;
@@ -98,9 +133,8 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
           {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel="Cover photo" /> : null}
         </LinearGradient>
         {self && signedIn ? (
-          <Pressable onPress={changeCover} style={styles.coverBtn} accessibilityRole="button" accessibilityLabel="Change cover photo" testID="profile-cover">
-            <Feather name="image" size={14} color="#fff" />
-            <Text style={styles.coverBtnText}>{cover ? 'Edit cover' : 'Add cover photo'}</Text>
+          <Pressable onPress={changeCover} style={styles.coverMenuBtn} accessibilityRole="button" accessibilityLabel="Cover photo options" testID="profile-cover">
+            <Feather name="more-horizontal" size={21} color="#fff" />
           </Pressable>
         ) : null}
         <View style={[styles.avatarRing, { borderColor: colors.background, backgroundColor: colors.primarySoft }]}>
@@ -131,7 +165,7 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
         {self ? (
           <View style={styles.row}>
             <Pressable onPress={() => nav.push({ name: 'postSubmit' })} style={[styles.action, { backgroundColor: colors.primary }]} accessibilityRole="button"><Feather name="edit-3" size={15} color="#fff" /><Text style={styles.actionText}>Upload post</Text></Pressable>
-            <Pressable onPress={() => { if (signedIn && !editingBio) { setBioDraft(profile.bio ?? ''); setEditingBio(true); } else onEdit?.(); }} style={[styles.action, { backgroundColor: colors.primarySoft }]} accessibilityRole="button"><Feather name="user" size={15} color={colors.primary} /><Text style={[styles.actionText, { color: colors.primary }]}>Edit bio</Text></Pressable>
+            <Pressable onPress={() => { if (signedIn) openEditor(); else onEdit?.(); }} style={[styles.action, { backgroundColor: colors.primarySoft }]} accessibilityRole="button" testID="profile-edit"><Feather name="user" size={15} color={colors.primary} /><Text style={[styles.actionText, { color: colors.primary }]}>Edit profile</Text></Pressable>
           </View>
         ) : null}
       </View>
@@ -172,6 +206,42 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
           ) : null}
         </>
       )}
+
+      <Modal visible={editorOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setEditorOpen(false)}>
+        <View style={[styles.editor, { backgroundColor: colors.background }]}>
+          <View style={styles.editorHeader}>
+            <View>
+              <Text style={[styles.editorEyebrow, { color: colors.mutedForeground }]}>YOUR PROFILE</Text>
+              <Text style={[styles.editorTitle, { color: colors.foreground }]}>Edit profile</Text>
+            </View>
+            <Pressable onPress={() => setEditorOpen(false)} style={[styles.closeBtn, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityLabel="Close profile editor"><Feather name="x" size={19} color={colors.foreground} /></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.editorContent} keyboardShouldPersistTaps="handled">
+            <View style={styles.editorPhotos}>
+              <Pressable onPress={() => void changePhoto()} style={styles.editorPhotoAction} accessibilityRole="button">
+                {avatar ? <Image source={{ uri: avatar }} style={styles.editorAvatar} contentFit="cover" /> : <View style={[styles.editorAvatar, { backgroundColor: colors.primarySoft }]}><Text style={[styles.initial, { color: colors.primary }]}>{name[0]?.toUpperCase() ?? '?'}</Text></View>}
+                <View style={[styles.photoBadge, { backgroundColor: colors.primary }]}><Feather name="camera" size={13} color="#fff" /></View>
+              </Pressable>
+              <Pressable onPress={changeCover} style={[styles.editorCover, { backgroundColor: colors.forest }]} accessibilityRole="button">
+                {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <StarPattern opacity={0.18} size={34} />}
+                <View style={styles.editorCoverOverlay}><Feather name="image" size={14} color="#fff" /><Text style={styles.coverBtnText}>Change cover</Text></View>
+              </Pressable>
+            </View>
+            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Username</Text>
+            <TextInput value={nameDraft} onChangeText={setNameDraft} placeholder="Your name" placeholderTextColor={colors.mutedForeground} style={[styles.editorInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} autoCapitalize="words" />
+            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Email</Text>
+            <TextInput value={emailDraft} onChangeText={setEmailDraft} editable={false} keyboardType="email-address" style={[styles.editorInput, styles.disabledInput, { color: colors.mutedForeground, borderColor: colors.border, backgroundColor: colors.muted }]} />
+            <Text style={[styles.fieldHint, { color: colors.mutedForeground }]}>Email is managed securely by your sign-in method.</Text>
+            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Bio</Text>
+            <TextInput value={bioDraft} onChangeText={setBioDraft} maxLength={200} multiline placeholder="Tell people a little about yourself" placeholderTextColor={colors.mutedForeground} style={[styles.editorInput, styles.bioInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} />
+            <View style={styles.twoFields}>
+              <View style={{ flex: 1 }}><Text style={[styles.fieldLabel, { color: colors.foreground }]}>City</Text><TextInput value={cityDraft} onChangeText={setCityDraft} placeholder="City" placeholderTextColor={colors.mutedForeground} style={[styles.editorInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} /></View>
+              <View style={{ flex: 1 }}><Text style={[styles.fieldLabel, { color: colors.foreground }]}>Country</Text><TextInput value={countryDraft} onChangeText={setCountryDraft} placeholder="Country" placeholderTextColor={colors.mutedForeground} style={[styles.editorInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} /></View>
+            </View>
+            <Pressable onPress={() => void saveEditor()} disabled={savingProfile} style={[styles.saveProfileBtn, { backgroundColor: colors.primary, opacity: savingProfile ? 0.7 : 1 }]}><Text style={styles.saveProfileText}>{savingProfile ? 'Saving…' : 'Save profile'}</Text></Pressable>
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -179,7 +249,7 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
 const styles = StyleSheet.create({
   coverWrap: { marginBottom: 52 },
   cover: { aspectRatio: 2, width: '100%', borderRadius: 26, overflow: 'hidden', justifyContent: 'center', alignItems: 'flex-end' },
-  coverBtn: { position: 'absolute', right: 12, top: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.42)', borderRadius: 14, paddingHorizontal: 11, paddingVertical: 7 },
+  coverMenuBtn: { position: 'absolute', right: 12, top: 12, width: 42, height: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.42)', borderRadius: 21 },
   coverBtnText: { color: '#fff', fontSize: 11.5, fontWeight: '700' },
   coverArt: { marginRight: 24 },
   avatarRing: { position: 'absolute', left: 20, bottom: -48, width: 100, height: 100, borderRadius: 50, borderWidth: 4, alignItems: 'center', justifyContent: 'center' },
@@ -212,4 +282,23 @@ const styles = StyleSheet.create({
   reason: { fontSize: 12, fontWeight: '600' },
   likes: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   empty: { borderWidth: 1, borderStyle: 'dashed', borderRadius: 20, padding: 28, alignItems: 'center' },
+  editor: { flex: 1 },
+  editorHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 12 },
+  editorEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 4 },
+  editorTitle: { fontSize: 26, fontWeight: '800', letterSpacing: -0.6 },
+  closeBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  editorContent: { padding: 20, paddingBottom: 36, gap: 4 },
+  editorPhotos: { gap: 12, marginBottom: 18 },
+  editorPhotoAction: { position: 'absolute', zIndex: 2, left: 16, bottom: -22 },
+  editorAvatar: { width: 88, height: 88, borderRadius: 44, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  photoBadge: { position: 'absolute', right: -1, bottom: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  editorCover: { height: 138, borderRadius: 22, overflow: 'hidden', justifyContent: 'flex-end' },
+  editorCoverOverlay: { alignSelf: 'flex-end', flexDirection: 'row', gap: 6, alignItems: 'center', margin: 12, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.42)' },
+  fieldLabel: { fontSize: 12, fontWeight: '800', marginTop: 11, marginBottom: 6 },
+  editorInput: { minHeight: 48, borderWidth: 1, borderRadius: 15, paddingHorizontal: 13, paddingVertical: 11, fontSize: 14 },
+  disabledInput: { opacity: 0.85 },
+  fieldHint: { fontSize: 11, marginTop: 5 },
+  twoFields: { flexDirection: 'row', gap: 10 },
+  saveProfileBtn: { height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 22 },
+  saveProfileText: { color: '#fff', fontSize: 15, fontWeight: '800' },
 });

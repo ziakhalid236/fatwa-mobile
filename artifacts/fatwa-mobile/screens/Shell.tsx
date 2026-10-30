@@ -165,6 +165,7 @@ function Shell() {
   const REPORTABLE = new Set(['post', 'fatwa', 'questionDetail', 'reader', 'surah', 'quranList', 'user', 'fatwaList', 'postSubmit']);
   const reportable = route.name === 'tabs' ? tab !== 'alarm' : REPORTABLE.has(route.name);
   const pageName = route.name === 'tabs' ? tab : route.name;
+  const hideTopHeader = (route.name === 'tabs' && tab === 'profile') || route.name === 'settings';
 
   const header = () => {
     const title = route.name === 'surah' || route.name === 'reader' ? route.title : titles[route.name] ?? (route.name === 'tabs' && tab === 'alarm' ? 'Notifications' : undefined);
@@ -257,7 +258,7 @@ function Shell() {
               keyboardDismissMode="on-drag"
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
             >
-              {header()}
+              {!hideTopHeader ? header() : null}
               {content}
             </KeyboardAwareScrollViewCompat>
           )}

@@ -25,6 +25,7 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
 
   const go = (action: () => void) => () => { setMenuOpen(false); action(); };
   const items: MenuItem[] = [
+    { icon: 'bookmark', label: savedPostIds.length ? `Saved posts (${savedPostIds.length})` : 'Saved posts', onPress: go(() => nav.push({ name: 'saved' })) },
     { icon: 'settings', label: 'Settings', onPress: go(onOpenSettings) },
     { icon: 'message-square', label: questions.length ? `My questions (${questions.length})` : 'My questions', onPress: go(() => nav.goTab('questions')) },
     { icon: 'bell', label: 'Notifications', badge: unreadCount, onPress: go(() => nav.push({ name: 'notifications' })) },
@@ -36,9 +37,9 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
 
   const toolbar = (
     <View style={styles.toolbar}>
-      <Pressable onPress={() => nav.push({ name: 'saved' })} style={[styles.toolBtn, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityRole="button" accessibilityLabel="Saved posts" testID="profile-saved">
-        <Feather name="bookmark" size={17} color={colors.primary} />
-        {savedPostIds.length ? <Text style={[styles.toolCount, { color: colors.primary }]}>{savedPostIds.length}</Text> : null}
+      <Pressable onPress={() => nav.push({ name: 'notifications' })} style={[styles.toolBtn, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityRole="button" accessibilityLabel="Notifications" testID="profile-notifications">
+        <Feather name="bell" size={18} color={colors.foreground} />
+        {unreadCount > 0 ? <View style={[styles.dot, { backgroundColor: colors.coral }]} /> : null}
       </Pressable>
       <Pressable onPress={() => setMenuOpen(true)} style={[styles.toolBtn, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityRole="button" accessibilityLabel="More options" testID="profile-menu">
         <Feather name="more-vertical" size={19} color={colors.foreground} />
