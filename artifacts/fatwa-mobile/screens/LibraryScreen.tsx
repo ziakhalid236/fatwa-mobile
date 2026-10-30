@@ -10,6 +10,7 @@ import { useNav } from '@/lib/nav';
 
 const LANG: Record<string, string> = { ar: 'العربية', ur: 'اردو', en: 'English' };
 const rtl = (lang?: string | null) => lang === 'ar' || lang === 'ur';
+const QURAN_COVER = require('../assets/images/quran-cover.jpg');
 
 function Badge({ text, tone }: { text: string; tone: 'ok' | 'warn' | 'plain' }) {
   const colors = useColors();
@@ -167,10 +168,11 @@ export default function LibraryScreen() {
       ) : (
         <>
           <Pressable onPress={() => nav.push({ name: 'quranList' })} style={[styles.quranCard, { backgroundColor: colors.card, borderColor: colors.goldSoft }]} accessibilityRole="button" testID="library-quran">
-            <View style={[styles.quranIcon, { backgroundColor: colors.primarySoft }]}><MaterialCommunityIcons name="book-open-variant" size={24} color={colors.primary} /></View>
+            <Image source={QURAN_COVER} style={styles.quranCover} accessibilityLabel="Quran Majeed cover" />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.cardTitle, { color: colors.foreground }]}>The Noble Quran</Text>
-              <Text style={[styles.muted, { color: colors.mutedForeground }]}>114 surahs · Arabic with Urdu (Jalandhry) and English (Sahih International)</Text>
+              <Text style={[styles.cardTitle, { color: colors.foreground }]}>قرآن مجید</Text>
+              <Text style={[styles.muted, { color: colors.mutedForeground }]}>The Holy Quran · 114 سورتیں</Text>
+              <Text style={[styles.muted, { color: colors.mutedForeground }]}>Arabic with Urdu (Jalandhry) and English</Text>
             </View>
             <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
           </Pressable>
@@ -296,7 +298,7 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 20, padding: 15, marginBottom: 10 },
   rowCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   quranCard: { borderWidth: 1.5, borderRadius: 22, padding: 16, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 13 },
-  quranIcon: { width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  quranCover: { width: 72, height: 72, borderRadius: 18 },
   cardTitle: { fontSize: 14.5, fontWeight: '700', marginBottom: 3 },
   muted: { fontSize: 11.5, lineHeight: 17 },
   body: { fontSize: 14, lineHeight: 22, marginTop: 6 },

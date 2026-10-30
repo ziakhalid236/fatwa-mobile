@@ -7,7 +7,7 @@ import { InfoBanner, PrimaryButton, SectionTitle, uiStyles } from '@/components/
 import { useColors } from '@/hooks/useColors';
 import { getCurrentPrayerLocation } from '@/lib/location';
 import { ensureNotificationPermissions, syncAdhanAlarms } from '@/lib/adhan';
-import { computePrayerTimes, formatCountdown, minutesUntil } from '@/lib/prayer';
+import { computePrayerTimes, formatClockTime, formatCountdown, minutesUntil } from '@/lib/prayer';
 import { useApp } from '@/lib/store';
 import type { AdhanAlarm, PrayerName } from '@/lib/types';
 
@@ -107,7 +107,7 @@ export default function AlarmScreen() {
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Prayer times and alarms follow your current GPS location.</Text>
       </View>
       <View style={[styles.nextCard, { backgroundColor: colors.forest }]}>
-        <View style={{ flex: 1 }}><Text style={styles.nextLabel}>NEXT PRAYER</Text><Text style={styles.nextName}>{nextPrayer.name}</Text><Text style={styles.nextTime}>{nextPrayer.time}</Text></View>
+        <View style={{ flex: 1 }}><Text style={styles.nextLabel}>NEXT PRAYER</Text><Text style={styles.nextName}>{nextPrayer.name}</Text><Text style={styles.nextTime}>{formatClockTime(nextPrayer.time)}</Text></View>
         <View style={styles.nextRight}><MaterialCommunityIcons name="timer-sand" size={20} color="#CFE7DE" /><Text style={styles.nextCountdown}>{formatCountdown(nextPrayer.minutes)}</Text><Text style={styles.nextCity}>{prayerCity.name}</Text></View>
       </View>
       <View style={[styles.locationCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -122,8 +122,8 @@ export default function AlarmScreen() {
         const enabled = alarm?.enabled ?? false;
         const time = alarm?.time ?? times[prayer];
         return <View key={prayer} style={[styles.alarmCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.alarmTop}><View style={[styles.alarmIcon, { backgroundColor: enabled ? colors.primarySoft : colors.muted }]}><MaterialCommunityIcons name="bell-ring-outline" size={19} color={enabled ? colors.primary : colors.mutedForeground} /></View><View style={{ flex: 1 }}><Text style={[styles.alarmName, { color: colors.foreground }]}>{prayer}</Text><Text style={[styles.alarmCalc, { color: colors.mutedForeground }]}>Calculated {times[prayer]}</Text></View><Switch value={enabled} onValueChange={(value) => void toggleAlarm(prayer, value)} trackColor={{ false: colors.border, true: colors.teal }} thumbColor="#FFFFFF" accessibilityLabel={`${prayer} adhan alarm`} /></View>
-          <View style={[styles.timeRow, { borderTopColor: colors.border }]}><Pressable onPress={() => changeTime(prayer, -5)} style={[styles.stepButton, { borderColor: colors.border }]}><Feather name="minus" size={16} color={colors.foreground} /></Pressable><View style={styles.timeDisplay}><Text style={[styles.timeValue, { color: enabled ? colors.primary : colors.foreground }]}>{time}</Text><Text style={[styles.timeLabel, { color: colors.mutedForeground }]}>Alarm time</Text></View><Pressable onPress={() => changeTime(prayer, 5)} style={[styles.stepButton, { borderColor: colors.border }]}><Feather name="plus" size={16} color={colors.foreground} /></Pressable></View>
+          <View style={styles.alarmTop}><View style={[styles.alarmIcon, { backgroundColor: enabled ? colors.primarySoft : colors.muted }]}><MaterialCommunityIcons name="bell-ring-outline" size={19} color={enabled ? colors.primary : colors.mutedForeground} /></View><View style={{ flex: 1 }}><Text style={[styles.alarmName, { color: colors.foreground }]}>{prayer}</Text><Text style={[styles.alarmCalc, { color: colors.mutedForeground }]}>Calculated {formatClockTime(times[prayer])}</Text></View><Switch value={enabled} onValueChange={(value) => void toggleAlarm(prayer, value)} trackColor={{ false: colors.border, true: colors.teal }} thumbColor="#FFFFFF" accessibilityLabel={`${prayer} adhan alarm`} /></View>
+          <View style={[styles.timeRow, { borderTopColor: colors.border }]}><Pressable onPress={() => changeTime(prayer, -5)} style={[styles.stepButton, { borderColor: colors.border }]}><Feather name="minus" size={16} color={colors.foreground} /></Pressable><View style={styles.timeDisplay}><Text style={[styles.timeValue, { color: enabled ? colors.primary : colors.foreground }]}>{formatClockTime(time)}</Text><Text style={[styles.timeLabel, { color: colors.mutedForeground }]}>Alarm time</Text></View><Pressable onPress={() => changeTime(prayer, 5)} style={[styles.stepButton, { borderColor: colors.border }]}><Feather name="plus" size={16} color={colors.foreground} /></Pressable></View>
         </View>;
       })}
       <PrimaryButton label="Enable all adhan alarms" icon="bell" onPress={() => void enableAll()} />

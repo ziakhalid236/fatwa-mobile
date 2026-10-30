@@ -4,7 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StarPattern } from '@/components/Art';
 import { PostCard } from '@/components/PostCard';
-import { computePrayerTimes, formatCountdown, minutesUntil } from '@/lib/prayer';
+import { computePrayerTimes, formatClockTime, formatCountdown, minutesUntil } from '@/lib/prayer';
+import { formatIslamicDate } from '@/lib/islamic-date';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
@@ -14,7 +15,7 @@ const ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
 function Hero() {
   const colors = useColors();
   const nav = useNav();
-  const { profile, prayerCity } = useApp();
+  const { profile, prayerCity, settings } = useApp();
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t); }, []);
   const next = useMemo(() => {
@@ -32,9 +33,10 @@ function Hero() {
       <Feather name="moon" size={96} color="rgba(255,255,255,0.08)" style={styles.heroArt} />
       <Text style={styles.heroSalam}>السلام علیکم{first ? ` ${first}` : ''}</Text>
       <Text style={styles.heroGreet}>{greet}</Text>
+      <Text style={styles.heroDate}>{formatIslamicDate(now, settings.language)}</Text>
       <Pressable onPress={() => nav.push({ name: 'prayerSettings' })} style={styles.prayerPill} accessibilityRole="button">
         <Feather name="clock" size={15} color="#fff" />
-        <Text style={styles.prayerText}>{next.name} at {next.time}</Text>
+        <Text style={styles.prayerText}>{next.name} at {formatClockTime(next.time)}</Text>
         <Text style={styles.prayerLeft}>in {formatCountdown(next.left)}</Text>
       </Pressable>
     </LinearGradient>
@@ -146,6 +148,7 @@ const styles = StyleSheet.create({
   heroArt: { position: 'absolute', right: 10, top: 6 },
   heroSalam: { color: '#fff', fontSize: 22, fontWeight: '800' },
   heroGreet: { color: '#CBE7DB', fontSize: 13, marginTop: 3, marginBottom: 12 },
+  heroDate: { color: '#D5E7DB', fontSize: 12, fontWeight: '700', marginBottom: 12 },
   prayerPill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11, alignSelf: 'flex-start' },
   prayerText: { color: '#fff', fontSize: 13.5, fontWeight: '800' },
   prayerLeft: { color: '#E6D3A3', fontSize: 12.5, fontWeight: '700' },

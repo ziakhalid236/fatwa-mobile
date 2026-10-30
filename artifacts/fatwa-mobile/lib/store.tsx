@@ -41,6 +41,8 @@ const STORE_KEYS = {
   alarms: '@fatwa/alarms',
   cityName: '@fatwa/prayerCity',
   settings: '@fatwa/settings',
+  posts: '@fatwa/cached-posts',
+  fatwas: '@fatwa/cached-fatwas',
 };
 
 export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'https://fatwa-api.ziakhalid236.workers.dev').replace(/\/$/, '');
@@ -210,6 +212,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               }
             : emptyProfile,
         );
+        const storedPosts = parse<unknown>(STORE_KEYS.posts, []);
+        if (Array.isArray(storedPosts)) setRemotePosts(storedPosts as Post[]);
+        const storedFatwas = parse<unknown>(STORE_KEYS.fatwas, []);
+        if (Array.isArray(storedFatwas)) setRemoteFatwas(storedFatwas as Fatwa[]);
         setQuestions(
           parseArray<UserQuestion>(STORE_KEYS.questions, (value): value is UserQuestion =>
             isRecord(value) &&
@@ -400,7 +406,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (category.includes('islamic')) return 'Islamic Guidance';
               return 'General';
             };
-            setRemotePosts([
+            const nextPosts: Post[] = [
               ...payload.posts.map((item) => ({
                 id: String(item.id),
                 title: String(item.title ?? 'Untitled post'),
@@ -424,7 +430,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     ? (item.translations as Post['translations'])
                     : legacyTranslations[String(item.title ?? '')],
               })),
-            ]);
+            ];
+            setRemotePosts(nextPosts);
+            persist([[STORE_KEYS.posts, nextPosts]]);
             const remoteIds = new Set(payload.posts.map((item) => String(item.id)));
             const remoteLikedIds = payload.posts.filter((item) => item.likedByDevice === true).map((item) => String(item.id));
             setLikedPostIds((current) => {
@@ -437,8 +445,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (fatwasResponse.ok) {
           const payload = (await fatwasResponse.json()) as { fatwas?: Array<Record<string, unknown>> };
           if (Array.isArray(payload.fatwas)) {
-            setRemoteFatwas(
-              payload.fatwas.map((item) => ({
+            const nextFatwas: Fatwa[] = payload.fatwas.map((item) => ({
                 id: String(item.id),
                 question: String(item.question ?? item.title ?? ''),
                 answer: String(item.answer ?? ''),
@@ -448,8 +455,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 sourceUrl: typeof item.sourceUrl === 'string' ? item.sourceUrl : undefined,
                 date: String(item.publishedAt ?? 'Recently'),
                 views: Number(item.views ?? 0),
-              })),
-            );
+              }));
+            setRemoteFatwas(nextFatwas);
+            persist([[STORE_KEYS.fatwas, nextFatwas]]);
           }
         }
       } catch {
@@ -461,14 +469,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void loadRemote();
     // Periodic refreshes stay silent so a foreground app does not buzz every
     // 30 seconds; the app only announces items discovered on resume or load.
-    const interval = setInterval(() => {
-      void syncRemoteNotifications();
-      void syncRemoteQuestions();
-    }, 30_000);
+    const interval = setInterval(() => { void loadRemote(); }, 30_000);
     const appState = NativeAppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        void syncRemoteNotifications({ announce: true });
-        void syncRemoteQuestions();
+        void loadRemote();
       }
     });
     return () => {
@@ -908,6 +912,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLikedPostIds([]);
     setSavedPostIds([]);
     setViewedPostIds([]);
+    setRemotePosts(null);
+    setRemoteFatwas(null);
     setAlarmsState([]);
     setPrayerCityState(defaultCity);
     setSettingsState({ notificationsEnabled: true, adhanSound: true, language: 'ur', autoLanguage: true, autoTranslate: true });

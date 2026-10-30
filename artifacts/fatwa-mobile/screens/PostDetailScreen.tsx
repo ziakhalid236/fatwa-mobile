@@ -73,7 +73,7 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
       <View style={[styles.hero, { backgroundColor: colors.forest }]}>
         <View style={[styles.heroAccent, { backgroundColor: accent }]} />
         <View style={styles.heroMeta}>
-          {post.authorImageUrl ? <Image source={{ uri: post.authorImageUrl }} style={styles.heroAvatar} contentFit="cover" /> : <Avatar size={30} />}
+          {post.authorImageUrl ? <Image source={{ uri: post.authorImageUrl }} cachePolicy="disk" style={styles.heroAvatar} contentFit="cover" /> : <Avatar size={30} />}
           <View>
             <Text style={styles.heroAuthor}>{post.author}</Text>
           </View>
@@ -83,7 +83,7 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
       <View style={uiStyles.screenPadding}>
         <View style={[styles.bodyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {!imageOnly && !titleIsPrefix ? <Text style={[styles.contentTitle, { color: colors.foreground }]}>{post.title}</Text> : null}
-          {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={[styles.postImage, imageOnly && styles.imageOnlyPost]} contentFit="contain" /> : null}
+          {post.imageUrl ? <Image source={{ uri: post.imageUrl }} cachePolicy="disk" style={[styles.postImage, imageOnly && styles.imageOnlyPost]} contentFit="contain" /> : null}
           {post.body.trim() ? <Text style={[styles.bodyText, { color: colors.foreground }]}>{post.body}</Text> : null}
           {post.source ? (
             <View style={[styles.source, { borderTopColor: colors.border }]}>

@@ -16,10 +16,11 @@ const WELCOME: Message = {
   role: 'assistant',
   text: 'السلام علیکم! میں آپ کا اسلامی رہنمائی کا معاون ہوں۔ نماز، روزہ، زکوٰۃ، نکاح، معاملات یا کوئی بھی دینی سوال اپنی زبان میں پوچھیں۔',
 };
-const SUGGESTIONS = [
-  'زکوٰۃ کا نصاب اور شرح کیا ہے؟',
-  'روزہ ٹوٹنے کی کیا صورتیں ہیں؟',
-  'سجدہ سہو کیسے کریں؟',
+const SUGGESTION_SETS = [
+  ['زکوٰۃ کا نصاب اور شرح کیا ہے؟', 'روزہ ٹوٹنے کی کیا صورتیں ہیں؟', 'سجدہ سہو کیسے کریں؟'],
+  ['نماز قصر کب اور کیسے ادا کی جاتی ہے؟', 'والدین کے حقوق کیا ہیں؟', 'صدقہ اور زکوٰۃ میں کیا فرق ہے؟'],
+  ['تہجد کا بہترین وقت کون سا ہے؟', 'قرآن سمجھ کر پڑھنے کا طریقہ کیا ہے؟', 'سفر میں روزے کا کیا حکم ہے؟'],
+  ['حلال کمائی کی اہمیت کیا ہے؟', 'نکاح کے بنیادی ارکان کون سے ہیں؟', 'استخارہ کیسے کیا جاتا ہے؟'],
 ];
 
 // Reads a `data: {"t":"..."}` event stream and calls onText for every piece.
@@ -74,6 +75,7 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [openSource, setOpenSource] = useState<string | null>(null);
+  const [suggestionSet, setSuggestionSet] = useState(0);
   const scroller = useRef<ScrollView>(null);
   const abort = useRef<AbortController | null>(null);
   const lastSignal = useRef(askSignal);
@@ -101,6 +103,11 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
       setInput('');
     }
   }, [askSignal]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setSuggestionSet((current) => (current + 1) % SUGGESTION_SETS.length), 10_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const nearBottom = useRef(true);
   const onScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } } }) => {
@@ -261,7 +268,7 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
 
         {onlyWelcome ? (
           <View style={styles.suggestions}>
-            {SUGGESTIONS.map((suggestion) => (
+            {SUGGESTION_SETS[suggestionSet].map((suggestion) => (
               <Pressable key={suggestion} onPress={() => send(suggestion)} style={[styles.suggestion, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityRole="button" testID="chat-suggestion">
                 <Text style={[styles.suggestionText, containsArabic(suggestion) && styles.rtl, { color: colors.foreground }]}>{suggestion}</Text>
               </Pressable>
@@ -299,7 +306,6 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
           </Pressable>
         )}
       </View>
-      {onlyWelcome ? <Text style={[styles.footer, { color: colors.mutedForeground }]}>رہنمائی عمومی ہے، باضابطہ فتویٰ نہیں</Text> : null}
     </KeyboardAvoidingView>
   );
 }
