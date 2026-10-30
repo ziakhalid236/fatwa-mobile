@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StarPattern } from '@/components/Art';
 import { timeAgo } from '@/components/PostCard';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
@@ -63,6 +64,7 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
     <View>
       <View style={styles.coverWrap}>
         <LinearGradient colors={[colors.forest, colors.green, colors.teal]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cover}>
+          <StarPattern opacity={0.12} size={44} />
           <Feather name="moon" size={90} color="rgba(255,255,255,0.08)" style={styles.coverArt} />
         </LinearGradient>
         <View style={[styles.avatarRing, { borderColor: colors.background, backgroundColor: colors.primarySoft }]}>
@@ -92,21 +94,13 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
         </View>
         {self ? (
           <View style={styles.row}>
-            <Pressable onPress={() => nav.push({ name: 'postSubmit' })} style={[styles.action, { backgroundColor: colors.primary }]} accessibilityRole="button"><Feather name="edit-3" size={15} color="#fff" /><Text style={styles.actionText}>New post</Text></Pressable>
+            <Pressable onPress={() => nav.push({ name: 'postSubmit' })} style={[styles.action, { backgroundColor: colors.primary }]} accessibilityRole="button"><Feather name="edit-3" size={15} color="#fff" /><Text style={styles.actionText}>Upload post</Text></Pressable>
             <Pressable onPress={() => { if (signedIn && !editingBio) { setBioDraft(profile.bio ?? ''); setEditingBio(true); } else onEdit?.(); }} style={[styles.action, { backgroundColor: colors.primarySoft }]} accessibilityRole="button"><Feather name="user" size={15} color={colors.primary} /><Text style={[styles.actionText, { color: colors.primary }]}>Edit bio</Text></Pressable>
-            <Pressable onPress={onEdit} style={[styles.iconBtn, { backgroundColor: colors.primarySoft }]} accessibilityLabel="Account settings"><Feather name="settings" size={17} color={colors.primary} /></Pressable>
           </View>
         ) : null}
       </View>
 
-      <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Stat label="Posts" value={data?.posts.length ?? 0} />
-        <View style={[styles.sep, { backgroundColor: colors.border }]} />
-        <Stat label="Likes received" value={data?.likesReceived ?? 0} />
-        {self && mine.length ? <><View style={[styles.sep, { backgroundColor: colors.border }]} /><Stat label="In review" value={mine.filter((m) => m.status === 'pending').length} /></> : null}
-      </View>
-
-      <Text style={[styles.section, { color: colors.foreground }]}>{self ? 'Your posts' : 'Posts'}</Text>
+      <Text style={[styles.section, { color: colors.foreground }]}>{self ? 'Your posts' : 'Posts'}{data ? ` · ${data.posts.length}` : ''}</Text>
       {loading ? <ActivityIndicator color={colors.primary} style={{ marginVertical: 24 }} /> : failed ? (
         <Pressable onPress={() => void load()} style={[styles.empty, { borderColor: colors.border }]}><Text style={{ color: colors.mutedForeground }}>Could not load. Tap to retry.</Text></Pressable>
       ) : (
@@ -144,11 +138,6 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
       )}
     </View>
   );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  const colors = useColors();
-  return <View style={styles.stat}><Text style={[styles.statValue, { color: colors.foreground }]}>{value}</Text><Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{label}</Text></View>;
 }
 
 const styles = StyleSheet.create({

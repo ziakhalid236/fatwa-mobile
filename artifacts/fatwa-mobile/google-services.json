@@ -12,7 +12,20 @@
           "package_name": "com.fatwa.mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "675597661572-iikvtkncnvjd2jgchfujqi385n1mrucp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.fatwa.mobile",
+            "certificate_hash": "a2278bfe93cf8259b6744f83bd36a2006989fd71"
+          }
+        },
+        {
+          "client_id": "675597661572-4aumk301gm8gvqfh105mbbok0t1g2bie.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAfdMY23bZIwXD7yHY8CIaT0UUXhfS1FTc"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "675597661572-4aumk301gm8gvqfh105mbbok0t1g2bie.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

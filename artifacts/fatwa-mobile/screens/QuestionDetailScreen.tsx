@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { InfoBanner, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/lib/store';
@@ -15,7 +15,7 @@ export default function QuestionDetailScreen({ questionId }: { questionId: strin
   }
 
   return (
-    <ScrollView contentContainerStyle={uiStyles.screenPadding}>
+    <View style={uiStyles.screenPadding}>
       <View style={styles.head}>
         <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>ANSWERED QUESTION</Text>
         <Text style={[styles.title, { color: colors.foreground }]}>Your question and answer</Text>
@@ -31,7 +31,7 @@ export default function QuestionDetailScreen({ questionId }: { questionId: strin
         <View style={styles.meta}><Feather name="check-circle" size={16} color={colors.primary} /><Text style={[styles.answerBy, { color: colors.primary }]}>{question.answeredBy || 'Review team'}</Text></View>
         <Text style={[styles.answer, { color: colors.foreground }]}>{question.answer || 'The answer is still under review.'}</Text>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 

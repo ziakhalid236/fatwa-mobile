@@ -4,6 +4,8 @@ import { withTurso } from './turso';
 import { adminExtras, extraColumns, extraSchema, publicExtras, type Ctx } from './extras';
 import { expandQuery, tokens as kbTokens, kbSchemaStatements, searchKb, kbContext, publicHit, ingest as kbIngest, importScholars, kbStats, kbMigrate, reseq as kbReseq, type KbHit } from './kb';
 interface Env {
+  APP_DOWNLOAD_URL?: string;
+  APP_SIGNING_SHA256?: string;
   DB: D1Database;
   KB: D1Database;
   MEDIA: R2Bucket;
@@ -332,10 +334,36 @@ function sseTransform(sources: unknown[] = []): TransformStream<Uint8Array, Uint
   });
 }
 
+
+const escHtml = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+// Public landing page for a shared post: opens the app when installed, otherwise offers the download.
+async function sharePage(env: Env, postId: string, host: string): Promise<Response> {
+  const post = await env.DB.prepare("SELECT * FROM posts WHERE id=? AND status='published'").bind(postId).first<Row>().catch(() => null);
+  const download = env.APP_DOWNLOAD_URL || 'https://play.google.com/store/apps/details?id=com.fatwa.mobile';
+  const text = post ? String(post.body || post.title || '') : '';
+  const title = post ? snippet(String(post.title || text || 'Fatwa App'), 90) : 'Fatwa App';
+  const desc = post ? snippet(text, 220) : 'Open this post in the Fatwa App.';
+  const image = post?.image_url ? String(post.image_url) : '';
+  const deep = `fatwa-mobile://post/${encodeURIComponent(postId)}`;
+  const intent = `intent://post/${encodeURIComponent(postId)}#Intent;scheme=fatwa-mobile;package=com.fatwa.mobile;S.browser_fallback_url=${encodeURIComponent(download)};end`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escHtml(title)} · Fatwa App</title>
+<meta property="og:title" content="${escHtml(title)}"><meta property="og:description" content="${escHtml(desc)}"><meta property="og:type" content="article"><meta property="og:url" content="https://${escHtml(host)}/p/${escHtml(postId)}">${image ? `<meta property="og:image" content="${escHtml(image)}"><meta name="twitter:card" content="summary_large_image">` : ''}
+<style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f3f7f5;color:#0f2a22;display:flex;justify-content:center;padding:20px}.c{max-width:480px;width:100%}.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px;color:#013a2d;margin:8px 0 18px}.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#013a2d,#0b6b53);color:#e6d3a3;display:grid;place-items:center;font-size:20px}.card{background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 8px 30px rgba(1,58,45,.12)}.card img{width:100%;max-height:320px;object-fit:cover;display:block}.b{padding:18px}.b h1{font-size:19px;margin:0 0 8px}.b p{margin:0;line-height:1.7;color:#35504a;white-space:pre-wrap;font-size:15px}.by{margin-top:10px;font-size:12px;color:#6b8179}.btn{display:block;text-align:center;text-decoration:none;font-weight:800;padding:15px;border-radius:16px;margin-top:12px;font-size:15px}.p{background:#0b6b53;color:#fff}.s{background:#fff;color:#0b6b53;border:1.5px solid #0b6b53}</style></head>
+<body><div class="c"><div class="brand"><div class="logo">&#9770;</div>Fatwa App</div>
+<div class="card">${image ? `<img src="${escHtml(image)}" alt="">` : ''}<div class="b">${post ? `<h1 dir="auto">${escHtml(title)}</h1><p dir="auto">${escHtml(snippet(text, 600))}</p><div class="by">${escHtml(post.author || '')}${post.city ? ' · ' + escHtml(post.city) : ''}</div>` : '<h1>This post is no longer available</h1><p>Posts are shown for a limited time. Open the app to read the latest.</p>'}</div></div>
+<a class="btn p" id="open" href="${escHtml(intent)}">Open in the app</a><a class="btn s" href="${escHtml(download)}">Download the Fatwa App</a></div>
+<script>if(/Android/i.test(navigator.userAgent)){setTimeout(function(){location.href=${JSON.stringify(intent)}},400)}else if(/iPhone|iPad/i.test(navigator.userAgent)){document.getElementById('open').href=${JSON.stringify(deep)}}</script></body></html>`;
+  return new Response(html, { status: post ? 200 : 404, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } });
+}
+
 async function handle(request: Request, env: Env) {
   const origin = corsOrigin(request, env);
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'access-control-allow-headers': 'Content-Type, Authorization, X-Admin-Token', 'access-control-max-age': '86400' } });
   const url = new URL(request.url); const path = url.pathname.replace(/^\/api/, '') || '/';
+  if (path === '/.well-known/assetlinks.json') return new Response(JSON.stringify([{ relation: ['delegate_permission/common.handle_all_urls'], target: { namespace: 'android_app', package_name: 'com.fatwa.mobile', sha256_cert_fingerprints: String(env.APP_SIGNING_SHA256 || '0B:3F:2A:59:DF:42:0B:D1:9E:36:05:59:44:46:A5:DE:7A:28:55:D3:13:76:37:88:85:84:26:8B:10:B2:5A:AD').split(',').map((v) => v.trim()) } }]), { headers: { 'content-type': 'application/json' } });
+  const shareMatch = path.match(/^\/p\/([^/]+)$/);
+  if (shareMatch && request.method === 'GET') return sharePage(env, decodeURIComponent(shareMatch[1]), url.host);
   if (path === '/' || path === '/health' || path === '/healthz') return json({ ok: true, service: 'fatwa-api', backend: env.TURSO_DB_URL ? 'turso' : 'cloudflare-d1', timestamp: now() }, 200, origin);
   try {
     await ensureSchema(env);

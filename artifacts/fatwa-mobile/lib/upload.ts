@@ -2,26 +2,37 @@ import type * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const LOOKUP = (() => {
+  const table = new Int16Array(128).fill(-1);
+  for (let i = 0; i < B64.length; i++) table[B64.charCodeAt(i)] = i;
+  return table;
+})();
 
+// Table-based decoder: fast even for multi-megabyte photos (the old indexOf loop froze the app).
 function base64ToBytes(input: string): Uint8Array {
-  const clean = input.replace(/[^A-Za-z0-9+/]/g, '');
-  const out = new Uint8Array(Math.floor((clean.length * 3) / 4));
+  const out = new Uint8Array(Math.floor((input.length * 3) / 4));
   let o = 0;
-  for (let i = 0; i < clean.length; i += 4) {
-    const a = B64.indexOf(clean[i]);
-    const b = B64.indexOf(clean[i + 1]);
-    const c = i + 2 < clean.length ? B64.indexOf(clean[i + 2]) : -1;
-    const d = i + 3 < clean.length ? B64.indexOf(clean[i + 3]) : -1;
-    out[o++] = (a << 2) | (b >> 4);
-    if (c >= 0) out[o++] = ((b & 15) << 4) | (c >> 2);
-    if (d >= 0) out[o++] = ((c & 3) << 6) | d;
+  let bits = 0;
+  let acc = 0;
+  for (let i = 0; i < input.length; i++) {
+    const code = input.charCodeAt(i);
+    const v = code < 128 ? LOOKUP[code] : -1;
+    if (v < 0) continue;
+    acc = (acc << 6) | v;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out[o++] = (acc >> bits) & 0xff;
+      acc &= (1 << bits) - 1;
+    }
   }
   return out.subarray(0, o);
 }
 
 export const IMAGE_PICKER_OPTIONS = {
   mediaTypes: ['images'] as ImagePicker.MediaType[],
-  quality: 0.85,
+  // Lower quality keeps phone photos small enough to upload quickly without running out of memory.
+  quality: 0.5,
   // Native uploads are built from base64 because Expo's fetch cannot stream `{ uri }` form parts.
   base64: Platform.OS !== 'web',
 };

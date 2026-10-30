@@ -2,9 +2,10 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import React from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
+import { sharePost } from '@/lib/share';
 import { cleanPostBody, containsArabic } from '@/lib/post-text';
 import type { Post } from '@/lib/types';
 
@@ -182,12 +183,7 @@ export function PostCard({
           <Pressable
             onPress={() => {
               void Haptics.selectionAsync();
-              const title = post.title.trim() || excerpt.trim().slice(0, 80) || 'Fatwa App community post';
-              const message = [post.title.trim(), excerpt.trim(), post.imageUrl].filter(Boolean).join('\n\n');
-              void Share.share({
-                title,
-                message: `${message}\n\nShared from Fatwa App.`,
-              }).catch(() => undefined);
+              void sharePost(post);
             }}
             style={({ pressed }) => [
               styles.action,

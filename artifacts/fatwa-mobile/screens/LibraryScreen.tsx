@@ -2,9 +2,10 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StarPattern } from '@/components/Art';
 import { EmptyState, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
-import { fetchSurah, fetchSurahs, fetchWorkPage, fetchWorks, rightsLabel, searchLibrary, verificationLabel, type Ayah, type Hit, type Passage, type Surah, type Work } from '@/lib/library';
+import { fetchSurah, fetchSurahs, fetchWorkPage, fetchWorks, searchLibrary, type Ayah, type Hit, type Passage, type Surah, type Work } from '@/lib/library';
 import { useNav } from '@/lib/nav';
 
 const LANG: Record<string, string> = { ar: 'العربية', ur: 'اردو', en: 'English' };
@@ -26,6 +27,7 @@ function BookCover({ title, genre, uri }: { title: string; genre: string; uri?: 
   const arabic = title.split('—')[0].trim();
   return (
     <LinearGradient colors={[a, b]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cover}>
+      <StarPattern color="#FFFFFF" opacity={0.14} size={20} stroke={0.8} />
       <View style={styles.coverFrame}>
         <MaterialCommunityIcons name={genre === 'hadith' ? 'format-quote-open' : 'book-open-page-variant'} size={14} color={colors.gold} />
         <Text style={styles.coverText} numberOfLines={4}>{arabic}</Text>
@@ -85,7 +87,7 @@ function HitCard({ hit }: { hit: Hit }) {
       <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={open ? undefined : 2}>{hit.work}</Text>
       <Text style={[styles.muted, { color: colors.mutedForeground }]} numberOfLines={1}>{hit.ref}</Text>
       <Text style={[rtl(hit.lang) ? styles.bodyRtl : styles.body, { color: colors.foreground }]} numberOfLines={open ? undefined : 4}>{hit.text}</Text>
-      <View style={styles.badgeRow}><Badge text={hit.source} tone="plain" /><Badge text={rightsLabel(hit.rights).text} tone={rightsLabel(hit.rights).tone} /></View>
+      <View style={styles.badgeRow}><Badge text={hit.source} tone="plain" /></View>
       {open && hit.url ? <Pressable onPress={() => void Linking.openURL(hit.url)}><Text style={{ color: colors.primary, fontWeight: '700', marginTop: 8 }}>Open original source</Text></Pressable> : null}
     </Pressable>
   );
@@ -99,6 +101,14 @@ export default function LibraryScreen() {
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setHits(null); return; }
+    const timer = setTimeout(() => void runSearch(), 450);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   const runSearch = async () => {
     const q = query.trim();
@@ -136,19 +146,12 @@ export default function LibraryScreen() {
           </Pressable>
         ))}
       </View>
-      <View style={styles.badgeRow}><Badge text={rightsLabel(g.works[0].rights).text} tone={rightsLabel(g.works[0].rights).tone} /></View>
       </View>
     </View>
   );
 
   return (
     <View style={uiStyles.screenPadding}>
-      <LinearGradient colors={[colors.forestDeep, colors.forest, colors.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-        <View style={styles.heroIcon}><MaterialCommunityIcons name="book-open-page-variant" size={22} color={colors.gold} /></View>
-        <Text style={styles.heroTitle}>The Library</Text>
-        <Text style={styles.heroCopy}>Read the Quran, hadith and classical Hanafi books — and search them in English, اردو or العربية.</Text>
-      </LinearGradient>
-
       <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Feather name="search" size={17} color={colors.mutedForeground} />
         <TextInput value={query} onChangeText={(t) => { setQuery(t); if (!t) setHits(null); }} onSubmitEditing={() => void runSearch()} returnKeyType="search" placeholder="Search all books, any language" placeholderTextColor={colors.mutedForeground} style={[styles.searchInput, { color: colors.foreground }]} accessibilityLabel="Search the library" testID="library-search" />
@@ -183,7 +186,6 @@ export default function LibraryScreen() {
             <View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: colors.foreground }]}>Published rulings</Text><Text style={[styles.muted, { color: colors.mutedForeground }]}>Reviewed question-and-answer fatwas</Text></View>
             <Feather name="chevron-right" size={20} color={colors.primary} />
           </Pressable>
-          <Text style={[styles.note, { color: colors.mutedForeground }]}>Texts come from open sources and are labelled with their license. Most books are not yet reviewed by a scholar. For personal rulings, ask a qualified mufti.</Text>
         </>
       )}
     </View>
@@ -255,7 +257,6 @@ export function ReaderScreen({ workId }: { workId: number }) {
   const [page, setPage] = useState(1);
   const data = useLoad(() => fetchWorkPage(workId, page), [workId, page]);
   const w = data.data?.work;
-  const rights = w ? rightsLabel(w.rights) : null;
   return (
     <View style={uiStyles.screenPadding}>
       {w ? (
@@ -264,8 +265,6 @@ export function ReaderScreen({ workId }: { workId: number }) {
           {w.author ? <Text style={[styles.muted, { color: colors.mutedForeground }]}>{w.author}</Text> : null}
           <View style={styles.badgeRow}>
             <Badge text={w.source ?? 'Source'} tone="plain" />
-            {rights ? <Badge text={rights.text} tone={rights.tone} /> : null}
-            <Badge text={verificationLabel(w.verification)} tone="warn" />
           </View>
           {w.license ? <Text style={[styles.note, { color: colors.mutedForeground, marginTop: 8 }]}>{w.license}</Text> : null}
         </View>

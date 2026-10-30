@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { ActivityIndicator, Linking, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StarPattern } from '@/components/Art';
 import { AuthPanel } from '@/components/AuthPanel';
 import { LogoMark, PrimaryButton } from '@/components/ui';
 import { ensureNotificationPermissions } from '@/lib/adhan';
@@ -102,8 +103,9 @@ export default function OnboardingScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <LinearGradient colors={[colors.forest, colors.green]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-            <LogoMark size={46} />
-            <Text style={styles.heroTitle}>{step === 'permissions' ? 'Welcome to Fatwa' : signedIn ? 'Complete your profile' : 'Create your account'}</Text>
+            <StarPattern opacity={0.13} size={50} />
+            <View style={styles.logoRing}><LogoMark size={52} /></View>
+            <Text style={styles.heroTitle}>{step === 'permissions' ? 'Welcome to Fatwa' : signedIn ? 'Complete your profile' : 'Sign in or create account'}</Text>
             <Text style={styles.heroCopy}>
               {step === 'permissions' ? 'Authentic guidance, community reminders and prayer tools in one place.' : 'Your name and city are shown on your posts, and nearby posts appear first in your feed.'}
             </Text>
@@ -165,8 +167,9 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { flexGrow: 1, padding: 18, paddingBottom: 32 },
-  hero: { borderRadius: 28, padding: 24, gap: 10, marginTop: 8 },
-  heroTitle: { color: '#FFFFFF', fontSize: 26, fontWeight: '800', letterSpacing: -0.6, marginTop: 8 },
+  hero: { borderRadius: 32, padding: 26, paddingTop: 34, paddingBottom: 30, gap: 10, marginTop: 8, overflow: 'hidden' },
+  logoRing: { width: 70, height: 70, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(230,211,163,0.55)', alignItems: 'center', justifyContent: 'center' },
+  heroTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '800', letterSpacing: -0.6, marginTop: 8 },
   heroCopy: { color: '#DCEFE7', fontSize: 13.5, lineHeight: 21 },
   body: { marginTop: 20 },
   permRow: { flexDirection: 'row', alignItems: 'center', gap: 13, borderWidth: 1, borderRadius: 20, padding: 15, marginBottom: 12 },

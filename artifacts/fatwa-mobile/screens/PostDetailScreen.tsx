@@ -2,10 +2,11 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar, PrimaryButton, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
+import { sharePost } from '@/lib/share';
 import { useApp } from '@/lib/store';
 import { formatCount } from '@/components/PostCard';
 
@@ -157,10 +158,7 @@ export default function PostDetailScreen({ postId }: { postId: string }) {
           <Pressable
             onPress={() => {
               void Haptics.selectionAsync();
-              void Share.share({
-                title: post.title,
-                message: `${post.title}\n\n${post.body}\n\nShared from Fatwa.`,
-              }).catch(() => undefined);
+              void sharePost(post);
             }}
             style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.border }]}
             accessibilityRole="button"

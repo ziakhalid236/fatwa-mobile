@@ -100,7 +100,7 @@ export function AuthPanel({ onDone }: { onDone: (needsProfile: boolean) => void 
 
 const styles = StyleSheet.create({
   wrap: { gap: 10, marginBottom: 6 },
-  btn: { minHeight: 52, borderWidth: 1, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  btn: { minHeight: 54, borderWidth: 1, borderRadius: 18, elevation: 2, shadowColor: '#0D594B', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   btnText: { fontSize: 14.5, fontWeight: '800' },
   g: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', alignItems: 'center', justifyContent: 'center' },
   gText: { fontSize: 13, fontWeight: '900', color: '#4285F4' },

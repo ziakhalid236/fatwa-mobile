@@ -18,6 +18,9 @@ env:
   # Preview builds only need the ABI real phones use. Building all four
   # (armeabi-v7a, arm64-v8a, x86, x86_64) doubles the native CMake work.
   REACT_NATIVE_ARCHITECTURES: arm64-v8a
+  # Public Google OAuth client IDs (Firebase project fatwa-app-2626a) for "Continue with Google".
+  EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: 675597661572-4aumk301gm8gvqfh105mbbok0t1g2bie.apps.googleusercontent.com
+  EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: 675597661572-iikvtkncnvjd2jgchfujqi385n1mrucp.apps.googleusercontent.com
 
 jobs:
   build-apk:

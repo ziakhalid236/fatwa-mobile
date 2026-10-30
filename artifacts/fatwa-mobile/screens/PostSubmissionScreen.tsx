@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PrimaryButton, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
@@ -27,6 +27,14 @@ export default function PostSubmissionScreen() {
   // Keep what the user typed if they leave the screen before sending.
   React.useEffect(() => { void AsyncStorage.getItem('fatwa.postDraft').then((d) => { if (d) setBody((cur) => cur || d); }); }, []);
   React.useEffect(() => { const t = setTimeout(() => { void (body ? AsyncStorage.setItem('fatwa.postDraft', body) : AsyncStorage.removeItem('fatwa.postDraft')); }, 400); return () => clearTimeout(t); }, [body]);
+
+  // Android can restart the app while the gallery is open; pick up the photo that was chosen.
+  React.useEffect(() => {
+    void ImagePicker.getPendingResultAsync().then((pending) => {
+      const first = pending && 'assets' in pending && !pending.canceled ? pending.assets?.[0] : undefined;
+      if (first?.uri) setImageAsset((cur) => cur ?? { ...first, mimeType: (first.mimeType ?? 'image/jpeg').toLowerCase() });
+    }).catch(() => undefined);
+  }, []);
 
   const pickPhoto = async () => {
     try {
@@ -88,7 +96,7 @@ export default function PostSubmissionScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={uiStyles.screenPadding} keyboardShouldPersistTaps="handled">
+    <View style={uiStyles.screenPadding}>
       <View style={styles.head}>
         <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>COMMUNITY POST</Text>
         <Text style={[styles.title, { color: colors.foreground }]}>Share a reminder</Text>
@@ -156,7 +164,7 @@ export default function PostSubmissionScreen() {
         <MaterialCommunityIcons name="shield-check-outline" size={17} color={colors.primary} />
         <Text style={[styles.noteText, { color: colors.mutedForeground }]}>An admin reviews every community post before publication.</Text>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 

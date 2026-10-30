@@ -5,7 +5,10 @@
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "fatwa-mobile",
+    "scheme": [
+      "fatwa-mobile",
+      "com.fatwa.mobile"
+    ],
     "userInterfaceStyle": "light",
     "extra": {
       "privacyPolicyUrl": "https://fatwa-admin.pages.dev/privacy-policy.html"
@@ -24,7 +27,24 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon-adaptive.png",
         "backgroundColor": "#013A2D"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "fatwa-api.ziakhalid236.workers.dev",
+              "pathPrefix": "/p/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"

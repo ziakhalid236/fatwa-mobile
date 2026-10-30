@@ -1,4 +1,4 @@
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -17,10 +17,9 @@ const WELCOME: Message = {
   text: 'السلام علیکم! میں آپ کا اسلامی رہنمائی کا معاون ہوں۔ نماز، روزہ، زکوٰۃ، نکاح، معاملات یا کوئی بھی دینی سوال اپنی زبان میں پوچھیں۔',
 };
 const SUGGESTIONS = [
-  'نماز میں بھول کر ایک رکعت زیادہ پڑھ لی جائے تو کیا کرنا چاہیے؟',
   'زکوٰۃ کا نصاب اور شرح کیا ہے؟',
-  'How do I perform sajdah sahw?',
   'روزہ ٹوٹنے کی کیا صورتیں ہیں؟',
+  'سجدہ سہو کیسے کریں؟',
 ];
 
 // Reads a `data: {"t":"..."}` event stream and calls onText for every piece.
@@ -103,7 +102,12 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
     }
   }, [askSignal]);
 
-  const scrollDown = useCallback(() => scroller.current?.scrollToEnd({ animated: false }), []);
+  const nearBottom = useRef(true);
+  const onScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } } }) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    nearBottom.current = contentSize.height - (contentOffset.y + layoutMeasurement.height) < 120;
+  }, []);
+  const scrollDown = useCallback(() => { if (nearBottom.current) scroller.current?.scrollToEnd({ animated: false }); }, []);
 
   const ask = useCallback(
     async (question: string, history: Message[]) => {
@@ -165,6 +169,7 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
     const question = (text ?? input).trim();
     if (!question || busy) return;
     setInput('');
+    nearBottom.current = true;
     const history: Message[] = [...messages.filter((m) => !m.failed), { id: `${Date.now()}-u`, role: 'user', text: question }];
     void ask(question, history);
   };
@@ -188,27 +193,19 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
   return (
     <KeyboardAvoidingView style={[uiStyles.screenPadding, styles.container]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.head}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>ISLAMIC GUIDANCE</Text>
-          <Text style={[styles.title, { color: colors.foreground }]}>Ask AI</Text>
-        </View>
+        <Text style={[styles.title, { color: colors.foreground }]}>Fatwa AI</Text>
         <Pressable onPress={newChat} style={[styles.newChat, { borderColor: colors.border, backgroundColor: colors.card }]} accessibilityRole="button" accessibilityLabel="New chat" testID="chat-new">
-          <Feather name="edit" size={14} color={colors.primary} />
+          <Feather name="edit" size={13} color={colors.primary} />
           <Text style={[styles.newChatText, { color: colors.primary }]}>New chat</Text>
         </Pressable>
       </View>
 
-      <ScrollView ref={scroller} style={styles.messages} contentContainerStyle={styles.messageList} keyboardShouldPersistTaps="handled" onContentSizeChange={scrollDown}>
+      <ScrollView ref={scroller} style={styles.messages} contentContainerStyle={styles.messageList} keyboardShouldPersistTaps="handled" onContentSizeChange={scrollDown} onScroll={onScroll} scrollEventThrottle={64} nestedScrollEnabled>
         {messages.map((item) => {
           const mine = item.role === 'user';
           const rtl = containsArabic(item.text);
           return (
             <View key={item.id} style={[styles.messageRow, mine && styles.userRow]}>
-              {!mine ? (
-                <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-                  <MaterialCommunityIcons name="book-open-page-variant" size={16} color="#FFFFFF" />
-                </View>
-              ) : null}
               <View
                 style={[
                   styles.bubble,
@@ -302,23 +299,22 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
           </Pressable>
         )}
       </View>
-      <Text style={[styles.footer, { color: colors.mutedForeground }]}>AI رہنمائی عمومی ہے، باضابطہ فتویٰ نہیں۔ ذاتی معاملات میں مستند مفتی سے رجوع کریں۔</Text>
+      {onlyWelcome ? <Text style={[styles.footer, { color: colors.mutedForeground }]}>رہنمائی عمومی ہے، باضابطہ فتویٰ نہیں</Text> : null}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, minHeight: 0 },
-  head: { marginTop: 10, marginBottom: 14, flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+  head: { marginTop: 2, marginBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 },
-  title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.6 },
+  title: { fontSize: 19, fontWeight: '800', letterSpacing: -0.6 },
   newChat: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 9 },
   newChatText: { fontSize: 12, fontWeight: '800' },
-  messages: { flex: 1, minHeight: 0, marginBottom: 12 },
+  messages: { flex: 1, minHeight: 0, marginBottom: 8 },
   messageList: { gap: 12, paddingBottom: 8 },
-  messageRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', maxWidth: '96%' },
+  messageRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', maxWidth: '100%' },
   userRow: { alignSelf: 'flex-end', flexDirection: 'row-reverse' },
-  avatar: { width: 29, height: 29, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   bubble: { borderWidth: 1, borderColor: 'transparent', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 12, flexShrink: 1 },
   bubbleText: { fontSize: 14.5, lineHeight: 24 },
   rtl: { textAlign: 'right', writingDirection: 'rtl', lineHeight: 28, fontSize: 15.5 },
@@ -333,11 +329,11 @@ const styles = StyleSheet.create({
   bubbleActionText: { fontSize: 11, fontWeight: '700' },
   dots: { flexDirection: 'row', gap: 5, paddingVertical: 8, paddingHorizontal: 4 },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  suggestions: { gap: 9, marginTop: 6 },
-  suggestion: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12 },
-  suggestionText: { fontSize: 13, lineHeight: 21, fontWeight: '600' },
+  suggestions: { gap: 6, marginTop: 2, flexDirection: 'row', flexWrap: 'wrap' },
+  suggestion: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  suggestionText: { fontSize: 12, lineHeight: 18, fontWeight: '600' },
   composer: { minHeight: 64, borderWidth: 1, borderRadius: 24, padding: 8, flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   input: { flex: 1, minHeight: 46, maxHeight: 120, fontSize: 14, lineHeight: 21, paddingHorizontal: 8, paddingTop: 10 },
   send: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
-  footer: { textAlign: 'center', fontSize: 10.5, lineHeight: 16, marginTop: 10, paddingHorizontal: 12 },
+  footer: { textAlign: 'center', fontSize: 10, lineHeight: 14, marginTop: 4, marginBottom: 2 },
 });

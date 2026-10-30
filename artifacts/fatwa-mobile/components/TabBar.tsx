@@ -12,7 +12,7 @@ type Icon = keyof typeof MaterialCommunityIcons.glyphMap;
 const ITEMS: Array<{ key: TabKey; label: string; on: Icon; off: Icon }> = [
   { key: 'home', label: 'Home', on: 'home-variant', off: 'home-variant-outline' },
   { key: 'library', label: 'Books', on: 'book-open-page-variant', off: 'book-open-page-variant-outline' },
-  { key: 'questions', label: 'Ask AI', on: 'creation', off: 'creation-outline' },
+  { key: 'questions', label: 'Fatwa AI', on: 'creation', off: 'creation-outline' },
   { key: 'alarm', label: 'Alerts', on: 'bell', off: 'bell-outline' },
   { key: 'profile', label: 'Profile', on: 'account-circle', off: 'account-circle-outline' },
 ];

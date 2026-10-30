@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 import React, { useCallback, useMemo, useState } from 'react';
 import { BackHandler, Platform, Pressable, RefreshControl, StatusBar, StyleSheet, Text, View } from 'react-native';
@@ -11,6 +12,7 @@ import { TabBar } from '@/components/TabBar';
 import { useColors } from '@/hooks/useColors';
 import { NavProvider, type Nav, type Route } from '@/lib/nav';
 import { AppProvider, useApp } from '@/lib/store';
+import { postIdFromUrl } from '@/lib/share';
 import { syncAdhanAlarms } from '@/lib/adhan';
 import { formatIslamicDate } from '@/lib/islamic-date';
 import type { TabKey } from '@/lib/types';
@@ -143,6 +145,21 @@ function Shell() {
     return () => subscription.remove();
   }, [hydrated, handleNotificationResponse]);
 
+  const openLink = useCallback((url: string | null) => {
+    const postId = postIdFromUrl(url);
+    if (!postId) return;
+    refreshContent();
+    setTab('home');
+    setStack([{ name: 'post', postId }]);
+  }, [refreshContent]);
+
+  React.useEffect(() => {
+    if (!hydrated || Platform.OS === 'web') return;
+    void Linking.getInitialURL().then(openLink).catch(() => undefined);
+    const subscription = Linking.addEventListener('url', (event) => openLink(event.url));
+    return () => subscription.remove();
+  }, [hydrated, openLink]);
+
   const onSettings = useCallback(() => push({ name: 'settings' }), [push]);
 
   const REPORTABLE = new Set(['post', 'fatwa', 'questionDetail', 'reader', 'surah', 'quranList', 'user', 'fatwaList', 'postSubmit']);
@@ -227,17 +244,23 @@ function Shell() {
       <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <View style={[styles.app, { backgroundColor: colors.background }]}>
-          <KeyboardAwareScrollViewCompat
-            style={styles.scroll}
-            contentContainerStyle={[styles.scrollContent, isAskTab && styles.chatScrollContent]}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            enabled={!isAskTab}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
-          >
-            {header()}
-            {isAskTab ? <View style={styles.chatContent}>{content}</View> : content}
-          </KeyboardAwareScrollViewCompat>
+          {isAskTab ? (
+            <View style={styles.chatContent}>
+              {header()}
+              <View style={styles.chatContent}>{content}</View>
+            </View>
+          ) : (
+            <KeyboardAwareScrollViewCompat
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
+            >
+              {header()}
+              {content}
+            </KeyboardAwareScrollViewCompat>
+          )}
           {showTabBar ? <TabBar tab={tab} badge={unreadCount} onSelect={goTab} /> : null}
         </View>
         <ReportModal visible={reportOpen} page={pageName} onClose={() => setReportOpen(false)} />
