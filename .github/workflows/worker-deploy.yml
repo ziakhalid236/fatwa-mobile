@@ -1,86 +1,87 @@
 name: Deploy fatwa-api Worker
 
-# Deploys the Worker (the Worker upgrades its own database schema on first request), smoke-tests the live API,
-# and rolls back automatically if the smoke test fails. Run manually from the Actions tab.
-# Requires the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository
-# secrets. The job skips cleanly (with a warning) when they are absent.
+# Deploys the API Worker to staging or production, connected to the matching Turso databases,
+# smoke-tests it and rolls back automatically if the smoke test fails. Run manually from the Actions tab.
+# Needs repository secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and the TURSO_* secrets.
 
 on:
   workflow_dispatch:
-  schedule:
-    # One-off: 31 October 00:10 UTC, right after Cloudflare's free D1 daily write quota resets.
-    - cron: '10 0 31 10 *'
+    inputs:
+      target:
+        description: Where to deploy
+        type: choice
+        options: [staging, production]
+        default: staging
 
 concurrency:
-  group: worker-deploy-${{ github.ref }}
+  group: worker-deploy-${{ github.event.inputs.target }}
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 env:
-  NODE_VERSION: 22
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
   deploy:
-    name: Migrate, deploy and smoke test
+    name: Deploy and smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      TARGET: ${{ github.event.inputs.target }}
+      TURSO_APP_URL: ${{ github.event.inputs.target == 'production' && secrets.TURSO_APP_URL || secrets.TURSO_APP_STAGING_URL }}
+      TURSO_APP_TOKEN: ${{ github.event.inputs.target == 'production' && secrets.TURSO_APP_TOKEN || secrets.TURSO_APP_STAGING_TOKEN }}
+      TURSO_KB_URL: ${{ github.event.inputs.target == 'production' && secrets.TURSO_KB_URL || secrets.TURSO_KB_STAGING_URL }}
+      TURSO_KB_TOKEN: ${{ github.event.inputs.target == 'production' && secrets.TURSO_KB_TOKEN || secrets.TURSO_KB_STAGING_TOKEN }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check Cloudflare credentials
-        id: creds
-        run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are not set; skipping deploy."
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup pnpm
-        if: steps.creds.outputs.ready == 'true'
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        if: steps.creds.outputs.ready == 'true'
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 22
 
-      - name: Install Worker dependencies
-        if: steps.creds.outputs.ready == 'true'
+      - name: Install and typecheck
         working-directory: workers/fatwa-api
-        run: pnpm install --no-frozen-lockfile --ignore-scripts
+        run: |
+          pnpm install --no-frozen-lockfile --ignore-scripts
+          pnpm exec tsc --noEmit
 
-      - name: Typecheck Worker
-        if: steps.creds.outputs.ready == 'true'
-        working-directory: workers/fatwa-api
-        run: pnpm exec tsc --noEmit
+      - name: Check credentials
+        run: |
+          for v in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID TURSO_APP_URL TURSO_APP_TOKEN TURSO_KB_URL TURSO_KB_TOKEN; do
+            if [ -z "${!v}" ]; then echo "::error::$v is not set"; exit 1; fi
+          done
 
-      - name: Deploy Worker
-        if: steps.creds.outputs.ready == 'true'
+      - name: Deploy Worker with Turso connections
         working-directory: workers/fatwa-api
-        run: pnpm exec wrangler deploy
+        run: |
+          if [ "$TARGET" = "production" ]; then ENVFLAG=""; else ENVFLAG="--env staging"; fi
+          echo "ENVFLAG=$ENVFLAG" >> "$GITHUB_ENV"
+          python3 - <<'PY' > "$RUNNER_TEMP/secrets.json"
+          import json, os
+          print(json.dumps({"TURSO_DB_URL": os.environ["TURSO_APP_URL"], "TURSO_DB_TOKEN": os.environ["TURSO_APP_TOKEN"],
+                            "TURSO_KB_URL": os.environ["TURSO_KB_URL"], "TURSO_KB_TOKEN": os.environ["TURSO_KB_TOKEN"]}))
+          PY
+          pnpm exec wrangler secret bulk "$RUNNER_TEMP/secrets.json" $ENVFLAG
+          pnpm exec wrangler deploy $ENVFLAG --keep-vars
+          rm -f "$RUNNER_TEMP/secrets.json"
 
       - name: Smoke test
         id: smoke
-        if: steps.creds.outputs.ready == 'true'
         run: |
           set -o pipefail
-          sleep 10
-          base="https://fatwa-api.ziakhalid236.workers.dev/api"
+          sleep 8
+          if [ "$TARGET" = "production" ]; then base="https://fatwa-api.ziakhalid236.workers.dev/api"; else base="https://fatwa-api-staging.ziakhalid236.workers.dev/api"; fi
           curl -fsS "$base/health" | grep -q '"ok":true'
           curl -fsS "$base/fatwas" | grep -q '"fatwas"'
           curl -fsS "$base/posts" | grep -q '"posts"'
+          curl -fsS "$base/library/works" | grep -q '"works"'
           curl -fsS -X POST "$base/chat" -H 'Content-Type: application/json' -d '{"message":"salam","history":[]}' | grep -qv '"error"'
           echo "Smoke test passed."
 
       - name: Roll back on failure
         if: always() && steps.smoke.conclusion == 'failure'
         working-directory: workers/fatwa-api
-        run: 'pnpm exec wrangler rollback --message auto-rollback-smoke-test-failed -y'
+        run: 'pnpm exec wrangler rollback $ENVFLAG --message auto-rollback-smoke-test-failed -y'

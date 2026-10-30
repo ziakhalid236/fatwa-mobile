@@ -1,5 +1,6 @@
 import { processPushQueue, pushSchemaStatements, queueBroadcast, registerPushToken } from './push';
 import { libraryRoute } from './library';
+import { withTurso } from './turso';
 import { expandQuery, tokens as kbTokens, kbSchemaStatements, searchKb, kbContext, publicHit, ingest as kbIngest, importScholars, kbStats, kbMigrate, reseq as kbReseq, type KbHit } from './kb';
 interface Env {
   DB: D1Database;
@@ -9,6 +10,10 @@ interface Env {
   ADMIN_TOKEN?: string;
   FCM_SERVICE_ACCOUNT?: string;
   ALLOWED_ORIGINS?: string;
+  TURSO_DB_URL?: string;
+  TURSO_DB_TOKEN?: string;
+  TURSO_KB_URL?: string;
+  TURSO_KB_TOKEN?: string;
 }
 
 type Row = Record<string, any>;
@@ -321,7 +326,7 @@ async function handle(request: Request, env: Env) {
   const origin = corsOrigin(request, env);
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'access-control-allow-headers': 'Content-Type, Authorization, X-Admin-Token', 'access-control-max-age': '86400' } });
   const url = new URL(request.url); const path = url.pathname.replace(/^\/api/, '') || '/';
-  if (path === '/' || path === '/health' || path === '/healthz') return json({ ok: true, service: 'fatwa-api', backend: 'cloudflare-d1', timestamp: now() }, 200, origin);
+  if (path === '/' || path === '/health' || path === '/healthz') return json({ ok: true, service: 'fatwa-api', backend: env.TURSO_DB_URL ? 'turso' : 'cloudflare-d1', timestamp: now() }, 200, origin);
   try {
     await ensureSchema(env);
     if (path === '/fatwas' && request.method === 'GET') { const search = (url.searchParams.get('search') || '').trim(); const like = `%${search}%`; const q = search ? await env.DB.prepare("SELECT * FROM fatwas WHERE status='published' AND (question LIKE ? OR answer LIKE ? OR category LIKE ? OR institution LIKE ?) ORDER BY created_at DESC").bind(like, like, like, like).all<Row>() : await env.DB.prepare("SELECT * FROM fatwas WHERE status='published' ORDER BY created_at DESC").all<Row>(); return json({ fatwas: q.results.map(publicFatwa) }, 200, origin); }
@@ -583,8 +588,9 @@ async function purgeExpired(env: Env) {
 }
 
 export default {
-  fetch(request: Request, env: Env) { return handle(request, env); },
-  async scheduled(event: { cron?: string }, env: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }) {
+  fetch(request: Request, rawEnv: Env) { return handle(request, withTurso(rawEnv)); },
+  async scheduled(event: { cron?: string }, rawEnv: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }) {
+    const env = withTurso(rawEnv);
     const job = event.cron === '* * * * *'
       ? ensureSchema(env).then(() => processPushQueue(env, 45)).then((r) => { if (r.sent || r.failed) console.log('push', JSON.stringify(r)); })
       : ensureSchema(env).then(() => purgeExpired(env)).then((r) => console.log('purge', JSON.stringify(r)));
