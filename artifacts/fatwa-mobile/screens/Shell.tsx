@@ -49,6 +49,40 @@ const titles: Record<string, string> = {
   questionDetail: 'Answer details',
 };
 
+function NetworkBanner() {
+  const colors = useColors();
+  const [state, setState] = React.useState<'offline' | 'slow' | null>(null);
+
+  React.useEffect(() => {
+    let live = true;
+    const check = async () => {
+      const started = Date.now();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4500);
+      try {
+        const response = await fetch('https://fatwa-api.ziakhalid236.workers.dev/api/health', { signal: controller.signal, cache: 'no-store' });
+        if (!response.ok) throw new Error('offline');
+        if (live) setState(Date.now() - started > 1800 ? 'slow' : null);
+      } catch {
+        if (live) setState('offline');
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+    void check();
+    const timer = setInterval(() => void check(), 20_000);
+    return () => { live = false; clearInterval(timer); };
+  }, []);
+
+  if (!state) return null;
+  return (
+    <View style={[styles.networkBanner, { backgroundColor: state === 'offline' ? colors.coral : colors.gold }]} pointerEvents="none">
+      <Feather name={state === 'offline' ? 'wifi-off' : 'wifi'} size={14} color="#fff" />
+      <Text style={styles.networkText}>{state === 'offline' ? 'No internet connection · Showing saved content' : 'Slow internet connection'}</Text>
+    </View>
+  );
+}
+
 function Shell() {
   const colors = useColors();
   const { alarms, settings, unreadCount, pushNotification, refreshContent, notifications, hydrated, markNotificationRead } = useApp();
@@ -245,6 +279,7 @@ function Shell() {
       <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <View style={[styles.app, { backgroundColor: colors.background }]}>
+          <NetworkBanner />
           {isAskTab ? (
             <View style={styles.chatContent}>
               {header()}
@@ -344,4 +379,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   tabBadgeText: { fontSize: 9, fontWeight: '800', color: '#FFFFFF' },
+  networkBanner: { position: 'absolute', top: 8, left: 18, right: 18, zIndex: 20, minHeight: 34, borderRadius: 17, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, elevation: 8, shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  networkText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '800' },
 });
