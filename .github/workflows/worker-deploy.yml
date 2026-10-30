@@ -45,7 +45,7 @@ jobs:
       - name: Install and typecheck
         working-directory: workers/fatwa-api
         run: |
-          pnpm install --no-frozen-lockfile --ignore-scripts
+          pnpm install --ignore-workspace --ignore-scripts
           pnpm exec tsc --noEmit
 
       - name: Check credentials
