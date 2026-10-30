@@ -35,6 +35,7 @@ jobs:
       TURSO_APP_TOKEN: ${{ github.event.inputs.target == 'production' && secrets.TURSO_APP_TOKEN || secrets.TURSO_APP_STAGING_TOKEN }}
       TURSO_KB_URL: ${{ github.event.inputs.target == 'production' && secrets.TURSO_KB_URL || secrets.TURSO_KB_STAGING_URL }}
       TURSO_KB_TOKEN: ${{ github.event.inputs.target == 'production' && secrets.TURSO_KB_TOKEN || secrets.TURSO_KB_STAGING_TOKEN }}
+      ADMIN_TOKEN: ${{ github.event.inputs.target == 'production' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -62,7 +63,7 @@ jobs:
           python3 - <<'PY' > "$RUNNER_TEMP/secrets.json"
           import json, os
           print(json.dumps({"TURSO_DB_URL": os.environ["TURSO_APP_URL"], "TURSO_DB_TOKEN": os.environ["TURSO_APP_TOKEN"],
-                            "TURSO_KB_URL": os.environ["TURSO_KB_URL"], "TURSO_KB_TOKEN": os.environ["TURSO_KB_TOKEN"]}))
+                            "TURSO_KB_URL": os.environ["TURSO_KB_URL"], "TURSO_KB_TOKEN": os.environ["TURSO_KB_TOKEN"], **({"ADMIN_TOKEN": os.environ["ADMIN_TOKEN"]} if os.environ.get("ADMIN_TOKEN") else {})}))
           PY
           pnpm exec wrangler secret bulk "$RUNNER_TEMP/secrets.json" $ENVFLAG
           pnpm exec wrangler deploy $ENVFLAG --keep-vars
