@@ -118,8 +118,15 @@ TITLES = {
  'TabyinHaqaiq': ('تبيين الحقائق — Tabyin al-Haqa\'iq', 'الزيلعي (ت 743هـ) — al-Zayla\'i'),
  'BahrRaiq': ('البحر الرائق — al-Bahr al-Ra\'iq', 'ابن نجيم (ت 970هـ) — Ibn Nujaym'),
  'SharhFathQadir': ('شرح فتح القدير — Sharh Fath al-Qadir', 'ابن الهمام (ت 861هـ) — Ibn al-Humam'),
+ 'RiyadSalihin': ('رياض الصالحين — Riyad as-Salihin', 'الإمام النووي (ت 676هـ) — al-Nawawi'),
+ 'BulughMaram': ('بلوغ المرام — Bulugh al-Maram', 'ابن حجر العسقلاني (ت 852هـ) — Ibn Hajar'),
+ 'Adhkar': ('الأذكار — Al-Adhkar', 'الإمام النووي (ت 676هـ) — al-Nawawi'),
+ 'IhyaCulumDin': ('إحياء علوم الدين — Ihya Ulum al-Din', 'أبو حامد الغزالي (ت 505هـ) — al-Ghazali'),
+ 'TafsirQuran': ('تفسير القرآن العظيم — Tafsir Ibn Kathir', 'ابن كثير (ت 774هـ) — Ibn Kathir'),
+ 'SiraNabawiyya': ('السيرة النبوية — Sirat Ibn Hisham', 'ابن هشام (ت 213هـ) — Ibn Hisham'),
  'Mabsut': ('المبسوط — al-Mabsut', 'السرخسي (ت 483هـ) — al-Sarakhsi'),
 }
+GENRES = {'RiyadSalihin': 'hadith_book', 'BulughMaram': 'hadith_book', 'Adhkar': 'hadith_book', 'IhyaCulumDin': 'tasawwuf', 'TafsirQuran': 'tafsir', 'SiraNabawiyya': 'seerah'}
 def title_for(path):
     work = path.split('/')[1]; key = work.split('.')[-1]
     return TITLES.get(key + ':' + work[:4]) or TITLES.get(key) or (work, path.split('/')[0])
@@ -162,7 +169,7 @@ def openiti(paths):
             if size >= 900: flush()
         flush()
         print(path, f['name'], len(raw) // 1024, 'KB ->', len(ps), 'passages', flush=True)
-        send_batches(src, {'title': ar_title, 'author': ar_auth, 'lang': 'ar', 'genre': 'fiqh_hanafi', 'url': 'https://github.com/OpenITI/RELEASE/tree/master/data/' + path, 'edition': meta.get('043.EdPUBLISHER', '')}, ps, 50)
+        send_batches(src, {'title': ar_title, 'author': ar_auth, 'lang': 'ar', 'genre': GENRES.get(work.split('.')[-1], 'fiqh_hanafi'), 'url': 'https://github.com/OpenITI/RELEASE/tree/master/data/' + path, 'edition': meta.get('043.EdPUBLISHER', '')}, ps, 50)
 
 # ---------------- Scholars (catalogue xlsx) ----------------
 def scholars(xlsx):

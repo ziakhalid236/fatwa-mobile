@@ -1,7 +1,7 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { EmptyState, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { fetchSurah, fetchSurahs, fetchWorkPage, fetchWorks, rightsLabel, searchLibrary, verificationLabel, type Ayah, type Hit, type Passage, type Surah, type Work } from '@/lib/library';
@@ -15,6 +15,23 @@ function Badge({ text, tone }: { text: string; tone: 'ok' | 'warn' | 'plain' }) 
   const bg = tone === 'ok' ? colors.primarySoft : tone === 'warn' ? colors.accent : colors.muted;
   const fg = tone === 'ok' ? colors.primary : tone === 'warn' ? colors.accentForeground : colors.mutedForeground;
   return <View style={[styles.badge, { backgroundColor: bg }]}><Text style={[styles.badgeText, { color: fg }]}>{text}</Text></View>;
+}
+
+const COVERS: [string, string][] = [['#0f4c3a', '#1f7a5c'], ['#5b3a12', '#a8741f'], ['#1d3557', '#3a6ea5'], ['#4a1d3d', '#8b3a73'], ['#3b3b1f', '#7a7a2e'], ['#23403f', '#2f8f83']];
+function BookCover({ title, genre, uri }: { title: string; genre: string; uri?: string | null }) {
+  const colors = useColors();
+  if (uri) return <Image source={{ uri }} style={styles.cover} resizeMode="cover" />;
+  let h = 0; for (const ch of title) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const [a, b] = COVERS[h % COVERS.length];
+  const arabic = title.split('—')[0].trim();
+  return (
+    <LinearGradient colors={[a, b]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cover}>
+      <View style={styles.coverFrame}>
+        <MaterialCommunityIcons name={genre === 'hadith' ? 'format-quote-open' : 'book-open-page-variant'} size={14} color={colors.gold} />
+        <Text style={styles.coverText} numberOfLines={4}>{arabic}</Text>
+      </View>
+    </LinearGradient>
+  );
 }
 
 function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
@@ -101,10 +118,14 @@ export default function LibraryScreen() {
     return [...map.values()];
   }, [works.data]);
   const hadith = groups.filter((g) => g.genre === 'hadith');
-  const fiqh = groups.filter((g) => g.genre !== 'hadith');
+  const guidance = groups.filter((g) => g.genre === 'hadith_book' || g.genre === 'tasawwuf');
+  const tafsir = groups.filter((g) => g.genre === 'tafsir' || g.genre === 'seerah');
+  const fiqh = groups.filter((g) => !['hadith', 'hadith_book', 'tasawwuf', 'tafsir', 'seerah'].includes(g.genre));
 
   const bookCard = (g: (typeof groups)[number]) => (
-    <View key={g.key} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View key={g.key} style={[styles.card, styles.bookRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <BookCover title={g.works[0].title} genre={g.genre} uri={g.works.find((w) => w.cover)?.cover} />
+      <View style={{ flex: 1, gap: 8 }}>
       <Text style={[styles.cardTitle, { color: colors.foreground }]}>{g.author}</Text>
       {g.works[0].author && g.genre !== 'hadith' ? <Text style={[styles.muted, { color: colors.mutedForeground }]} numberOfLines={2}>{g.works[0].author}</Text> : null}
       <View style={styles.badgeRow}>
@@ -116,6 +137,7 @@ export default function LibraryScreen() {
         ))}
       </View>
       <View style={styles.badgeRow}><Badge text={rightsLabel(g.works[0].rights).text} tone={rightsLabel(g.works[0].rights).tone} /></View>
+      </View>
     </View>
   );
 
@@ -152,6 +174,8 @@ export default function LibraryScreen() {
 
           <Status loading={works.loading} error={works.error} retry={works.retry} />
           {hadith.length ? <><SectionTitle title="Hadith" subtitle="Tap a language to start reading" />{hadith.map(bookCard)}</> : null}
+          {guidance.length ? <><SectionTitle title="Hadith books & spiritual guidance" subtitle="Riyad as-Salihin, Bulugh al-Maram, Adhkar, Ihya" />{guidance.map(bookCard)}</> : null}
+          {tafsir.length ? <><SectionTitle title="Tafsir & Seerah" subtitle="Commentary on the Quran and the life of the Prophet" />{tafsir.map(bookCard)}</> : null}
           {fiqh.length ? <><SectionTitle title="Hanafi fiqh books" subtitle="Classical texts, searchable by the AI" />{fiqh.map(bookCard)}</> : null}
 
           <Pressable onPress={() => nav.push({ name: 'fatwaList' })} style={[styles.card, styles.rowCard, { backgroundColor: colors.primarySoft, borderColor: colors.primarySoft }]} accessibilityRole="button">
@@ -260,6 +284,10 @@ export function ReaderScreen({ workId }: { workId: number }) {
 }
 
 const styles = StyleSheet.create({
+  bookRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  cover: { width: 68, height: 96, borderRadius: 8, overflow: 'hidden', justifyContent: 'center' },
+  coverFrame: { flex: 1, margin: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', borderRadius: 5, alignItems: 'center', justifyContent: 'center', padding: 4, gap: 4 },
+  coverText: { color: '#fff', fontSize: 11, fontWeight: '800', textAlign: 'center', lineHeight: 16 },
   hero: { borderRadius: 26, padding: 20, marginTop: 4, marginBottom: 14, overflow: 'hidden' },
   heroIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   heroTitle: { color: '#FFFFFF', fontSize: 25, fontWeight: '800', letterSpacing: -0.5 },

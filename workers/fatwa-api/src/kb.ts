@@ -22,6 +22,7 @@ export const kbSchemaStatements = (db: D1Database) => [
 // Older databases lack the reading-order column; add it, then index it.
 export async function kbMigrate(db: D1Database) {
   try { await db.prepare('ALTER TABLE kb_passages ADD COLUMN seq INTEGER').run(); } catch { /* already present */ }
+  try { await db.prepare('ALTER TABLE kb_works ADD COLUMN cover_url TEXT').run(); } catch { /* already present */ }
   // The index only speeds up ordered reading; never let a failure here take the API down.
   try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_kb_passages_seq ON kb_passages(work_id, seq)').run(); } catch (error) { console.error('kb index', String(error)); }
 }
@@ -148,6 +149,7 @@ export async function ingest(env: KbEnv, body: Row) {
   await env.KB.prepare('INSERT OR IGNORE INTO kb_works(source_id,title,author,lang,genre,url,edition,rights_status,verification_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
     .bind(source!.id, w.title, w.author || null, w.lang || null, w.genre || null, w.url || null, w.edition || null, w.rights_status || src.rights_status || 'unknown', w.verification_status || 'unverified', now).run();
   const work = await env.KB.prepare('SELECT id FROM kb_works WHERE source_id=? AND title=?').bind(source!.id, w.title).first<Row>();
+  if (w.cover_url) await env.KB.prepare('UPDATE kb_works SET cover_url=? WHERE id=?').bind(String(w.cover_url), work!.id).run();
   const passages = Array.isArray(body.passages) ? body.passages as Row[] : [];
   const statements: D1PreparedStatement[] = [];
   const seen = new Set<string>();

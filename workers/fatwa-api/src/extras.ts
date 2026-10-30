@@ -120,18 +120,20 @@ export async function adminExtras(c: Ctx): Promise<Response | null> {
   if (path === '/admin/dashboard' && m === 'GET') {
     const since = new Date(Date.now() - 14 * 86400000).toISOString();
     const series = async (table: string, extra = '') => { const q = await env.DB.prepare(`SELECT substr(created_at,1,10) AS d, COUNT(*) AS c FROM ${table} WHERE created_at>=? ${extra} GROUP BY d`).bind(since).all(); const mp = new Map(q.results.map((r: Row) => [r.d, Number(r.c)])); return Array.from({ length: 14 }, (_, i) => { const d = new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10); return { date: d, count: mp.get(d) || 0 }; }); };
-    const cats = await env.DB.prepare("SELECT category, COUNT(*) AS c FROM posts WHERE status='published' GROUP BY category ORDER BY c DESC").all();
-    const recent = await env.DB.prepare('SELECT action,entity_type AS entityType,entity_id AS entityId,created_at AS createdAt FROM admin_audit_logs ORDER BY created_at DESC LIMIT 8').all();
+    const [totalsRow, uS, pS, rS, cats, recent, ai] = await Promise.all([
+      env.DB.prepare(`SELECT
+        (SELECT COUNT(*) FROM users) AS users,(SELECT COUNT(*) FROM users WHERE banned_at IS NOT NULL) AS bannedUsers,
+        (SELECT COUNT(*) FROM posts WHERE status='published') AS livePosts,(SELECT COUNT(*) FROM post_submissions WHERE status='pending') AS pendingPosts,
+        (SELECT COUNT(*) FROM post_submissions WHERE status='rejected') AS rejectedPosts,(SELECT COUNT(*) FROM post_likes) AS likes,
+        (SELECT COUNT(*) FROM reports WHERE status='new') AS newReports,(SELECT COUNT(*) FROM reports) AS reports,
+        (SELECT COUNT(*) FROM questions WHERE status!='answered') AS openQuestions,(SELECT COUNT(*) FROM fatwas WHERE status='published') AS fatwas`).first(),
+      series('users'), series('post_submissions'), series('reports'),
+      env.DB.prepare("SELECT category, COUNT(*) AS c FROM posts WHERE status='published' GROUP BY category ORDER BY c DESC").all(),
+      env.DB.prepare('SELECT action,entity_type AS entityType,entity_id AS entityId,created_at AS createdAt FROM admin_audit_logs ORDER BY created_at DESC LIMIT 8').all(),
+      count(env, 'SELECT COUNT(*) AS c FROM agent_runs').catch(() => 0),
+    ]);
     return json({
-      totals: {
-        users: await count(env, 'SELECT COUNT(*) AS c FROM users'), bannedUsers: await count(env, 'SELECT COUNT(*) AS c FROM users WHERE banned_at IS NOT NULL'),
-        livePosts: await count(env, "SELECT COUNT(*) AS c FROM posts WHERE status='published'"), pendingPosts: await count(env, "SELECT COUNT(*) AS c FROM post_submissions WHERE status='pending'"),
-        rejectedPosts: await count(env, "SELECT COUNT(*) AS c FROM post_submissions WHERE status='rejected'"), likes: await count(env, 'SELECT COUNT(*) AS c FROM post_likes'),
-        newReports: await count(env, "SELECT COUNT(*) AS c FROM reports WHERE status='new'"), reports: await count(env, 'SELECT COUNT(*) AS c FROM reports'),
-        openQuestions: await count(env, "SELECT COUNT(*) AS c FROM questions WHERE status!='answered'"), fatwas: await count(env, "SELECT COUNT(*) AS c FROM fatwas WHERE status='published'"),
-        aiChats: await count(env, 'SELECT COUNT(*) AS c FROM agent_runs').catch(() => 0),
-      },
-      series: { users: await series('users'), posts: await series('post_submissions'), reports: await series('reports') }, categories: cats.results, recent: recent.results,
+      totals: { ...totalsRow, aiChats: ai }, series: { users: uS, posts: pS, reports: rS }, categories: cats.results, recent: recent.results,
     }, 200, origin);
   }
   if (path === '/admin/reports' && m === 'GET') {

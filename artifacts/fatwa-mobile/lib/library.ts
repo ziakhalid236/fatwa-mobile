@@ -1,7 +1,7 @@
 import { API_BASE_URL } from '@/lib/store';
 
 export type Work = {
-  id: number; title: string; author: string | null; lang: string | null; genre: string | null;
+  id: number; title: string; author: string | null; lang: string | null; genre: string | null; cover?: string | null;
   rights: string; verification: string; source: string | null; sourceUrl: string | null; license: string | null; passages: number;
 };
 export type Passage = { id: number; ref: string | null; lang: string | null; text: string; url: string | null };

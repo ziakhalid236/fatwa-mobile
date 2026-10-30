@@ -40,7 +40,7 @@ const verseText = (t: string) => {
 export async function libraryRoute(env: KbEnv, path: string, params: URLSearchParams): Promise<LibResult | null> {
   if (path === '/library/works') {
     const res = await env.KB.prepare(
-      `SELECT w.id,w.title,w.author,w.lang,w.genre,w.rights_status AS rights,w.verification_status AS verification,s.name AS source,s.url AS sourceUrl,s.license_note AS license,
+      `SELECT w.id,w.title,w.author,w.lang,w.genre,w.cover_url AS cover,w.rights_status AS rights,w.verification_status AS verification,s.name AS source,s.url AS sourceUrl,s.license_note AS license,
               (SELECT COUNT(*) FROM kb_passages p WHERE p.work_id=w.id) AS passages
        FROM kb_works w LEFT JOIN kb_sources s ON s.id=w.source_id ORDER BY w.genre,w.author,w.lang`).all<Row>();
     return { status: 200, body: { works: res.results } };
@@ -51,7 +51,7 @@ export async function libraryRoute(env: KbEnv, path: string, params: URLSearchPa
     const size = clamp(Number(params.get('size') || 20), 1, 50);
     const page = clamp(Number(params.get('page') || 1), 1, 100000);
     const work = await env.KB.prepare(
-      `SELECT w.id,w.title,w.author,w.lang,w.genre,w.rights_status AS rights,w.verification_status AS verification,s.name AS source,s.url AS sourceUrl,s.license_note AS license,
+      `SELECT w.id,w.title,w.author,w.lang,w.genre,w.cover_url AS cover,w.rights_status AS rights,w.verification_status AS verification,s.name AS source,s.url AS sourceUrl,s.license_note AS license,
               (SELECT COUNT(*) FROM kb_passages p WHERE p.work_id=w.id) AS passages
        FROM kb_works w LEFT JOIN kb_sources s ON s.id=w.source_id WHERE w.id=?`).bind(id).first<Row>();
     if (!work) return { status: 404, body: { error: 'Not found' } };
