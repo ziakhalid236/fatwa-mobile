@@ -31,6 +31,8 @@ def post(path, body, retries=5):
             if i == retries - 1: raise RuntimeError(f'{e} {err}')
             time.sleep(2 * (i + 1))
 
+BUDGET = [int(os.environ.get('KB_MAX_PASSAGES', '0')) or None]  # per-run cap; keeps free-tier daily D1 writes free for real users
+
 def send_batches(source, work, passages, size=60):
     for i, p in enumerate(passages): p['seq'] = i
     if os.environ.get('RESEQ'):  # only set reading order on passages that are already stored
@@ -43,6 +45,11 @@ def send_batches(source, work, passages, size=60):
         print(f'  reseq {work["title"][:40]}: {len(passages)}', flush=True); return
     batches = [(i, passages[i:i + size]) for i in range(0, len(passages), size)]
     todo = [(i, b) for i, b in batches if f"{work['title']}#{i}" not in STATE]
+    capped = False
+    if BUDGET[0] is not None:
+        if BUDGET[0] <= 0: raise SystemExit('RUN_CAP')
+        keep = max(1, BUDGET[0] // size)
+        capped = len(todo) > keep; todo = todo[:keep]; BUDGET[0] -= len(todo) * size
     done = 0
     def one(item):
         i, b = item
@@ -62,6 +69,7 @@ def send_batches(source, work, passages, size=60):
             save_state(); raise
     save_state()
     print(f'  done {work["title"]}: {len(passages)} passages ({len(todo)} sent)', flush=True)
+    if capped or (BUDGET[0] is not None and BUDGET[0] <= 0): raise SystemExit('RUN_CAP')
 
 def cached(name, build):
     path = f'{CACHE}/{name}.json'
@@ -191,6 +199,7 @@ OITI_ALL = ['0593BurhanDinFarghaniMarghinani/0593BurhanDinFarghaniMarghinani.Hid
 if JOB == 'all':
     try: run_all()
     except SystemExit as e:
+        if str(e) == 'RUN_CAP': print('Reached this run\'s passage budget; the rest loads on the next run.'); sys.exit(0)
         if str(e) == 'DAILY_WRITE_LIMIT': print('Stopped: daily D1 write limit reached. Re-run after 00:00 UTC; progress is saved.'); sys.exit(0)
         raise
 elif JOB == 'darulifta': darulifta(ARGS[0] if ARGS else CACHE + '/darulifta.jsonl')
