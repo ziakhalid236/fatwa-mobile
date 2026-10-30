@@ -4,23 +4,46 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StarPattern } from '@/components/Art';
-import { timeAgo } from '@/components/PostCard';
+import { PostCard, timeAgo } from '@/components/PostCard';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { API_BASE_URL, useApp } from '@/lib/store';
 import { IMAGE_PICKER_OPTIONS, uploadImage } from '@/lib/upload';
+import type { Post } from '@/lib/types';
 
 /** Cover photos are always shown as a 2:1 banner; the picker crops to the same ratio (ideal size 1200 x 600). */
 const COVER_ASPECT: [number, number] = [2, 1];
 
 type ProfilePost = { id: string; title: string; body: string; imageUrl: string; createdAt: string; likes: number; status?: string; rejectionReason?: string };
 type PublicProfile = { user: { id: string; name: string; city: string; country: string; avatarUrl: string; coverUrl?: string; bio: string; joinedAt: string }; posts: ProfilePost[]; likesReceived: number };
+const RESERVED_PROFILE_NAMES = new Set(['fatwa', 'fatwa app', 'fatwa app official', 'fatwa team', 'fatwa editorial team']);
+
+function asPostCard(post: ProfilePost, user: PublicProfile['user']): Post {
+  return {
+    id: post.id,
+    title: post.title || '',
+    body: post.body || '',
+    category: 'General',
+    author: user.name || 'Community contributor',
+    authorId: user.id,
+    authorImageUrl: user.avatarUrl || undefined,
+    city: user.city || '',
+    country: user.country || '',
+    imageUrl: post.imageUrl || undefined,
+    createdAt: post.createdAt,
+    date: post.createdAt,
+    views: 0,
+    likes: post.likes,
+    accent: 'forest',
+    icon: 'file-text',
+  };
+}
 
 /** Facebook-style profile: cover, avatar, bio, stats and the user's own posts. `userId` is the profile owner. */
 export function ProfileView({ userId, self, onEdit }: { userId: string; self?: boolean; onEdit?: () => void }) {
   const colors = useColors();
   const nav = useNav();
-  const { authHeaders, profile, saveProfile, setBio, uploadAvatar, refreshContent, signedIn } = useApp();
+  const { authHeaders, profile, saveProfile, setBio, uploadAvatar, refreshContent, signedIn, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView } = useApp();
   const [data, setData] = useState<PublicProfile | null>(null);
   const [mine, setMine] = useState<ProfilePost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +124,10 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
       Alert.alert('Name required', 'Please enter at least 2 characters for your username.');
       return;
     }
+    if (RESERVED_PROFILE_NAMES.has(nameDraft.trim().toLowerCase())) {
+      Alert.alert('Choose another username', 'This app name is reserved for the official Fatwa account. Please use your own name.');
+      return;
+    }
     setSavingProfile(true);
     try {
       await saveProfile({ name: nameDraft, city: cityDraft, country: countryDraft });
@@ -132,11 +159,6 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
           <Feather name="moon" size={90} color="rgba(255,255,255,0.08)" style={styles.coverArt} />
           {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel="Cover photo" /> : null}
         </LinearGradient>
-        {self && signedIn ? (
-          <Pressable onPress={changeCover} style={styles.coverMenuBtn} accessibilityRole="button" accessibilityLabel="Cover photo options" testID="profile-cover">
-            <Feather name="more-horizontal" size={21} color="#fff" />
-          </Pressable>
-        ) : null}
         <View style={[styles.avatarRing, { borderColor: colors.background, backgroundColor: colors.primarySoft }]}>
           {avatar ? <Image source={{ uri: avatar }} style={styles.avatar} contentFit="cover" /> : <Text style={[styles.initial, { color: colors.primary }]}>{name[0]?.toUpperCase() ?? '?'}</Text>}
           {self && signedIn ? (
@@ -187,17 +209,21 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
               {p.status === 'rejected' && p.rejectionReason ? <Text style={[styles.reason, { color: colors.coral }]}>{p.rejectionReason}</Text> : null}
             </View>
           ))}
-          {data?.posts.length ? data.posts.map((p) => (
-            <Pressable key={p.id} onPress={() => nav.push({ name: 'post', postId: p.id })} style={[styles.post, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.postHead}>
-                <Text style={[styles.time, { color: colors.mutedForeground, flex: 1 }]}>{timeAgo(p.createdAt)}</Text>
-                {self ? <Pressable onPress={() => remove(p)} hitSlop={8}><Feather name="trash-2" size={16} color={colors.mutedForeground} /></Pressable> : null}
-              </View>
-              {p.body ? <Text style={[styles.postBody, { color: colors.foreground }]} numberOfLines={5}>{p.body}</Text> : null}
-              {p.imageUrl ? <Image source={{ uri: p.imageUrl }} style={styles.postImage} contentFit="cover" /> : null}
-              <View style={styles.likes}><Feather name="heart" size={14} color={colors.coral} /><Text style={[styles.metaText, { color: colors.mutedForeground }]}>{p.likes}</Text></View>
-            </Pressable>
-          )) : !mine.length ? (
+          {data?.posts.length ? data.posts.map((p) => {
+            const cardPost = asPostCard(p, data.user);
+            return <PostCard
+              key={p.id}
+              post={cardPost}
+              liked={likedPostIds.includes(p.id)}
+              saved={savedPostIds.includes(p.id)}
+              views={viewedPostIds.includes(p.id) ? 1 : 0}
+              onToggleLike={() => toggleLike(p.id)}
+              onToggleSave={() => toggleSaved(p.id)}
+              onOpen={() => { registerView(p.id); nav.push({ name: 'post', postId: p.id }); }}
+              onShare={() => undefined}
+              onAuthor={undefined}
+            />;
+          }) : !mine.length ? (
             <View style={[styles.empty, { borderColor: colors.border }]}>
               <Feather name="file-text" size={26} color={colors.mutedForeground} />
               <Text style={{ color: colors.mutedForeground, marginTop: 8, textAlign: 'center' }}>{self ? 'You have not shared anything yet.' : 'No posts yet.'}</Text>
@@ -249,7 +275,6 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
 const styles = StyleSheet.create({
   coverWrap: { marginBottom: 52 },
   cover: { aspectRatio: 2, width: '100%', borderRadius: 26, overflow: 'hidden', justifyContent: 'center', alignItems: 'flex-end' },
-  coverMenuBtn: { position: 'absolute', right: 12, top: 12, width: 42, height: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.42)', borderRadius: 21 },
   coverBtnText: { color: '#fff', fontSize: 11.5, fontWeight: '700' },
   coverArt: { marginRight: 24 },
   avatarRing: { position: 'absolute', left: 20, bottom: -48, width: 100, height: 100, borderRadius: 50, borderWidth: 4, alignItems: 'center', justifyContent: 'center' },
