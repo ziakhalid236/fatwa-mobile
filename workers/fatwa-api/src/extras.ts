@@ -182,7 +182,7 @@ export async function adminExtras(c: Ctx): Promise<Response | null> {
       count(env, 'SELECT COUNT(*) AS c FROM users WHERE created_at>=?', day(7)),
     ]);
     const mp = new Map(ser.map((r: Row) => [r.d, r]));
-    const series = Array.from({ length: 14 }, (_, i) => { const d = new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10); const r: Row | undefined = mp.get(d); return { date: d, visits: Number(r?.visits || 0), devices: Number(r?.devices || 0) }; });
+    const series = Array.from({ length: 14 }, (_, i) => { const d = new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10); const r = mp.get(d) as Row | undefined; return { date: d, visits: Number(r?.visits || 0), devices: Number(r?.devices || 0) }; });
     return json({ windows: { day: d1, week: d7, month: d30 }, newUsersWeek: newUsers, byCountry, byCity, usersCountry, usersCity, platforms, series, recent }, 200, origin);
   }
   if (path === '/admin/reports' && m === 'GET') {
