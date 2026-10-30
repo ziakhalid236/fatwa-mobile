@@ -1,32 +1,48 @@
 import { Feather } from '@expo/vector-icons';
-import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { authConfig, GOOGLE_IDS, googleConfigured, googleSignIn, startEmail, verifyEmail, type AuthResult } from '@/lib/auth';
-import { useApp } from '@/lib/store';
+import { API_BASE_URL, useApp } from '@/lib/store';
 
 WebBrowser.maybeCompleteAuthSession();
 
+// Google sign-in through the system browser with the Web client: Google redirects to our HTTPS page,
+// which hands the id_token back to the app through the fatwa-mobile://auth link.
+const GOOGLE_REDIRECT = `${API_BASE_URL}/auth/google/callback`;
+const APP_RETURN = 'fatwa-mobile://auth';
+
 function GoogleButton({ onResult, onError, setBusy }: { onResult: (r: AuthResult) => void; onError: (m: string) => void; setBusy: (b: boolean) => void }) {
   const colors = useColors();
-  const [request, response, prompt] = Google.useIdTokenAuthRequest({
-    webClientId: GOOGLE_IDS.web || undefined,
-    androidClientId: GOOGLE_IDS.android || undefined,
-    iosClientId: GOOGLE_IDS.ios || undefined,
-  });
-  useEffect(() => {
-    if (!response) return;
-    if (response.type === 'success') {
-      const token = response.params?.id_token;
-      if (!token) { onError('Google did not return a sign-in token.'); return; }
+  const start = async () => {
+    onError('');
+    const nonce = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + [
+      `client_id=${encodeURIComponent(GOOGLE_IDS.web)}`,
+      `redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT)}`,
+      'response_type=id_token',
+      `scope=${encodeURIComponent('openid email profile')}`,
+      `nonce=${nonce}`,
+      'prompt=select_account',
+    ].join('&');
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(url, APP_RETURN);
+      if (result.type !== 'success') return;
+      const query = result.url.split('#').pop()?.split('?').pop() ?? '';
+      const params = new URLSearchParams(query);
+      const token = params.get('id_token');
+      if (!token) { onError(params.get('error') ? 'Google sign-in was cancelled.' : 'Google did not return a sign-in token.'); return; }
       setBusy(true);
-      googleSignIn(token).then(onResult).catch((e) => onError(e.message)).finally(() => setBusy(false));
-    } else if (response.type === 'error') onError('Google sign-in failed. Please try again.');
-  }, [response]); // eslint-disable-line react-hooks/exhaustive-deps
+      onResult(await googleSignIn(token));
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Google sign-in failed. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <Pressable disabled={!request} onPress={() => void prompt()} style={[styles.btn, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityRole="button" testID="auth-google">
+    <Pressable onPress={() => void start()} style={[styles.btn, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityRole="button" testID="auth-google">
       <View style={styles.g}><Text style={styles.gText}>G</Text></View>
       <Text style={[styles.btnText, { color: colors.foreground }]}>Continue with Google</Text>
     </Pressable>

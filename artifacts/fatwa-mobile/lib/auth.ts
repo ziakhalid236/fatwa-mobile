@@ -5,7 +5,7 @@ export const GOOGLE_IDS = {
   android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '',
   ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '',
 };
-export const googleConfigured = Boolean(GOOGLE_IDS.web || GOOGLE_IDS.android);
+export const googleConfigured = Boolean(GOOGLE_IDS.web);
 
 export type AuthResult = {
   sessionToken: string;

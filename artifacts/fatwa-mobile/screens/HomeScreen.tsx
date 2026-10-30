@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   prayerText: { color: '#fff', fontSize: 13.5, fontWeight: '800' },
   prayerLeft: { color: '#E6D3A3', fontSize: 12.5, fontWeight: '700' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
-  actionWrap: { width: '48.5%' },
+  actionWrap: { flexBasis: '47%', flexGrow: 1 },
   action: { height: 104, borderRadius: 22, padding: 13, justifyContent: 'space-between', overflow: 'hidden' },
   actionBig: { position: 'absolute', right: 8, bottom: 6 },
   actionIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },

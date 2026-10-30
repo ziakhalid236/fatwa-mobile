@@ -362,6 +362,10 @@ async function handle(request: Request, env: Env) {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'access-control-allow-headers': 'Content-Type, Authorization, X-Admin-Token', 'access-control-max-age': '86400' } });
   const url = new URL(request.url); const path = url.pathname.replace(/^\/api/, '') || '/';
   if (path === '/.well-known/assetlinks.json') return new Response(JSON.stringify([{ relation: ['delegate_permission/common.handle_all_urls'], target: { namespace: 'android_app', package_name: 'com.fatwa.mobile', sha256_cert_fingerprints: String(env.APP_SIGNING_SHA256 || '0B:3F:2A:59:DF:42:0B:D1:9E:36:05:59:44:46:A5:DE:7A:28:55:D3:13:76:37:88:85:84:26:8B:10:B2:5A:AD').split(',').map((v) => v.trim()) } }]), { headers: { 'content-type': 'application/json' } });
+  if (path === '/auth/google/callback' && request.method === 'GET') {
+    const page = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fatwa App</title><body style="font-family:system-ui;text-align:center;padding:40px 20px;color:#0f2a22"><p>Returning to the Fatwa App…</p><p><a id="b" style="display:inline-block;background:#0b6b53;color:#fff;padding:14px 22px;border-radius:14px;text-decoration:none;font-weight:700" href="fatwa-mobile://auth">Open the app</a></p><script>var q=(location.hash||location.search).replace(/^[#?]/,'');var u='fatwa-mobile://auth?'+q;document.getElementById('b').href=u;location.replace(u);</script>`;
+    return new Response(page, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+  }
   const shareMatch = path.match(/^\/p\/([^/]+)$/);
   if (shareMatch && request.method === 'GET') return sharePage(env, decodeURIComponent(shareMatch[1]), url.host);
   if (path === '/' || path === '/health' || path === '/healthz') return json({ ok: true, service: 'fatwa-api', backend: env.TURSO_DB_URL ? 'turso' : 'cloudflare-d1', timestamp: now() }, 200, origin);
