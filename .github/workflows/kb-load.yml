@@ -1,0 +1,58 @@
+name: Load knowledge library
+
+# Loads the Quran, hadith, classical Hanafi books, scholar catalogue and Darul Ifta fatwas into the
+# production knowledge database through the admin API. Safe to re-run: it resumes where it stopped and
+# stops cleanly when Cloudflare's free daily D1 write limit is reached (a paid plan removes that limit).
+# Needs repository secrets: PROD_ADMIN_TOKEN. Runs daily until everything is loaded.
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: API base URL
+        default: https://fatwa-api.ziakhalid236.workers.dev
+  schedule:
+    - cron: '40 0 * * *'
+
+concurrency:
+  group: kb-load
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      API_URL: ${{ github.event.inputs.api_url || 'https://fatwa-api.ziakhalid236.workers.dev' }}
+      KB_CACHE: ${{ github.workspace }}/kb_cache
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install openpyxl
+      - name: Restore corpus cache and progress
+        uses: actions/cache/restore@v4
+        with:
+          path: kb_cache
+          key: kb-cache-none
+          restore-keys: kb-cache-
+      - name: Load
+        env:
+          PROD_ADMIN_TOKEN: ${{ secrets.PROD_ADMIN_TOKEN }}
+        run: |
+          if [ -z "$PROD_ADMIN_TOKEN" ]; then echo "::warning::PROD_ADMIN_TOKEN is not set"; exit 0; fi
+          mkdir -p kb_cache
+          cp data/kb/darulifta.jsonl kb_cache/darulifta.jsonl
+          printf '%s' "$PROD_ADMIN_TOKEN" > "$RUNNER_TEMP/token"
+          python tools/kb/kbtool.py "$API_URL" "$RUNNER_TEMP/token" all data/kb/scholars.xlsx
+      - name: Save progress
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: kb_cache
+          key: kb-cache-${{ github.run_id }}

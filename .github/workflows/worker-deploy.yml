@@ -1,17 +1,15 @@
 name: Deploy fatwa-api Worker
 
-# Applies D1 migrations, deploys the Worker, and smoke-tests the live API.
+# Deploys the Worker (the Worker upgrades its own database schema on first request), smoke-tests the live API,
+# and rolls back automatically if the smoke test fails. Run manually from the Actions tab.
 # Requires the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository
 # secrets. The job skips cleanly (with a warning) when they are absent.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'workers/fatwa-api/**'
-      - 'wrangler.toml'
-      - '.github/workflows/worker-deploy.yml'
   workflow_dispatch:
+  schedule:
+    # One-off: 31 October 00:10 UTC, right after Cloudflare's free D1 daily write quota resets.
+    - cron: '10 0 31 10 *'
 
 concurrency:
   group: worker-deploy-${{ github.ref }}
@@ -64,23 +62,25 @@ jobs:
         working-directory: workers/fatwa-api
         run: pnpm exec tsc --noEmit
 
-      - name: Apply D1 migrations
-        if: steps.creds.outputs.ready == 'true'
-        working-directory: workers/fatwa-api
-        run: pnpm exec wrangler d1 migrations apply fatwa-web-content --remote
-
       - name: Deploy Worker
         if: steps.creds.outputs.ready == 'true'
         working-directory: workers/fatwa-api
         run: pnpm exec wrangler deploy
 
       - name: Smoke test
+        id: smoke
         if: steps.creds.outputs.ready == 'true'
         run: |
           set -o pipefail
+          sleep 10
           base="https://fatwa-api.ziakhalid236.workers.dev/api"
           curl -fsS "$base/health" | grep -q '"ok":true'
           curl -fsS "$base/fatwas" | grep -q '"fatwas"'
           curl -fsS "$base/posts" | grep -q '"posts"'
           curl -fsS -X POST "$base/chat" -H 'Content-Type: application/json' -d '{"message":"salam","history":[]}' | grep -qv '"error"'
           echo "Smoke test passed."
+
+      - name: Roll back on failure
+        if: always() && steps.smoke.conclusion == 'failure'
+        working-directory: workers/fatwa-api
+        run: 'pnpm exec wrangler rollback --message auto-rollback-smoke-test-failed -y'
