@@ -1,58 +1,49 @@
-# Fatwa Mobile
+# Fatwa
 
-A local-first Expo/React Native frontend for a Fatwa guidance app. Published content and question submissions are connected to the Cloudflare Worker API, while device preferences and an offline copy of the user timeline remain local on the device.
+An Islamic guidance app for Android: prayer times and Qibla, a library of Quran, hadith and fiqh texts with an AI assistant, fatwas and answers to user questions, and a moderated community feed. Built with Expo / React Native, a Cloudflare Worker API, Turso (libSQL) databases and a web admin panel.
 
-## Frontend capabilities
+## What is in the app
 
-- Home dashboard with topic discovery and ask-a-question CTA
-- Browse answers with search and topic filters
-- Topic detail screens and answer detail screens
-- Save/unsave answers and mark answers helpful
-- Native answer sharing
-- Multi-step private question submission flow with review and confirmation
-- Local submission history with question IDs and status timeline
-- Profile screen with editable name and location
-- Notification preference persistence
-- Clear local data control
-- Responsive Expo web export and Android configuration
+- Home, prayer times with adhan alarms, Qibla compass
+- Library: Quran (Arabic, Urdu, English), hadith, Hanafi books, search, sources and rights per text
+- Fatwas (Darul Ifta Deoband, 1,904 entries) and "ask a question" with answer notifications
+- Community posts (moderated, auto-removed after 30 days), user profiles with avatar and cover photo (2:1)
+- Sign in with Google or email (optional, "Skip for now" is allowed); welcome email on first sign-in
+- AI chat that answers from the library with references
+- Legal pages (terms, privacy, disclaimer, guidelines, data deletion, sources), in app and hosted
 
-The mobile app reads published records from `EXPO_PUBLIC_API_URL` when configured (production default: `https://fatwa-api.ziakhalid236.workers.dev`) and falls back to bundled records when the API is offline. Every seeded record is a short, source-linked paraphrase attributed to Darul Ifta, Darul Uloom Deoband, India; the app keeps the original source URL visible rather than presenting an unattributed ruling.
+## Repository map
 
-## Backend and admin panel
+| Path | What it is |
+|---|---|
+| `artifacts/fatwa-mobile` | The app (Expo Router). `app/` routes, `screens/`, `components/`, `lib/` (store, API, upload), `data/` |
+| `artifacts/admin-panel` | Admin web UI (Vite + React): posts, questions, fatwas, users, reports, traffic dashboard. Hosted on Cloudflare Pages |
+| `workers/fatwa-api` | The API (Cloudflare Worker, TypeScript). `index.ts` routes, `extras.ts` extra routes, `library.ts`/`kb.ts` library and AI, `mail.ts`, `push.ts`, `turso.ts` |
+| `data/kb` | Library source data loaded into the database |
+| `tools/kb` | Library loader (`kbtool.py`). `tools/legal`: generates the legal pages (`build.py`) |
+| `docs/` | Status, publishing guide, database guide, library ingest guide |
+| `store-assets/` | Play Store feature graphic |
+| `.github/workflows` | CI (see below). `.github/scripts` signing helper |
 
-- `artifacts/api-server` exposes the local-compatible version of the public fatwa/question endpoints and protected admin endpoints. Production is served by the `fatwa-api` Cloudflare Worker backed by the `fatwa-web-content` D1 database.
-- `artifacts/admin-panel` provides fatwa CRUD, source attribution fields, dashboard counts, question review, and answer publishing.
-- The deployed admin frontend is available at `https://fatwa-admin.pages.dev` and uses the same Worker API. It is connected to this GitHub repository through the Cloudflare Pages project `fatwa-admin` and deploys from `main`.
-- Set `ADMIN_TOKEN` on the API server. The admin panel uses `VITE_ADMIN_TOKEN` for local development or asks for the token at login.
-- The current development store is file-backed and can be pointed at a persistent location with `CONTENT_STORE_FILE`. A Postgres/Drizzle adapter can be added without changing the API contract.
+## Automation (GitHub Actions)
 
-Example local run:
+| Workflow | Purpose |
+|---|---|
+| Check (typecheck) | Runs on every push: type-checks the app, admin panel and Worker |
+| Android release builds | Every push to `main`: signed APK and AAB artifacts (`versionCode` = 100 + run number) |
+| Deploy fatwa-api Worker | Manual: choose `staging` or `production`; smoke-tests and rolls back on failure |
+| Deploy admin panel and web preview | Manual: choose `staging` or `production` |
+| Load knowledge library | Manual: loads `data/kb` into the database |
 
-```bash
-ADMIN_TOKEN=change-me PORT=5000 pnpm --filter @workspace/api-server run dev
-VITE_API_URL=http://localhost:5000 VITE_ADMIN_TOKEN=change-me pnpm --filter @workspace/admin-panel run dev
-```
-
-Questions submitted from the mobile app are stored as `submitted`, appear in the admin inbox, and become `answered` after an admin publishes a response. The Worker creates an answer notification for the submitting device. The mobile question timeline remains locally available if the API is temporarily offline.
-
-## Development
+## Local development
 
 ```bash
 pnpm install
-pnpm --filter @workspace/fatwa-mobile run typecheck
-pnpm run typecheck
-pnpm --filter @workspace/fatwa-mobile run dev
+pnpm run typecheck                                  # app + admin panel
+pnpm --filter @workspace/fatwa-mobile run start     # Expo dev server
+cd workers/fatwa-api && pnpm install --ignore-workspace --ignore-scripts && pnpm exec tsc --noEmit
 ```
 
-The mobile app lives in `artifacts/fatwa-mobile`. Shared API/server packages are kept in the workspace for the later backend phase.
+The app talks to `EXPO_PUBLIC_API_URL` (default: the production Worker). Secrets (keystore, database tokens, SMTP, Firebase) live only in GitHub Actions secrets, never in the repo.
 
-## Android APK
-
-The Expo app is configured with package ID `com.fatwa.mobile` and an EAS preview profile that produces an installable APK:
-
-```bash
-cd artifacts/fatwa-mobile
-npx eas build --platform android --profile preview
-```
-
-The repository also contains `.github/workflows/android-apk.yml`. A push to `main` or a manual workflow dispatch generates a native release APK on GitHub-hosted Android tooling and uploads it as the `fatwa-mobile-preview-apk` artifact. For local native builds, generate the Android project and run Gradle from `artifacts/fatwa-mobile/android`.
+More: `docs/STATUS.md` (current state, Urdu), `docs/PUBLISHING_GUIDE.md`, `docs/DATABASE_TURSO.md`, `docs/KNOWLEDGE_BASE_INGEST_GUIDE.md`.

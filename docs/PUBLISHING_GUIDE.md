@@ -32,3 +32,10 @@ Privacy policy URL (`/privacy-policy`), Data safety form (location, profile, pho
 
 ## Push notifications
 Create a Firebase project, add Android app `com.fatwa.mobile`, download `google-services.json` into `artifacts/fatwa-mobile/` (commit it; it is not secret), and set the Worker secret `FCM_SERVICE_ACCOUNT` to the Firebase service-account JSON (`wrangler secret put FCM_SERVICE_ACCOUNT`). Until then in-app notifications work but phone push does not.
+
+## Release checks before a store upload
+- Package `com.fatwa.mobile`, target API 36 or newer. Never commit the keystore or passwords.
+- Play App Signing on; keep the upload key backed up (lost key: use Play Console's upload-key reset).
+- Feature graphic: `store-assets/feature-graphic-1024x500.png`. Use at least four real in-app screenshots (home, answers, ask, prayer/Qibla, community).
+- Test on a real phone: sign-in, notifications, exact alarm (adhan), photo upload, offline fallback, location denied, back navigation.
+- Release order: internal testing, closed testing, production. The version code must be higher than every earlier upload.
