@@ -24,7 +24,7 @@ export const extraSchema = (db: any) => [
   db.prepare('CREATE TABLE IF NOT EXISTS auth_otps (email TEXT PRIMARY KEY,code_hash TEXT NOT NULL,expires_at INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL)'),
 ];
 export const extraColumns: Record<string, Array<[string, string]>> = {
-  users: [['email', 'TEXT'], ['google_sub', 'TEXT'], ['banned_at', 'TEXT'], ['ban_reason', 'TEXT'], ['bio', 'TEXT'], ['auth_provider', 'TEXT'], ['welcomed_at', 'TEXT']],
+  users: [['email', 'TEXT'], ['google_sub', 'TEXT'], ['banned_at', 'TEXT'], ['ban_reason', 'TEXT'], ['bio', 'TEXT'], ['auth_provider', 'TEXT'], ['welcomed_at', 'TEXT'], ['cover_url', 'TEXT']],
 };
 
 const count = async (env: any, sql: string, ...b: unknown[]) => Number((await env.DB.prepare(sql).bind(...b).first())?.c ?? 0);
@@ -94,10 +94,10 @@ export async function publicExtras(c: Ctx): Promise<Response | null> {
   }
   const prof = path.match(/^\/users\/([^/]+)\/profile$/);
   if (prof && m === 'GET') {
-    const u = await env.DB.prepare('SELECT id,name,country,city,avatar_url,bio,created_at,banned_at FROM users WHERE id=?').bind(prof[1]).first();
+    const u = await env.DB.prepare('SELECT id,name,country,city,avatar_url,cover_url,bio,created_at,banned_at FROM users WHERE id=?').bind(prof[1]).first();
     if (!u || u.banned_at) return json({ error: 'User not found.' }, 404, origin);
     const posts = await env.DB.prepare("SELECT p.*,(SELECT COUNT(*) FROM post_likes l WHERE l.post_id=p.id) AS likes FROM posts p WHERE p.user_id=? AND p.status='published' ORDER BY p.created_at DESC LIMIT 100").bind(u.id).all();
-    return json({ user: { id: u.id, name: u.name, country: u.country || '', city: u.city || '', avatarUrl: u.avatar_url || '', bio: u.bio || '', joinedAt: u.created_at }, posts: posts.results.map(publicPostRow), likesReceived: posts.results.reduce((a: number, r: Row) => a + Number(r.likes || 0), 0) }, 200, origin);
+    return json({ user: { id: u.id, name: u.name, country: u.country || '', city: u.city || '', avatarUrl: u.avatar_url || '', coverUrl: u.cover_url || '', bio: u.bio || '', joinedAt: u.created_at }, posts: posts.results.map(publicPostRow), likesReceived: posts.results.reduce((a: number, r: Row) => a + Number(r.likes || 0), 0) }, 200, origin);
   }
   if (path === '/profile/bio' && m === 'POST') {
     const user = await c.userFor(env, request); if (!user) return json({ error: 'Sign in required.' }, 401, origin);

@@ -27,4 +27,6 @@ jobs:
         run: pnpm exec tsc --noEmit
       - name: API Worker
         working-directory: workers/fatwa-api
-        run: pnpm exec tsc --noEmit
+        run: |
+          pnpm install --ignore-workspace --ignore-scripts
+          pnpm exec tsc --noEmit

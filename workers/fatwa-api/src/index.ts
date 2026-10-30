@@ -425,6 +425,19 @@ async function handle(request: Request, env: Env) {
       return json({ ok: true }, 200, origin);
     }
     if (path === '/me' && request.method === 'GET') { const user = await userFor(env, request); if (!user) return json({ error: 'Not signed in.' }, 401, origin); return json({ user: publicUser(user) }, 200, origin); }
+    if (path === '/profile/cover' && request.method === 'POST') {
+      if (!await rateLimit(env, request, 'cover', 10)) return json({ error: 'Too many requests.' }, 429, origin);
+      const user = await userFor(env, request); if (!user) return json({ error: 'Sign in first.' }, 401, origin);
+      const form = await request.formData(); const file = form.get('cover');
+      if (!(file instanceof File)) {
+        if (form.get('remove') === '1') { await env.DB.prepare('UPDATE users SET cover_url=NULL,updated_at=? WHERE id=?').bind(now(), user.id).run(); return json({ ok: true, coverUrl: '' }, 200, origin); }
+        return json({ error: 'Choose a picture.' }, 400, origin);
+      }
+      const stored = await storeImage(env, url.origin, 'covers', file, 6 * 1024 * 1024);
+      if ('error' in stored) return json({ error: stored.error }, stored.status, origin);
+      await env.DB.prepare('UPDATE users SET cover_url=?,updated_at=? WHERE id=?').bind(stored.url, now(), user.id).run();
+      return json({ ok: true, coverUrl: stored.url }, 200, origin);
+    }
     if (path === '/profile/avatar' && request.method === 'POST') {
       if (!await rateLimit(env, request, 'avatar', 10)) return json({ error: 'Too many requests.' }, 429, origin);
       const user = await userFor(env, request); if (!user) return json({ error: 'Create your profile first.' }, 401, origin);

@@ -8,9 +8,13 @@ import { timeAgo } from '@/components/PostCard';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { API_BASE_URL, useApp } from '@/lib/store';
+import { IMAGE_PICKER_OPTIONS, uploadImage } from '@/lib/upload';
+
+/** Cover photos are always shown as a 2:1 banner; the picker crops to the same ratio (ideal size 1200 x 600). */
+const COVER_ASPECT: [number, number] = [2, 1];
 
 type ProfilePost = { id: string; title: string; body: string; imageUrl: string; createdAt: string; likes: number; status?: string; rejectionReason?: string };
-type PublicProfile = { user: { id: string; name: string; city: string; country: string; avatarUrl: string; bio: string; joinedAt: string }; posts: ProfilePost[]; likesReceived: number };
+type PublicProfile = { user: { id: string; name: string; city: string; country: string; avatarUrl: string; coverUrl?: string; bio: string; joinedAt: string }; posts: ProfilePost[]; likesReceived: number };
 
 /** Facebook-style profile: cover, avatar, bio, stats and the user's own posts. `userId` is the profile owner. */
 export function ProfileView({ userId, self, onEdit }: { userId: string; self?: boolean; onEdit?: () => void }) {
@@ -53,7 +57,32 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
     try { await uploadAvatar(result.assets[0]); void load(); } catch (e) { Alert.alert('Could not upload', e instanceof Error ? e.message : 'Try again.'); }
   };
 
+  const pickCover = async () => {
+    const ImagePicker = await import('expo-image-picker');
+    const result = await ImagePicker.launchImageLibraryAsync({ ...IMAGE_PICKER_OPTIONS, allowsEditing: true, aspect: COVER_ASPECT, quality: 0.7 });
+    if (result.canceled || !result.assets[0]?.uri) return;
+    try {
+      const response = await uploadImage(`${API_BASE_URL}/api/profile/cover`, result.assets[0], 'cover', {}, authHeaders());
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? 'Could not upload your cover photo.');
+      void load();
+    } catch (e) { Alert.alert('Could not upload', e instanceof Error ? e.message : 'Try again.'); }
+  };
+  const removeCover = async () => {
+    const form = new FormData();
+    form.append('remove', '1');
+    await fetch(`${API_BASE_URL}/api/profile/cover`, { method: 'POST', body: form, headers: authHeaders() }).catch(() => undefined);
+    void load();
+  };
+  const changeCover = () => {
+    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [{ text: data?.user.coverUrl ? 'Choose a new photo' : 'Choose a photo', onPress: () => void pickCover() }];
+    if (data?.user.coverUrl) buttons.push({ text: 'Remove cover photo', style: 'destructive', onPress: () => void removeCover() });
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Cover photo', 'The photo is cropped to a wide 2:1 banner (best size 1200 x 600), exactly as it appears on your profile.', buttons);
+  };
+
   const u = data?.user;
+  const cover = u?.coverUrl;
   const avatar = self ? profile.avatarUri || u?.avatarUrl : u?.avatarUrl;
   const name = (self ? profile.name : u?.name) || u?.name || 'Reader';
   const bio = self ? profile.bio ?? u?.bio : u?.bio;
@@ -66,7 +95,14 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
         <LinearGradient colors={[colors.forest, colors.green, colors.teal]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cover}>
           <StarPattern opacity={0.12} size={44} />
           <Feather name="moon" size={90} color="rgba(255,255,255,0.08)" style={styles.coverArt} />
+          {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel="Cover photo" /> : null}
         </LinearGradient>
+        {self && signedIn ? (
+          <Pressable onPress={changeCover} style={styles.coverBtn} accessibilityRole="button" accessibilityLabel="Change cover photo" testID="profile-cover">
+            <Feather name="image" size={14} color="#fff" />
+            <Text style={styles.coverBtnText}>{cover ? 'Edit cover' : 'Add cover photo'}</Text>
+          </Pressable>
+        ) : null}
         <View style={[styles.avatarRing, { borderColor: colors.background, backgroundColor: colors.primarySoft }]}>
           {avatar ? <Image source={{ uri: avatar }} style={styles.avatar} contentFit="cover" /> : <Text style={[styles.initial, { color: colors.primary }]}>{name[0]?.toUpperCase() ?? '?'}</Text>}
           {self && signedIn ? (
@@ -142,7 +178,9 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
 
 const styles = StyleSheet.create({
   coverWrap: { marginBottom: 52 },
-  cover: { height: 130, borderRadius: 26, overflow: 'hidden', justifyContent: 'center', alignItems: 'flex-end' },
+  cover: { aspectRatio: 2, width: '100%', borderRadius: 26, overflow: 'hidden', justifyContent: 'center', alignItems: 'flex-end' },
+  coverBtn: { position: 'absolute', right: 12, top: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.42)', borderRadius: 14, paddingHorizontal: 11, paddingVertical: 7 },
+  coverBtnText: { color: '#fff', fontSize: 11.5, fontWeight: '700' },
   coverArt: { marginRight: 24 },
   avatarRing: { position: 'absolute', left: 20, bottom: -48, width: 100, height: 100, borderRadius: 50, borderWidth: 4, alignItems: 'center', justifyContent: 'center' },
   avatar: { width: '100%', height: '100%', borderRadius: 50 },
