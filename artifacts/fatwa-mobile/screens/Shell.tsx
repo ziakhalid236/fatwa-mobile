@@ -6,6 +6,7 @@ import { BackHandler, Platform, Pressable, RefreshControl, StatusBar, StyleSheet
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { LogoMark } from '@/components/ui';
+import { ReportModal } from '@/components/ReportModal';
 import { TabBar } from '@/components/TabBar';
 import { useColors } from '@/hooks/useColors';
 import { NavProvider, type Nav, type Route } from '@/lib/nav';
@@ -28,10 +29,12 @@ import QuestionsScreen from '@/screens/QuestionsScreen';
 import QuestionDetailScreen from '@/screens/QuestionDetailScreen';
 import SavedScreen from '@/screens/SavedScreen';
 import SettingsScreen from '@/screens/SettingsScreen';
+import UserProfileScreen from '@/screens/UserProfileScreen';
 
 const titles: Record<string, string> = {
   post: 'Post',
   postSubmit: 'Share a reminder',
+  user: 'Profile',
   fatwa: 'Fatwa',
   fatwaList: 'Published rulings',
   quranList: 'Quran',
@@ -52,6 +55,7 @@ function Shell() {
   const [stack, setStack] = useState<Route[]>([]);
   const [askSignal, setAskSignal] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const handledNotificationResponses = React.useRef(new Set<string>());
 
   const route = stack.length ? stack[stack.length - 1] : { name: 'tabs' as const };
@@ -141,6 +145,10 @@ function Shell() {
 
   const onSettings = useCallback(() => push({ name: 'settings' }), [push]);
 
+  const REPORTABLE = new Set(['post', 'fatwa', 'questionDetail', 'reader', 'surah', 'quranList', 'user', 'fatwaList', 'postSubmit']);
+  const reportable = route.name === 'tabs' ? tab !== 'alarm' : REPORTABLE.has(route.name);
+  const pageName = route.name === 'tabs' ? tab : route.name;
+
   const header = () => {
     const title = route.name === 'surah' || route.name === 'reader' ? route.title : titles[route.name] ?? (route.name === 'tabs' && tab === 'alarm' ? 'Notifications' : undefined);
     const canGoBack = stack.length > 0 || tab !== 'home';
@@ -166,6 +174,12 @@ function Shell() {
           </View>
         )}
         {title ? <Text style={[styles.topBarTitle, { color: colors.foreground }]}>{title}</Text> : null}
+        <View style={styles.headerRight}>
+        {reportable ? (
+          <Pressable style={styles.headerSide} accessibilityRole="button" accessibilityLabel="Report a problem" onPress={() => setReportOpen(true)} testID="report-problem">
+            <Feather name="flag" size={18} color={colors.mutedForeground} />
+          </Pressable>
+        ) : null}
         <Pressable
           style={styles.headerSide}
           accessibilityRole="button"
@@ -177,6 +191,7 @@ function Shell() {
             <View style={[styles.notificationDot, { backgroundColor: colors.coral }]} />
           ) : null}
         </Pressable>
+        </View>
       </View>
     );
   };
@@ -184,6 +199,7 @@ function Shell() {
   let content: React.ReactNode;
   if (route.name === 'post') content = <PostDetailScreen postId={route.postId} />;
   else if (route.name === 'postSubmit') content = <PostSubmissionScreen />;
+  else if (route.name === 'user') content = <UserProfileScreen userId={route.userId} />;
   else if (route.name === 'fatwa') content = <FatwaDetailScreen fatwaId={route.fatwaId} />;
   else if (route.name === 'fatwaList') content = <FatwaScreen />;
   else if (route.name === 'legalIndex') content = <LegalIndex />;
@@ -224,6 +240,7 @@ function Shell() {
           </KeyboardAwareScrollViewCompat>
           {showTabBar ? <TabBar tab={tab} badge={unreadCount} onSelect={goTab} /> : null}
         </View>
+        <ReportModal visible={reportOpen} page={pageName} onClose={() => setReportOpen(false)} />
       </SafeAreaView>
     </NavProvider>
   );
@@ -267,6 +284,7 @@ const styles = StyleSheet.create({
   brandName: { fontSize: 23, fontWeight: '800', letterSpacing: -0.6 },
   hijriDate: { fontSize: 10.5, fontWeight: '500', marginTop: 2 },
   topBarTitle: { position: 'absolute', left: 70, right: 66, textAlign: 'center', fontSize: 16, fontWeight: '700' },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
   headerSide: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   notificationDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 9, right: 9 },
   tabBar: {

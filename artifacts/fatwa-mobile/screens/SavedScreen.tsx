@@ -49,6 +49,7 @@ export default function SavedScreen() {
               nav.push({ name: 'post', postId: post.id });
             }}
             onShare={() => undefined}
+          onAuthor={post.authorId ? () => nav.push({ name: 'user', userId: post.authorId as string }) : undefined}
           />
         ))
       ) : (

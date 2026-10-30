@@ -1,9 +1,9 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { Avatar, InfoBanner, SectionTitle, uiStyles } from '@/components/ui';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { AuthPanel } from '@/components/AuthPanel';
+import { ProfileView } from '@/components/ProfileView';
+import { InfoBanner, PrimaryButton, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
@@ -63,7 +63,6 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
     clearLocalData,
   } = useApp();
 
-  const answered = questions.filter((item) => item.status === 'Answered').length;
 
   const confirmClear = () => {
     Alert.alert(
@@ -83,41 +82,26 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
     );
   };
 
+  const { signedIn } = useApp();
+  const head = signedIn ? (
+    <View style={{ marginTop: 10 }}>
+      {profile.id ? <ProfileView userId={profile.id} self onEdit={onOpenSettings} /> : <ActivityIndicator color={colors.primary} style={{ marginVertical: 40 }} />}
+    </View>
+  ) : (
+    <View style={[styles.guest, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.guestIcon, { backgroundColor: colors.primarySoft }]}><Feather name="user" size={30} color={colors.primary} /></View>
+      <Text style={[styles.guestTitle, { color: colors.foreground }]}>Create your profile</Text>
+      <Text style={[styles.guestCopy, { color: colors.mutedForeground }]}>Share posts, build your own page and get notified when your questions are answered.</Text>
+      <AuthPanel onDone={() => undefined} />
+      <PrimaryButton label="Set up with name and city" icon="user-plus" onPress={onOpenSettings} />
+    </View>
+  );
+
   return (
     <View style={uiStyles.screenPadding}>
-      <LinearGradient
-        colors={[colors.forest, colors.green]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.banner}
-      >
-        <View style={styles.bannerAvatar}>
-          {profile.avatarUri ? <Image source={{ uri: profile.avatarUri }} style={styles.bannerAvatarImage} contentFit="cover" /> : <Feather name="user" size={26} color={colors.primary} />}
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.bannerName}>{profile.name.trim() || 'Guest reader'}</Text>
-          <Text style={styles.bannerSub}>{profile.city.trim() || 'Your private Fatwa profile'}</Text>
-        </View>
-        <Pressable onPress={onOpenSettings} accessibilityRole="button" accessibilityLabel="Settings">
-          <Feather name="settings" size={20} color="#FFFFFF" />
-        </Pressable>
-      </LinearGradient>
+      {head}
 
-      <View style={styles.statsRow}>
-        <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>{questions.length}</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Questions</Text>
-        </View>
-        <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>{answered}</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Answered</Text>
-        </View>
-        <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>{savedPostIds.length}</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Saved</Text>
-        </View>
-      </View>
-
+      <View style={{ height: 14 }} />
       <SectionTitle title="Your space" />
       <ProfileRow
         icon="message-square"
@@ -204,6 +188,10 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
 }
 
 const styles = StyleSheet.create({
+  guest: { borderWidth: 1, borderRadius: 26, padding: 22, marginTop: 10, gap: 12, alignItems: 'stretch' },
+  guestIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
+  guestTitle: { fontSize: 20, fontWeight: '800', textAlign: 'center' },
+  guestCopy: { fontSize: 13, lineHeight: 20, textAlign: 'center' },
   banner: { borderRadius: 26, padding: 19, flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 10 },
   bannerAvatar: {
     width: 52,

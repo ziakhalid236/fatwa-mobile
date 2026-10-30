@@ -5,6 +5,7 @@ export type Route =
   | { name: 'tabs' }
   | { name: 'post'; postId: string }
   | { name: 'postSubmit' }
+  | { name: 'user'; userId: string }
   | { name: 'fatwa'; fatwaId: string }
   | { name: 'ask' }
   | { name: 'fatwaList' }

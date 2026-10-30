@@ -1,4 +1,5 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
@@ -22,6 +23,10 @@ export default function PostSubmissionScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const imageUri = imageAsset?.uri ?? '';
+  const MAX_CHARS = 5000;
+  // Keep what the user typed if they leave the screen before sending.
+  React.useEffect(() => { void AsyncStorage.getItem('fatwa.postDraft').then((d) => { if (d) setBody((cur) => cur || d); }); }, []);
+  React.useEffect(() => { const t = setTimeout(() => { void (body ? AsyncStorage.setItem('fatwa.postDraft', body) : AsyncStorage.removeItem('fatwa.postDraft')); }, 400); return () => clearTimeout(t); }, [body]);
 
   const pickPhoto = async () => {
     try {
@@ -73,6 +78,7 @@ export default function PostSubmissionScreen() {
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Unable to send your post');
       refreshContent();
+      void AsyncStorage.removeItem('fatwa.postDraft');
       setSubmitted(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not send post. Please try again.');
@@ -113,8 +119,10 @@ export default function PostSubmissionScreen() {
         placeholderTextColor={colors.mutedForeground}
         multiline
         textAlignVertical="top"
+        maxLength={MAX_CHARS}
         style={[styles.textarea, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
       />
+      <Text style={[styles.counter, { color: body.length > MAX_CHARS * 0.9 ? colors.coral : colors.mutedForeground }]}>{body.length}/{MAX_CHARS} · draft saved automatically</Text>
       <SectionTitle title="Photo (optional)" subtitle="The full image will be uploaded without forcing a crop. You can share it without a description." />
       <Pressable
         onPress={() => { if (!submitted && !busy) void pickPhoto(); }}
@@ -160,7 +168,8 @@ const styles = StyleSheet.create({
   feedback: { flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderRadius: 15, padding: 13, marginBottom: 18 },
   feedbackText: { flex: 1, fontSize: 12, lineHeight: 18, fontWeight: '600' },
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
-  textarea: { minHeight: 160, borderWidth: 1, borderRadius: 18, padding: 15, fontSize: 14, lineHeight: 22, marginBottom: 17 },
+  textarea: { minHeight: 160, borderWidth: 1, borderRadius: 18, padding: 15, fontSize: 14, lineHeight: 22, marginBottom: 6 },
+  counter: { fontSize: 10.5, textAlign: 'right', marginBottom: 14 },
   note: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', marginTop: 15 },
   noteText: { fontSize: 11, textAlign: 'center' },
   photoPicker: { minHeight: 150, borderWidth: 1, borderStyle: 'dashed', borderRadius: 18, overflow: 'hidden', marginBottom: 8 },

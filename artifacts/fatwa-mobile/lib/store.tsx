@@ -86,6 +86,8 @@ type AppState = {
   saveProfile: (input: { name: string; country: string; city: string; notifyPosts?: boolean }) => Promise<void>;
   uploadAvatar: (asset: ImagePicker.ImagePickerAsset) => Promise<void>;
   authHeaders: () => Record<string, string>;
+  applyAuth: (payload: { sessionToken: string; user: { id?: string; name?: string; country?: string; city?: string; avatarUrl?: string; email?: string; bio?: string } }) => void;
+  setBio: (bio: string) => Promise<void>;
   setProfile: (patch: Partial<Profile>) => void;
   setSettings: (patch: Partial<Settings>) => void;
   setPrayerCity: (city: PrayerCity) => void;
@@ -404,6 +406,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 body: String(item.body ?? ''),
                 category: mapCategory(item.category),
                 author: String(item.author ?? 'Community contributor'),
+                authorId: typeof item.authorId === 'string' && item.authorId ? item.authorId : undefined,
                 authorImageUrl: typeof item.authorImageUrl === 'string' && item.authorImageUrl ? item.authorImageUrl : undefined,
                 city: typeof item.city === 'string' ? item.city : undefined,
                 country: typeof item.country === 'string' ? item.country : undefined,
@@ -491,17 +494,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ deviceId, name: input.name.trim(), country: input.country.trim(), city: input.city.trim(), ...(typeof input.notifyPosts === 'boolean' ? { notifyPosts: input.notifyPosts } : {}) }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string; sessionToken?: string; user?: { avatarUrl?: string } };
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; sessionToken?: string; user?: { id?: string; avatarUrl?: string; email?: string; bio?: string } };
       if (!response.ok || !payload.sessionToken) throw new Error(payload.error ?? 'Could not save your profile. Check your connection and try again.');
       storeSession(payload.sessionToken);
       const next: Profile = { ...profileRef.current, name: input.name.trim(), country: input.country.trim(), city: input.city.trim() };
       if (payload.user?.avatarUrl) next.avatarUri = payload.user.avatarUrl;
+      if (payload.user?.id) next.id = payload.user.id;
+      if (payload.user?.email) next.email = payload.user.email;
+      if (payload.user?.bio !== undefined) next.bio = payload.user.bio;
       profileRef.current = next;
       setProfileState(next);
       persist([[STORE_KEYS.profile, next]]);
     },
     [authHeaders, persist, storeSession],
   );
+
+  const applyAuth = useCallback(
+    (payload: { sessionToken: string; user: { id?: string; name?: string; country?: string; city?: string; avatarUrl?: string; email?: string; bio?: string } }) => {
+      storeSession(payload.sessionToken);
+      const u = payload.user;
+      const next: Profile = {
+        ...profileRef.current,
+        id: u.id, email: u.email, bio: u.bio,
+        name: u.name || profileRef.current.name,
+        country: u.country || profileRef.current.country,
+        city: u.city || profileRef.current.city,
+        avatarUri: u.avatarUrl || profileRef.current.avatarUri,
+      };
+      profileRef.current = next;
+      setProfileState(next);
+      persist([[STORE_KEYS.profile, next]]);
+    },
+    [persist, storeSession],
+  );
+
+  const setBio = useCallback(
+    async (bio: string) => {
+      const response = await fetch(`${API_BASE_URL}/api/profile/bio`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ bio }) });
+      if (!response.ok) throw new Error('Could not save your bio.');
+      const next: Profile = { ...profileRef.current, bio: bio.trim().slice(0, 200) };
+      profileRef.current = next;
+      setProfileState(next);
+      persist([[STORE_KEYS.profile, next]]);
+    },
+    [authHeaders, persist],
+  );
+
+  // Older installs have a session but no stored user id: fetch it once so the profile can load its posts.
+  useEffect(() => {
+    if (!hydrated || !sessionToken || profileRef.current.id) return;
+    void fetch(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${sessionToken}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p: { user?: { id?: string; email?: string; bio?: string } } | null) => {
+        if (!p?.user?.id) return;
+        const next: Profile = { ...profileRef.current, id: p.user.id, email: p.user.email, bio: p.user.bio };
+        profileRef.current = next;
+        setProfileState(next);
+        persist([[STORE_KEYS.profile, next]]);
+      })
+      .catch(() => undefined);
+  }, [hydrated, sessionToken, persist]);
 
   const uploadAvatar = useCallback(
     async (asset: ImagePicker.ImagePickerAsset) => {
@@ -879,6 +931,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveProfile,
       uploadAvatar,
       authHeaders,
+      applyAuth,
+      setBio,
       setProfile,
       setSettings,
       setPrayerCity,
@@ -915,6 +969,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveProfile,
       uploadAvatar,
       authHeaders,
+      applyAuth,
+      setBio,
       setProfile,
       setSettings,
       setPrayerCity,

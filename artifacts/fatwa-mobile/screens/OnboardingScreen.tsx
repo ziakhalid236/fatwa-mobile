@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { ActivityIndicator, Linking, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AuthPanel } from '@/components/AuthPanel';
 import { LogoMark, PrimaryButton } from '@/components/ui';
 import { ensureNotificationPermissions } from '@/lib/adhan';
 import { detectPlace } from '@/lib/geo';
@@ -33,7 +34,7 @@ function PermissionRow({ icon, title, copy, state }: { icon: keyof typeof Feathe
 
 export default function OnboardingScreen() {
   const colors = useColors();
-  const { saveProfile, uploadAvatar, completeOnboarding, profile, setProfile } = useApp();
+  const { saveProfile, uploadAvatar, completeOnboarding, profile, setProfile, signedIn } = useApp();
   const [step, setStep] = useState<Step>('permissions');
   const [busy, setBusy] = useState(false);
   const [notificationState, setNotificationState] = useState<'idle' | 'granted' | 'denied'>('idle');
@@ -43,6 +44,8 @@ export default function OnboardingScreen() {
   const [city, setCity] = useState(profile.city);
   const [avatar, setAvatar] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [error, setError] = useState('');
+
+  React.useEffect(() => { if (profile.name && !name) setName(profile.name); }, [profile.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const allowPermissions = async () => {
     setBusy(true);
@@ -100,7 +103,7 @@ export default function OnboardingScreen() {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <LinearGradient colors={[colors.forest, colors.green]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
             <LogoMark size={46} />
-            <Text style={styles.heroTitle}>{step === 'permissions' ? 'Welcome to Fatwa' : 'Create your account'}</Text>
+            <Text style={styles.heroTitle}>{step === 'permissions' ? 'Welcome to Fatwa' : signedIn ? 'Complete your profile' : 'Create your account'}</Text>
             <Text style={styles.heroCopy}>
               {step === 'permissions' ? 'Authentic guidance, community reminders and prayer tools in one place.' : 'Your name and city are shown on your posts, and nearby posts appear first in your feed.'}
             </Text>
@@ -118,6 +121,7 @@ export default function OnboardingScreen() {
             </View>
           ) : (
             <View style={styles.body}>
+              {!signedIn ? <AuthPanel onDone={(needsProfile) => { if (!needsProfile) completeOnboarding(); }} /> : null}
               <Pressable onPress={() => void pickAvatar()} style={styles.avatarWrap} accessibilityRole="button" accessibilityLabel="Choose profile picture" testID="onboarding-avatar">
                 <View style={[styles.avatar, { backgroundColor: colors.primarySoft, borderColor: colors.border }]}>
                   {avatar ? <Image source={{ uri: avatar.uri }} style={styles.avatarImage} contentFit="cover" /> : <Feather name="camera" size={26} color={colors.primary} />}

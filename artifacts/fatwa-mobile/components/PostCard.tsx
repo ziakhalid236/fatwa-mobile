@@ -39,6 +39,7 @@ export function PostCard({
   onToggleSave,
   onOpen,
   onShare,
+  onAuthor,
   nearby = false,
 }: {
   post: Post;
@@ -49,6 +50,7 @@ export function PostCard({
   onToggleSave: () => void;
   onOpen: () => void;
   onShare: () => void;
+  onAuthor?: () => void;
   nearby?: boolean;
 }) {
   const colors = useColors();
@@ -74,7 +76,7 @@ export function PostCard({
       testID={`post-card-${post.id}`}
     >
       <View style={styles.body}>
-        <View style={styles.authorHeader}>
+        <Pressable style={styles.authorHeader} onPress={onAuthor} disabled={!onAuthor} accessibilityRole={onAuthor ? 'button' : undefined}>
           {post.authorImageUrl ? <Image source={{ uri: post.authorImageUrl }} style={styles.authorAvatar} contentFit="cover" /> : <Avatar size={38} icon="user" />}
           <View style={styles.authorMeta}>
             <Text style={[styles.author, { color: colors.foreground }]} numberOfLines={1}>
@@ -83,7 +85,7 @@ export function PostCard({
             {meta ? <View style={styles.metaLine}><Feather name="map-pin" size={11} color={colors.mutedForeground} /><Text style={[styles.date, { color: colors.mutedForeground }]} numberOfLines={1}>{meta}</Text></View> : null}
           </View>
           {nearby ? <View style={[styles.nearby, { backgroundColor: colors.primarySoft }]}><Text style={[styles.nearbyText, { color: colors.primary }]}>Near you</Text></View> : null}
-        </View>
+        </Pressable>
 
         {!imageOnly ? <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={post.title}>
           {showTitle ? (

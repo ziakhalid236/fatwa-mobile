@@ -33,21 +33,30 @@ async function nativeBytes(asset: ImagePicker.ImagePickerAsset): Promise<Uint8Ar
 }
 
 /** Uploads one picked image as multipart/form-data, on web and on Android/iOS. */
-export async function uploadImage(
+export function uploadImage(url: string, asset: ImagePicker.ImagePickerAsset, fileField: string, fields: Record<string, string>, headers: Record<string, string> = {}): Promise<Response> {
+  return uploadImages(url, [asset], fileField, fields, headers);
+}
+
+/** Uploads several picked images (same field name repeated) as multipart/form-data. */
+export async function uploadImages(
   url: string,
-  asset: ImagePicker.ImagePickerAsset,
+  assets: ImagePicker.ImagePickerAsset[],
   fileField: string,
   fields: Record<string, string>,
   headers: Record<string, string> = {},
 ): Promise<Response> {
-  const mime = (asset.mimeType ?? 'image/jpeg').toLowerCase();
-  const fileName = asset.fileName ?? `upload-${Date.now()}.${mime.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'}`;
+  const named = assets.map((asset, i) => {
+    const mime = (asset.mimeType ?? 'image/jpeg').toLowerCase();
+    return { asset, mime, fileName: asset.fileName ?? `upload-${Date.now()}-${i}.${mime.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'}` };
+  });
 
   if (Platform.OS === 'web') {
     const form = new FormData();
     for (const [key, value] of Object.entries(fields)) form.append(key, value);
-    const file = asset.file ?? new File([await (await fetch(asset.uri)).blob()], fileName, { type: mime });
-    form.append(fileField, file, fileName);
+    for (const { asset, mime, fileName } of named) {
+      const file = asset.file ?? new File([await (await fetch(asset.uri)).blob()], fileName, { type: mime });
+      form.append(fileField, file, fileName);
+    }
     return fetch(url, { method: 'POST', body: form, headers });
   }
 
@@ -57,9 +66,12 @@ export async function uploadImage(
   for (const [key, value] of Object.entries(fields)) {
     parts.push(encoder.encode(`--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`));
   }
-  parts.push(encoder.encode(`--${boundary}\r\nContent-Disposition: form-data; name="${fileField}"; filename="${encodeURIComponent(fileName)}"\r\nContent-Type: ${mime}\r\n\r\n`));
-  parts.push(await nativeBytes(asset));
-  parts.push(encoder.encode(`\r\n--${boundary}--\r\n`));
+  for (const { asset, mime, fileName } of named) {
+    parts.push(encoder.encode(`--${boundary}\r\nContent-Disposition: form-data; name="${fileField}"; filename="${encodeURIComponent(fileName)}"\r\nContent-Type: ${mime}\r\n\r\n`));
+    parts.push(await nativeBytes(asset));
+    parts.push(encoder.encode('\r\n'));
+  }
+  parts.push(encoder.encode(`--${boundary}--\r\n`));
   const total = parts.reduce((sum, part) => sum + part.length, 0);
   const body = new Uint8Array(total);
   let offset = 0;

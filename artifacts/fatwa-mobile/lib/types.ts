@@ -40,6 +40,7 @@ export type Post = {
   category: PostCategory;
   author: string;
   authorImageUrl?: string;
+  authorId?: string;
   city?: string;
   country?: string;
   imageUrl?: string;
@@ -119,6 +120,9 @@ export type Profile = {
   country: string;
   city: string;
   avatarUri?: string;
+  id?: string;
+  bio?: string;
+  email?: string;
 };
 
 export type PrayerCity = {
