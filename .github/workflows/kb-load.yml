@@ -47,7 +47,7 @@ jobs:
         run: |
           if [ -z "$PROD_ADMIN_TOKEN" ]; then echo "::warning::PROD_ADMIN_TOKEN is not set"; exit 0; fi
           mkdir -p kb_cache
-          cp data/kb/darulifta.jsonl kb_cache/darulifta.jsonl
+          gunzip -c data/kb/darulifta.jsonl.gz > kb_cache/darulifta.jsonl
           printf '%s' "$PROD_ADMIN_TOKEN" > "$RUNNER_TEMP/token"
           python tools/kb/kbtool.py "$API_URL" "$RUNNER_TEMP/token" all data/kb/scholars.xlsx
       - name: Save progress
