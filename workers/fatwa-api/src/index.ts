@@ -151,6 +151,8 @@ async function createSchema(env: Env) {
     for (const [name, type] of columns) {
       if (have.has(name)) continue;
       try { await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`).run(); } catch (error) { if (!String(error).includes('duplicate column')) throw error; }
+      // Accounts that existed before welcome tracking already received their welcome mail.
+      if (table === 'users' && name === 'welcomed_at') await env.DB.prepare('UPDATE users SET welcomed_at=created_at WHERE email IS NOT NULL').run();
     }
   }
 }
@@ -166,9 +168,10 @@ function publicUser(user: Row) { return { notifyPosts: user.notify_posts !== 0 &
 
 async function saveProfile(env: Env, existing: Row | null, request: Request, body: Row) {
   const name = String(body.name || '').trim();
-  const country = String(body.country || '').trim();
-  const city = String(body.city || '').trim();
-  if (name.length < 2 || country.length < 2 || city.length < 2) throw new Error('invalid_profile');
+  // Accounts are created by sign-in; country and city come from the connection, so only a name is required here.
+  const country = String(body.country || existing?.country || '').trim();
+  const city = String(body.city || existing?.city || '').trim();
+  if (name.length < 2) throw new Error('invalid_profile');
   const timestamp = now();
   if (existing) {
     const notifyPosts = typeof body.notifyPosts === 'boolean' ? (body.notifyPosts ? 1 : 0) : (existing.notify_posts === 0 ? 0 : 1);

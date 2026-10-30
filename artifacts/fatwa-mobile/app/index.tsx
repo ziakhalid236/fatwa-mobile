@@ -3,10 +3,9 @@ import AppShell from '@/screens/Shell';
 import OnboardingScreen from '@/screens/OnboardingScreen';
 
 export default function IndexScreen() {
-  const { hydrated, onboarded, signedIn, profile } = useApp();
+  const { hydrated, onboarded, signedIn } = useApp();
   if (!hydrated) return null;
-  // First launch: permissions, then account. Installs that already have a profile skip it.
-  const hasProfile = profile.name.trim().length >= 2 && profile.city.trim().length >= 2;
-  if (!onboarded && !signedIn && !hasProfile) return <OnboardingScreen />;
+  // First launch: permissions, then sign-in with Google or email.
+  if (!onboarded && !signedIn) return <OnboardingScreen />;
   return <AppShell />;
 }

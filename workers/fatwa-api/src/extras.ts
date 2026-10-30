@@ -18,10 +18,13 @@ export interface Ctx {
 export const extraSchema = (db: any) => [
   db.prepare("CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY,user_id TEXT,name TEXT,message TEXT NOT NULL,page TEXT,app_version TEXT,platform TEXT,screenshots TEXT NOT NULL DEFAULT '[]',status TEXT NOT NULL DEFAULT 'new',admin_note TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
   db.prepare('CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at)'),
+  db.prepare('CREATE TABLE IF NOT EXISTS visits (id TEXT PRIMARY KEY,device_id TEXT NOT NULL,user_id TEXT,country TEXT,country_code TEXT,city TEXT,platform TEXT,app_version TEXT,created_at TEXT NOT NULL)'),
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_visits_created ON visits(created_at)'),
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_visits_device ON visits(device_id, created_at)'),
   db.prepare('CREATE TABLE IF NOT EXISTS auth_otps (email TEXT PRIMARY KEY,code_hash TEXT NOT NULL,expires_at INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL)'),
 ];
 export const extraColumns: Record<string, Array<[string, string]>> = {
-  users: [['email', 'TEXT'], ['google_sub', 'TEXT'], ['banned_at', 'TEXT'], ['ban_reason', 'TEXT'], ['bio', 'TEXT'], ['auth_provider', 'TEXT']],
+  users: [['email', 'TEXT'], ['google_sub', 'TEXT'], ['banned_at', 'TEXT'], ['ban_reason', 'TEXT'], ['bio', 'TEXT'], ['auth_provider', 'TEXT'], ['welcomed_at', 'TEXT']],
 };
 
 const count = async (env: any, sql: string, ...b: unknown[]) => Number((await env.DB.prepare(sql).bind(...b).first())?.c ?? 0);
@@ -33,6 +36,14 @@ async function newSession(c: Ctx, userId: string) {
   await c.env.DB.prepare('INSERT INTO sessions(id,user_id,token_hash,expires_at,created_at,last_seen_at) VALUES(?,?,?,?,?,?)').bind(c.id('session'), userId, await c.hash(raw), new Date(Date.now() + 180 * 86400000).toISOString(), t, t).run();
   return raw;
 }
+let regionNames: any = null;
+export function geoOf(request: Request): { country: string; code: string; city: string } {
+  const cf: Row = (request as any).cf || {}; const code = String(cf.country || '').toUpperCase();
+  let country = '';
+  if (/^[A-Z]{2}$/.test(code) && code !== 'XX' && code !== 'T1') { try { regionNames ||= new (Intl as any).DisplayNames(['en'], { type: 'region' }); country = regionNames.of(code) || code; } catch { country = code; } }
+  return { country, code, city: String(cf.city || '').slice(0, 80) };
+}
+
 async function signInOrCreate(c: Ctx, p: { email: string; name: string; sub?: string; provider: string; avatar?: string; deviceId?: string }) {
   const { env } = c;
   let u = (p.sub ? await env.DB.prepare('SELECT * FROM users WHERE google_sub=?').bind(p.sub).first() : null) || await env.DB.prepare('SELECT * FROM users WHERE lower(email)=?').bind(p.email.toLowerCase()).first();
@@ -40,13 +51,21 @@ async function signInOrCreate(c: Ctx, p: { email: string; name: string; sub?: st
   const t = c.now(); let created = false;
   if (!u) {
     created = true;
-    const uid = c.id('user'); const device = `${(p.deviceId || p.provider).slice(0, 40)}-${crypto.randomUUID().slice(0, 8)}`;
-    await env.DB.prepare('INSERT INTO users(id,device_id,name,country,city,avatar_url,email,google_sub,auth_provider,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(uid, device, p.name.slice(0, 60) || p.email.split('@')[0], '', '', p.avatar || null, p.email.toLowerCase(), p.sub || null, p.provider, t, t).run();
+    const geo = geoOf(c.request); const uid = c.id('user'); const device = `${(p.deviceId || p.provider).slice(0, 40)}-${crypto.randomUUID().slice(0, 8)}`;
+    await env.DB.prepare('INSERT INTO users(id,device_id,name,country,city,avatar_url,email,google_sub,auth_provider,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(uid, device, p.name.slice(0, 60) || p.email.split('@')[0], geo.country, geo.city, p.avatar || null, p.email.toLowerCase(), p.sub || null, p.provider, t, t).run();
     u = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(uid).first();
-  } else if (p.sub && !u.google_sub) await env.DB.prepare('UPDATE users SET google_sub=?,updated_at=? WHERE id=?').bind(p.sub, t, u.id).run();
-  if (created && p.email) { const w = welcomeMail(u!.name); await sendMail(env, p.email, w.subject, w.text, w.html).catch(() => {}); }
+  } else {
+    if (p.sub && !u.google_sub) await env.DB.prepare('UPDATE users SET google_sub=?,updated_at=? WHERE id=?').bind(p.sub, t, u.id).run();
+    if (!u.country && !u.city) { const geo = geoOf(c.request); if (geo.country) await env.DB.prepare('UPDATE users SET country=?,city=?,updated_at=? WHERE id=?').bind(geo.country, geo.city, t, u.id).run(); }
+    u = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(u.id).first();
+  }
+  // Welcome mail goes out once per account, on the first sign-in (Google or email code).
+  if (p.email && !u!.welcomed_at) {
+    await env.DB.prepare('UPDATE users SET welcomed_at=? WHERE id=?').bind(t, u!.id).run();
+    const w = welcomeMail(u!.name, p.provider); await sendMail(env, p.email, w.subject, w.text, w.html).catch((e) => console.error('welcome_mail', String(e)));
+  }
   const sessionToken = await newSession(c, u!.id);
-  return c.json({ ok: true, sessionToken, user: { ...c.publicUser(u!), email: u!.email || p.email, bio: u!.bio || '' }, needsProfile: !(u!.country && u!.city) }, 200, c.origin);
+  return c.json({ ok: true, sessionToken, user: { ...c.publicUser(u!), email: u!.email || p.email, bio: u!.bio || '' }, needsProfile: false }, 200, c.origin);
 }
 
 export async function publicExtras(c: Ctx): Promise<Response | null> {
@@ -62,6 +81,16 @@ export async function publicExtras(c: Ctx): Promise<Response | null> {
     const user = await c.userFor(env, request); const t = c.now(); const rid = c.id('report');
     await env.DB.prepare('INSERT INTO reports(id,user_id,name,message,page,app_version,platform,screenshots,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(rid, user?.id || null, user?.name || String(form.get('name') || '').slice(0, 60) || 'Guest', message, String(form.get('page') || '').slice(0, 60), String(form.get('appVersion') || '').slice(0, 20), String(form.get('platform') || '').slice(0, 20), JSON.stringify(urls), 'new', t, t).run();
     return json({ ok: true, id: rid }, 201, origin);
+  }
+  if (path === '/ping' && m === 'POST') {
+    if (!await c.rateLimit(env, request, 'ping', 40)) return json({ ok: true }, 200, origin);
+    const b = await c.readJson(request); const device = String(b.deviceId || '').trim().slice(0, 80);
+    if (device.length < 8) return json({ ok: true }, 200, origin);
+    const user = await c.userFor(env, request); const geo = geoOf(request); const t = c.now();
+    const recent = await env.DB.prepare('SELECT 1 AS x FROM visits WHERE device_id=? AND created_at>?').bind(device, new Date(Date.now() - 30 * 60000).toISOString()).first();
+    if (!recent) await env.DB.prepare('INSERT INTO visits(id,device_id,user_id,country,country_code,city,platform,app_version,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(c.id('visit'), device, user?.id || null, geo.country, geo.code, geo.city, String(b.platform || '').slice(0, 20), String(b.appVersion || '').slice(0, 20), t).run();
+    if (user && !user.country && !user.city && geo.country) await env.DB.prepare('UPDATE users SET country=?,city=? WHERE id=?').bind(geo.country, geo.city, user.id).run();
+    return json({ ok: true }, 200, origin);
   }
   const prof = path.match(/^\/users\/([^/]+)\/profile$/);
   if (prof && m === 'GET') {
@@ -135,6 +164,26 @@ export async function adminExtras(c: Ctx): Promise<Response | null> {
     return json({
       totals: { ...totalsRow, aiChats: ai }, series: { users: uS, posts: pS, reports: rS }, categories: cats.results, recent: recent.results,
     }, 200, origin);
+  }
+  if (path === '/admin/traffic' && m === 'GET') {
+    const day = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+    const all = async (sql: string, ...b: unknown[]) => (await env.DB.prepare(sql).bind(...b).all()).results;
+    const win = async (n: number) => (await env.DB.prepare('SELECT COUNT(*) AS visits, COUNT(DISTINCT device_id) AS devices FROM visits WHERE created_at>=?').bind(day(n)).first()) as Row;
+    const since30 = day(30); const since14 = day(14);
+    const [d1, d7, d30, byCountry, byCity, usersCountry, usersCity, platforms, ser, recent, newUsers] = await Promise.all([
+      win(1), win(7), win(30),
+      all("SELECT COALESCE(NULLIF(country,''),'Unknown') AS country, MAX(country_code) AS code, COUNT(*) AS visits, COUNT(DISTINCT device_id) AS devices FROM visits WHERE created_at>=? GROUP BY 1 ORDER BY devices DESC, visits DESC LIMIT 50", since30),
+      all("SELECT COALESCE(NULLIF(city,''),'Unknown') AS city, COALESCE(NULLIF(country,''),'Unknown') AS country, COUNT(*) AS visits, COUNT(DISTINCT device_id) AS devices FROM visits WHERE created_at>=? GROUP BY 1,2 ORDER BY devices DESC, visits DESC LIMIT 100", since30),
+      all("SELECT COALESCE(NULLIF(country,''),'Unknown') AS country, COUNT(*) AS users FROM users GROUP BY 1 ORDER BY users DESC LIMIT 50"),
+      all("SELECT COALESCE(NULLIF(city,''),'Unknown') AS city, COALESCE(NULLIF(country,''),'Unknown') AS country, COUNT(*) AS users FROM users GROUP BY 1,2 ORDER BY users DESC LIMIT 100"),
+      all("SELECT COALESCE(NULLIF(platform,''),'unknown') AS platform, COUNT(DISTINCT device_id) AS devices FROM visits WHERE created_at>=? GROUP BY 1 ORDER BY devices DESC", since30),
+      all('SELECT substr(created_at,1,10) AS d, COUNT(*) AS visits, COUNT(DISTINCT device_id) AS devices FROM visits WHERE created_at>=? GROUP BY d', since14),
+      all("SELECT v.created_at AS at, v.country, v.city, v.platform, u.name AS user FROM visits v LEFT JOIN users u ON u.id=v.user_id ORDER BY v.created_at DESC LIMIT 12"),
+      count(env, 'SELECT COUNT(*) AS c FROM users WHERE created_at>=?', day(7)),
+    ]);
+    const mp = new Map(ser.map((r: Row) => [r.d, r]));
+    const series = Array.from({ length: 14 }, (_, i) => { const d = new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10); const r: Row | undefined = mp.get(d); return { date: d, visits: Number(r?.visits || 0), devices: Number(r?.devices || 0) }; });
+    return json({ windows: { day: d1, week: d7, month: d30 }, newUsersWeek: newUsers, byCountry, byCity, usersCountry, usersCity, platforms, series, recent }, 200, origin);
   }
   if (path === '/admin/reports' && m === 'GET') {
     const st = c.url.searchParams.get('status'); const q = st ? await env.DB.prepare('SELECT * FROM reports WHERE status=? ORDER BY created_at DESC LIMIT 300').bind(st).all() : await env.DB.prepare('SELECT * FROM reports ORDER BY created_at DESC LIMIT 300').all();

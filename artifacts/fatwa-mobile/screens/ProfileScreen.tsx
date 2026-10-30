@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AuthPanel } from '@/components/AuthPanel';
 import { ProfileView } from '@/components/ProfileView';
-import { PrimaryButton, uiStyles } from '@/components/ui';
+import { uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
@@ -55,10 +55,9 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
       ) : (
         <View style={[styles.guest, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.guestIcon, { backgroundColor: colors.primarySoft }]}><Feather name="user" size={30} color={colors.primary} /></View>
-          <Text style={[styles.guestTitle, { color: colors.foreground }]}>Create your profile</Text>
+          <Text style={[styles.guestTitle, { color: colors.foreground }]}>Sign in to Fatwa</Text>
           <Text style={[styles.guestCopy, { color: colors.mutedForeground }]}>Share posts, build your own page and get notified when your questions are answered.</Text>
           <AuthPanel onDone={() => undefined} />
-          <PrimaryButton label="Set up with name and city" icon="user-plus" onPress={onOpenSettings} />
         </View>
       )}
 

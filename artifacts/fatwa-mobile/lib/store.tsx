@@ -8,7 +8,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { AppState as NativeAppState } from 'react-native';
+import Constants from 'expo-constants';
+import { AppState as NativeAppState, Platform } from 'react-native';
 import { defaultCity, prayerCities } from '@/data/content';
 import { notifyNow } from '@/lib/adhan';
 import { registerDevicePush } from '@/lib/push';
@@ -464,7 +465,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void syncRemoteNotifications();
       void syncRemoteQuestions();
     }, 30_000);
-    const appState = NativeAppState.addEventListener('change', (state) => {
+    const appState = NativeNativeAppState.addEventListener('change', (state) => {
       if (state === 'active') {
         void syncRemoteNotifications({ announce: true });
         void syncRemoteQuestions();
@@ -608,12 +609,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void saveProfile({ name: current.name, country: current.country, city: current.city, notifyPosts: wanted }).catch(() => { syncedAlertsRef.current = null; });
   }, [hydrated, sessionToken, settings.notificationsEnabled, saveProfile]);
 
+  // Anonymous visit ping (device id + connection country/city, resolved on the server) for the admin traffic charts.
   useEffect(() => {
-    if (!hydrated || sessionToken) return;
-    const { name, country, city } = profile;
-    if (name.trim().length >= 2 && country.trim().length >= 2 && city.trim().length >= 2) void saveProfile({ name, country, city }).catch(() => undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated]);
+    if (!hydrated || !API_BASE_URL) return;
+    let last = 0;
+    const ping = () => {
+      if (Date.now() - last < 10 * 60 * 1000) return;
+      last = Date.now();
+      void getDeviceId().then((deviceId) => fetch(`${API_BASE_URL}/api/ping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ deviceId, platform: Platform.OS, appVersion: Constants.expoConfig?.version ?? '' }),
+      })).catch(() => undefined);
+    };
+    ping();
+    const sub = NativeAppState.addEventListener('change', (state) => { if (state === 'active') ping(); });
+    return () => sub.remove();
+  }, [hydrated, sessionToken, authHeaders]);
 
   const setSettings = useCallback(
     (patch: Partial<Settings>) => {
