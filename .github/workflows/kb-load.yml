@@ -1,9 +1,8 @@
 name: Load knowledge library
 
 # Loads the Quran, hadith, classical Hanafi books, scholar catalogue and Darul Ifta fatwas into the
-# production knowledge database through the admin API. Safe to re-run: it resumes where it stopped and
-# stops cleanly when Cloudflare's free daily D1 write limit is reached (a paid plan removes that limit).
-# Needs repository secrets: PROD_ADMIN_TOKEN. Runs daily until everything is loaded.
+# production knowledge database (Turso) through the admin API. Safe to re-run: duplicates are skipped.
+# Needs repository secret: PROD_ADMIN_TOKEN. Run manually from the Actions tab.
 
 on:
   workflow_dispatch:
@@ -11,8 +10,6 @@ on:
       api_url:
         description: API base URL
         default: https://fatwa-api.ziakhalid236.workers.dev
-  schedule:
-    - cron: '40 0 * * *'
 
 concurrency:
   group: kb-load
@@ -29,8 +26,6 @@ jobs:
       API_URL: ${{ github.event.inputs.api_url || 'https://fatwa-api.ziakhalid236.workers.dev' }}
       KB_CACHE: ${{ github.workspace }}/kb_cache
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # Stay well under the free daily D1 write limit so signups and posts keep working all day.
-      KB_MAX_PASSAGES: ${{ vars.KB_MAX_PASSAGES || '6000' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
