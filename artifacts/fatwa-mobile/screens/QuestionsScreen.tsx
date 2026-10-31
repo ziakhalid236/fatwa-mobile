@@ -75,6 +75,7 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [openSource, setOpenSource] = useState<string | null>(null);
+  const [openSourcesPanel, setOpenSourcesPanel] = useState<string | null>(null);
   const [suggestionSet, setSuggestionSet] = useState(0);
   const scroller = useRef<ScrollView>(null);
   const abort = useRef<AbortController | null>(null);
@@ -226,26 +227,53 @@ export default function QuestionsScreen({ askSignal = 0 }: { askSignal?: number 
                 ) : (
                   <Dots />
                 )}
-                {!mine && item.sources?.length && item.text ? (
-                  <View style={[styles.sources, { borderTopColor: colors.border }]}>
-                    <Text style={[styles.sourcesTitle, { color: colors.mutedForeground }]}>حوالہ جات · Sources</Text>
-                    {item.sources.map((src, index) => {
-                      const key = `${item.id}-${index}`;
-                      const open = openSource === key;
-                      return (
-                        <Pressable key={key} onPress={() => setOpenSource(open ? null : key)} style={[styles.sourceRow, { backgroundColor: colors.background }]} accessibilityRole="button">
-                          <Text style={[styles.sourceName, { color: colors.primary }]} numberOfLines={open ? 3 : 1}>{src.work}{src.ref && !src.work.includes(src.ref) ? ` · ${src.ref}` : ''}</Text>
-                          {open ? (
-                            <>
-                              {src.snippet ? <Text style={[styles.sourceSnippet, containsArabic(src.snippet) && styles.rtl, { color: colors.mutedForeground }]}>{src.snippet}…</Text> : null}
-                              {src.url ? <Text onPress={() => void Linking.openURL(src.url!).catch(() => undefined)} style={[styles.sourceLink, { color: colors.primary }]}>Open source</Text> : null}
-                            </>
-                          ) : null}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ) : null}
+                {!mine && item.sources?.length && item.text ? (() => {
+                  const panelOpen = openSourcesPanel === item.id;
+                  return (
+                    <View style={[styles.sources, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <Pressable
+                        onPress={() => setOpenSourcesPanel(panelOpen ? null : item.id)}
+                        style={styles.sourcesHeader}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${item.sources.length} references and sources`}
+                      >
+                        <View style={[styles.sourcesBook, { backgroundColor: colors.primarySoft }]}>
+                          <Feather name="book-open" size={23} color={colors.primary} />
+                        </View>
+                        <View style={styles.sourcesHeaderCopy}>
+                          <View style={styles.sourcesTitleRow}>
+                            <Text style={[styles.sourcesTitle, { color: colors.foreground }]}>حوالہ جات و مصادر</Text>
+                            <View style={[styles.sourceCount, { backgroundColor: colors.primary }]}><Text style={styles.sourceCountText}>{item.sources.length}</Text></View>
+                          </View>
+                          <Text style={[styles.sourcesSubtitle, { color: colors.mutedForeground }]}>{panelOpen ? 'حوالہ کھولنے کے لیے منتخب کریں' : 'مزید تفصیلات کے لیے کھولیں'}</Text>
+                        </View>
+                        <View style={[styles.sourcesChevron, { backgroundColor: colors.primarySoft }]}>
+                          <Feather name={panelOpen ? 'chevron-up' : 'chevron-down'} size={21} color={colors.primary} />
+                        </View>
+                      </Pressable>
+                      {panelOpen ? (
+                        <View style={styles.sourcesList}>
+                          {item.sources.map((src, index) => {
+                            const key = `${item.id}-${index}`;
+                            const open = openSource === key;
+                            return (
+                              <Pressable key={key} onPress={() => setOpenSource(open ? null : key)} style={[styles.sourceRow, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityRole="button">
+                                <Text style={[styles.sourceName, { color: colors.primary }]} numberOfLines={open ? 3 : 1}>{src.work}{src.ref && !src.work.includes(src.ref) ? ` · ${src.ref}` : ''}</Text>
+                                {open ? (
+                                  <>
+                                    {src.author ? <Text style={[styles.sourceAuthor, { color: colors.mutedForeground }]}>{src.author}</Text> : null}
+                                    {src.snippet ? <Text style={[styles.sourceSnippet, containsArabic(src.snippet) && styles.rtl, { color: colors.mutedForeground }]}>{src.snippet}…</Text> : null}
+                                    {src.url ? <Text onPress={() => void Linking.openURL(src.url!).catch(() => undefined)} style={[styles.sourceLink, { color: colors.primary }]}>Open source</Text> : null}
+                                  </>
+                                ) : null}
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })() : null}
                 {!mine && item.id !== 'welcome' && item.text && !busy ? (
                   <View style={styles.bubbleActions}>
                     {item.failed ? (
@@ -324,10 +352,20 @@ const styles = StyleSheet.create({
   bubble: { borderWidth: 1, borderColor: 'transparent', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 12, flexShrink: 1 },
   bubbleText: { fontSize: 14.5, lineHeight: 24 },
   rtl: { textAlign: 'right', writingDirection: 'rtl', lineHeight: 28, fontSize: 15.5 },
-  sources: { marginTop: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, gap: 6 },
-  sourcesTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-  sourceRow: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, gap: 4 },
+  sources: { marginTop: 13, borderWidth: 1, borderRadius: 18, overflow: 'hidden' },
+  sourcesHeader: { minHeight: 76, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },
+  sourcesBook: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  sourcesHeaderCopy: { flex: 1, gap: 4 },
+  sourcesTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  sourcesTitle: { fontSize: 16, fontWeight: '800' },
+  sourceCount: { minWidth: 23, height: 23, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  sourceCountText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  sourcesSubtitle: { fontSize: 11.5, fontWeight: '600' },
+  sourcesChevron: { width: 39, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  sourcesList: { paddingHorizontal: 10, paddingBottom: 10, gap: 6 },
+  sourceRow: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, gap: 4 },
   sourceName: { fontSize: 12, fontWeight: '700' },
+  sourceAuthor: { fontSize: 11, fontWeight: '600' },
   sourceSnippet: { fontSize: 12, lineHeight: 19 },
   sourceLink: { fontSize: 11, fontWeight: '800' },
   bubbleActions: { flexDirection: 'row', gap: 14, marginTop: 8 },
