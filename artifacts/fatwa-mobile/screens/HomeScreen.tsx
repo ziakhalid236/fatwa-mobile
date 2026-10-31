@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StarPattern } from '@/components/Art';
 import { PostCard } from '@/components/PostCard';
@@ -21,7 +21,7 @@ const prayerEnd = (name: typeof ORDER[number], times: ReturnType<typeof computeP
 function Hero() {
   const colors = useColors();
   const nav = useNav();
-  const { profile, prayerCity, settings } = useApp();
+  const { prayerCity, settings } = useApp();
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t); }, []);
   const prayerSummary = useMemo(() => {
@@ -67,27 +67,30 @@ function Hero() {
   }, [now, prayerCity]);
   const hour = now.getHours();
   const greet = hour < 5 ? 'Peaceful night' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const first = profile.name.trim().split(/\s+/)[0];
   return (
     <LinearGradient colors={[colors.forest, colors.green]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
       <StarPattern opacity={0.1} size={52} />
       <Feather name="moon" size={96} color="rgba(255,255,255,0.08)" style={styles.heroArt} />
-      <Text style={styles.heroSalam}>السلام علیکم{first ? ` ${first}` : ''}</Text>
+      <Text style={styles.heroSalam}>السلام علیکم</Text>
       <Text style={styles.heroGreet}>{greet}</Text>
-      <View style={styles.dateRow}>
-        <Text style={styles.heroDate}>{formatIslamicDate(now, settings.language)}</Text>
-        <Text style={styles.heroDate}>{formatGregorianDate(now)}</Text>
+      <View style={styles.dateBlock}>
+        <Feather name="calendar" size={18} color="#fff" />
+        <View style={styles.dateCopy}>
+          <Text style={styles.heroDate}>{formatGregorianDate(now)}</Text>
+          <Text style={styles.heroDate}>{formatIslamicDate(now, settings.language)}</Text>
+        </View>
       </View>
       <Pressable onPress={() => nav.push({ name: 'prayerSettings' })} style={styles.prayerPill} accessibilityRole="button">
         <View style={styles.prayerSection}>
-          <View style={styles.prayerHeading}><Feather name="clock" size={15} color="#fff" /><Text style={styles.prayerLabel}>ENDING SOON / ENDED</Text></View>
-          <Text style={styles.prayerText}>{prayerSummary.current.name} ends at {formatClockTime(prayerSummary.current.end)}</Text>
+          <View style={styles.prayerHeading}><Feather name="clock" size={19} color="#fff" /><Text style={styles.prayerLabel}>ENDING SOON</Text></View>
+          <Text style={styles.prayerName}>{prayerSummary.current.name}</Text>
+          <Text style={styles.prayerText}>ends at {formatClockTime(prayerSummary.current.end)}</Text>
         </View>
         <View style={styles.prayerDivider} />
         <View style={styles.prayerSection}>
-          <View style={styles.prayerHeading}><Feather name="arrow-right-circle" size={15} color="#E6D3A3" /><Text style={styles.prayerLabel}>NEXT PRAYER</Text></View>
-          <Text style={styles.prayerText}>{prayerSummary.next.name} starts {formatClockTime(prayerSummary.next.start)}</Text>
-          <Text style={styles.prayerMeta}>Ends {formatClockTime(prayerSummary.next.end)} · in {formatCountdown(prayerSummary.next.left)}</Text>
+          <View style={styles.prayerHeading}><Feather name="moon" size={19} color="#F8E59B" /><Text style={styles.prayerLabel}>NEXT PRAYER</Text></View>
+          <Text style={styles.prayerName}>{prayerSummary.next.name} {formatClockTime(prayerSummary.next.start)}</Text>
+          <Text style={styles.prayerMeta}>Ends {formatClockTime(prayerSummary.next.end)} · {formatCountdown(prayerSummary.next.left)}</Text>
         </View>
       </Pressable>
     </LinearGradient>
@@ -128,11 +131,13 @@ function QuickActions() {
   );
 }
 
-export default function HomeScreen() {
+export default function HomeScreen({ focusSearchSignal = 0 }: { focusSearchSignal?: number }) {
   const colors = useColors();
   const nav = useNav();
   const { posts, profile, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView } = useApp();
   const [search, setSearch] = useState('');
+  const searchInputRef = useRef<TextInput>(null);
+  useEffect(() => { if (focusSearchSignal > 0) searchInputRef.current?.focus(); }, [focusSearchSignal]);
 
   const visiblePosts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -151,6 +156,7 @@ export default function HomeScreen() {
       <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
         <Feather name="search" size={21} color={colors.primary} />
         <TextInput
+          ref={searchInputRef}
           value={search}
           onChangeText={setSearch}
           placeholder="Search posts, people, cities"
@@ -197,17 +203,19 @@ const styles = StyleSheet.create({
   container: { paddingHorizontal: 16, paddingBottom: 12 },
   hero: { borderRadius: 26, padding: 18, marginBottom: 12, overflow: 'hidden' },
   heroArt: { position: 'absolute', right: 10, top: 6 },
-  heroSalam: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  heroGreet: { color: '#CBE7DB', fontSize: 13, marginTop: 3, marginBottom: 12 },
-  dateRow: { gap: 2, marginBottom: 12 },
-  heroDate: { color: '#D5E7DB', fontSize: 11, fontWeight: '700' },
-  prayerPill: { gap: 10, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11, alignSelf: 'stretch' },
-  prayerSection: { gap: 3 },
+  heroSalam: { color: '#fff', fontSize: 23, fontWeight: '800' },
+  heroGreet: { color: '#CBE7DB', fontSize: 12, marginTop: 2, marginBottom: 9 },
+  dateBlock: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  dateCopy: { gap: 1 },
+  heroDate: { color: '#E3F1E7', fontSize: 11, fontWeight: '700' },
+  prayerPill: { flexDirection: 'row', alignItems: 'stretch', gap: 12, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 18, paddingHorizontal: 13, paddingVertical: 11, alignSelf: 'stretch' },
+  prayerSection: { flex: 1, gap: 2 },
   prayerHeading: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  prayerLabel: { color: '#CBE7DB', fontSize: 9, fontWeight: '800', letterSpacing: 0.7 },
-  prayerDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.18)' },
-  prayerText: { color: '#fff', fontSize: 11.5, fontWeight: '800' },
-  prayerMeta: { color: '#E6D3A3', fontSize: 10.5, fontWeight: '700' },
+  prayerLabel: { color: '#CBE7DB', fontSize: 8.5, fontWeight: '800', letterSpacing: 0.5 },
+  prayerName: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  prayerDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.32)' },
+  prayerText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  prayerMeta: { color: '#F8E59B', fontSize: 10, fontWeight: '800' },
   previousPrayer: { color: '#CBE7DB', fontSize: 10.5, fontWeight: '700', marginTop: 9 },
   actions: { flexDirection: 'row', gap: 6, marginBottom: 14 },
   actionWrap: { flex: 1, minWidth: 0 },

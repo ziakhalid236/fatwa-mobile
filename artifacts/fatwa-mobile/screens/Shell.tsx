@@ -91,6 +91,7 @@ function Shell() {
   const [tab, setTab] = useState<TabKey>('home');
   const [stack, setStack] = useState<Route[]>([]);
   const [askSignal, setAskSignal] = useState(0);
+  const [homeSearchSignal, setHomeSearchSignal] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const handledNotificationResponses = React.useRef(new Set<string>());
@@ -233,22 +234,32 @@ function Shell() {
         )}
         {title ? <Text style={[styles.topBarTitle, { color: colors.foreground }]}>{title}</Text> : null}
         <View style={styles.headerRight}>
-        {reportable ? (
+        {route.name === 'tabs' && tab === 'home' ? (
+          <Pressable
+            style={[styles.headerSearch, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
+            accessibilityRole="button"
+            accessibilityLabel="Search posts"
+            onPress={() => setHomeSearchSignal((value) => value + 1)}
+            testID="home-header-search"
+          >
+            <Feather name="search" size={25} color={colors.primary} />
+          </Pressable>
+        ) : reportable ? (
           <Pressable style={styles.headerSide} accessibilityRole="button" accessibilityLabel="Report a problem" onPress={() => setReportOpen(true)} testID="report-problem">
             <Feather name="flag" size={18} color={colors.mutedForeground} />
           </Pressable>
         ) : null}
-        <Pressable
-          style={styles.headerSide}
-          accessibilityRole="button"
-          accessibilityLabel="Notifications"
-          onPress={() => push({ name: 'notifications' })}
-        >
-          <Feather name="bell" size={20} color={colors.foreground} />
-          {unreadCount > 0 ? (
-            <View style={[styles.notificationDot, { backgroundColor: colors.coral }]} />
-          ) : null}
-        </Pressable>
+        {route.name === 'tabs' && tab !== 'home' ? (
+          <Pressable
+            style={styles.headerSide}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+            onPress={() => push({ name: 'notifications' })}
+          >
+            <Feather name="bell" size={20} color={colors.foreground} />
+            {unreadCount > 0 ? <View style={[styles.notificationDot, { backgroundColor: colors.coral }]} /> : null}
+          </Pressable>
+        ) : null}
         </View>
       </View>
     );
@@ -272,7 +283,7 @@ function Shell() {
   else if (route.name === 'prayerDetail') content = <PrayerDetailScreen prayer={route.prayer} />;
   else if (route.name === 'qiblaSettings') content = <QiblaScreen />;
   else if (route.name === 'questionDetail') content = <QuestionDetailScreen questionId={route.questionId} />;
-  else if (tab === 'home') content = <HomeScreen />;
+  else if (tab === 'home') content = <HomeScreen focusSearchSignal={homeSearchSignal} />;
   else if (tab === 'library') content = <LibraryScreen />;
   else if (tab === 'questions') content = <QuestionsScreen askSignal={askSignal} />;
   else if (tab === 'alarm') content = <NotificationsScreen />;
@@ -344,6 +355,7 @@ const styles = StyleSheet.create({
   topBarTitle: { position: 'absolute', left: 70, right: 66, textAlign: 'center', fontSize: 16, fontWeight: '700' },
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   headerSide: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  headerSearch: { width: 92, height: 46, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center', shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   notificationDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 9, right: 9 },
   tabBar: {
     minHeight: 80,
