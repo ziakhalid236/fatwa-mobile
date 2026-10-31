@@ -11,7 +11,13 @@ import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
 
 const ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
-
+const prayerEnd = (name: typeof ORDER[number], times: ReturnType<typeof computePrayerTimes>, tomorrow: ReturnType<typeof computePrayerTimes>) => {
+  if (name === 'Fajr') return times.Sunrise;
+  if (name === 'Dhuhr') return times.Asr;
+  if (name === 'Asr') return times.Maghrib;
+  if (name === 'Maghrib') return times.Isha;
+  return tomorrow.Fajr;
+};
 function Hero() {
   const colors = useColors();
   const nav = useNav();
@@ -20,22 +26,43 @@ function Hero() {
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t); }, []);
   const prayerSummary = useMemo(() => {
     const times = computePrayerTimes(now, prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
-    const todayIndex = ORDER.findIndex((name) => minutesUntil(times[name], now) > 0);
-    if (todayIndex >= 0) {
-      const nextName = ORDER[todayIndex];
-      const previousName = todayIndex === 0 ? 'Isha' : ORDER[todayIndex - 1];
-      const previousTime = todayIndex === 0
-        ? computePrayerTimes(new Date(now.getTime() - 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone).Isha
-        : times[previousName];
+    const tomorrow = computePrayerTimes(new Date(now.getTime() + 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
+    const yesterday = computePrayerTimes(new Date(now.getTime() - 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const toMinutes = (time: string) => { const [hour, minute] = time.split(':').map(Number); return hour * 60 + minute; };
+    const currentIndex = ORDER.findIndex((name) => {
+      const start = toMinutes(times[name]);
+      const end = toMinutes(prayerEnd(name, times, tomorrow));
+      if (name === 'Isha') return currentMinutes >= start || currentMinutes < toMinutes(times.Fajr);
+      return start <= currentMinutes && currentMinutes < end;
+    });
+    if (currentIndex >= 0) {
+      const currentName = ORDER[currentIndex];
+      const nextName = currentName === 'Isha' ? 'Fajr' : ORDER[currentIndex + 1];
+      const beforeFajr = currentName === 'Isha' && currentMinutes < toMinutes(times.Fajr);
+      const nextStart = currentName === 'Isha' ? (beforeFajr ? times.Fajr : tomorrow.Fajr) : times[nextName];
+      const nextTimes = beforeFajr ? times : tomorrow;
+      const nextTomorrow = beforeFajr ? tomorrow : computePrayerTimes(new Date(now.getTime() + 2 * 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
+      const nextEnd = currentName === 'Isha' ? prayerEnd('Fajr', nextTimes, nextTomorrow) : prayerEnd(nextName, times, tomorrow);
+      const currentStart = beforeFajr ? yesterday.Isha : times[currentName];
       return {
-        next: { name: nextName, start: times[nextName], end: todayIndex === ORDER.length - 1 ? computePrayerTimes(new Date(now.getTime() + 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone).Fajr : times[ORDER[todayIndex + 1]], left: minutesUntil(times[nextName], now) },
-        previous: { name: previousName, end: times[nextName], ended: minutesUntil(previousTime, now) <= 0 },
+        current: { name: currentName, start: currentStart, end: beforeFajr ? times.Fajr : prayerEnd(currentName, times, tomorrow), left: 0 },
+        next: { name: nextName, start: nextStart, end: nextEnd, left: currentName === 'Isha' ? minutesUntil(nextStart, now) + 1440 : minutesUntil(nextStart, now) },
       };
     }
-    const tomorrow = computePrayerTimes(new Date(now.getTime() + 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
+    const nextIndex = ORDER.findIndex((name) => minutesUntil(times[name], now) > 0);
+    if (nextIndex >= 0) {
+      const nextName = ORDER[nextIndex];
+      const previousName = nextIndex === 0 ? 'Isha' : ORDER[nextIndex - 1];
+      const previousEnd = nextIndex === 0 ? times.Fajr : prayerEnd(previousName, times, tomorrow);
+      return {
+        current: { name: previousName, start: previousName === 'Isha' ? yesterday.Isha : times[previousName], end: previousEnd, left: 0 },
+        next: { name: nextName, start: times[nextName], end: prayerEnd(nextName, times, tomorrow), left: minutesUntil(times[nextName], now) },
+      };
+    }
     return {
-      next: { name: 'Fajr' as const, start: tomorrow.Fajr, end: tomorrow.Dhuhr, left: minutesUntil(tomorrow.Fajr, now) + 1440 },
-      previous: { name: 'Isha' as const, end: tomorrow.Fajr, ended: true },
+      current: { name: 'Isha' as const, start: times.Isha, end: tomorrow.Fajr, left: 0 },
+      next: { name: 'Fajr' as const, start: tomorrow.Fajr, end: prayerEnd('Fajr', tomorrow, computePrayerTimes(new Date(now.getTime() + 2 * 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone)), left: minutesUntil(tomorrow.Fajr, now) + 1440 },
     };
   }, [now, prayerCity]);
   const hour = now.getHours();
@@ -52,13 +79,17 @@ function Hero() {
         <Text style={styles.heroDate}>{formatGregorianDate(now)}</Text>
       </View>
       <Pressable onPress={() => nav.push({ name: 'prayerSettings' })} style={styles.prayerPill} accessibilityRole="button">
-        <Feather name="clock" size={15} color="#fff" />
-        <View style={styles.prayerCopy}>
+        <View style={styles.prayerSection}>
+          <View style={styles.prayerHeading}><Feather name="clock" size={15} color="#fff" /><Text style={styles.prayerLabel}>ENDING SOON / ENDED</Text></View>
+          <Text style={styles.prayerText}>{prayerSummary.current.name} ends at {formatClockTime(prayerSummary.current.end)}</Text>
+        </View>
+        <View style={styles.prayerDivider} />
+        <View style={styles.prayerSection}>
+          <View style={styles.prayerHeading}><Feather name="arrow-right-circle" size={15} color="#E6D3A3" /><Text style={styles.prayerLabel}>NEXT PRAYER</Text></View>
           <Text style={styles.prayerText}>{prayerSummary.next.name} starts {formatClockTime(prayerSummary.next.start)}</Text>
-          <Text style={styles.prayerMeta}>Ends {formatClockTime(prayerSummary.next.end)} · {formatCountdown(prayerSummary.next.left)}</Text>
+          <Text style={styles.prayerMeta}>Ends {formatClockTime(prayerSummary.next.end)} · in {formatCountdown(prayerSummary.next.left)}</Text>
         </View>
       </Pressable>
-      <Text style={styles.previousPrayer}>Previous: {prayerSummary.previous.name} ended at {formatClockTime(prayerSummary.previous.end)}</Text>
     </LinearGradient>
   );
 }
@@ -170,8 +201,11 @@ const styles = StyleSheet.create({
   heroGreet: { color: '#CBE7DB', fontSize: 13, marginTop: 3, marginBottom: 12 },
   dateRow: { gap: 2, marginBottom: 12 },
   heroDate: { color: '#D5E7DB', fontSize: 11, fontWeight: '700' },
-  prayerPill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11, alignSelf: 'flex-start' },
-  prayerCopy: { gap: 2 },
+  prayerPill: { gap: 10, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11, alignSelf: 'stretch' },
+  prayerSection: { gap: 3 },
+  prayerHeading: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  prayerLabel: { color: '#CBE7DB', fontSize: 9, fontWeight: '800', letterSpacing: 0.7 },
+  prayerDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.18)' },
   prayerText: { color: '#fff', fontSize: 11.5, fontWeight: '800' },
   prayerMeta: { color: '#E6D3A3', fontSize: 10.5, fontWeight: '700' },
   previousPrayer: { color: '#CBE7DB', fontSize: 10.5, fontWeight: '700', marginTop: 9 },

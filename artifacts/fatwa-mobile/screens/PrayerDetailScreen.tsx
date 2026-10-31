@@ -8,6 +8,13 @@ import { useApp } from '@/lib/store';
 import type { PrayerName } from '@/lib/types';
 
 const PRAYERS: PrayerName[] = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+const prayerEnd = (name: PrayerName, times: ReturnType<typeof computePrayerTimes>, tomorrow: ReturnType<typeof computePrayerTimes>) => {
+  if (name === 'Fajr') return times.Sunrise;
+  if (name === 'Dhuhr') return times.Asr;
+  if (name === 'Asr') return times.Maghrib;
+  if (name === 'Maghrib') return times.Isha;
+  return tomorrow.Fajr;
+};
 
 export default function PrayerDetailScreen({ prayer }: { prayer: PrayerName }) {
   const colors = useColors();
@@ -19,7 +26,14 @@ export default function PrayerDetailScreen({ prayer }: { prayer: PrayerName }) {
     const nextPrayer = index === PRAYERS.length - 1 ? 'Fajr' : PRAYERS[index + 1];
     const nextDay = index === PRAYERS.length - 1 ? new Date(now.getTime() + 86400000) : now;
     const nextTimes = computePrayerTimes(nextDay, prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
-    return { start: times[prayer], end: nextTimes[nextPrayer], nextPrayer, nextStart: nextTimes[nextPrayer], nextEnd: index >= PRAYERS.length - 2 ? computePrayerTimes(new Date(nextDay.getTime() + 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone).Dhuhr : times[PRAYERS[index + 2]] };
+    const nextTomorrow = computePrayerTimes(new Date(nextDay.getTime() + 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
+    return {
+      start: times[prayer],
+      end: prayerEnd(prayer, times, nextTimes),
+      nextPrayer,
+      nextStart: nextTimes[nextPrayer],
+      nextEnd: prayerEnd(nextPrayer, nextTimes, nextTomorrow),
+    };
   }, [now, prayer, prayerCity]);
   return (
     <View style={styles.screen}>
