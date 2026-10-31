@@ -324,12 +324,12 @@ function Shell() {
 }
 
 export default function AppShell() {
-  const { alarms, settings, hydrated } = useApp();
+  const { alarms, settings, prayerCity, hydrated } = useApp();
 
   React.useEffect(() => {
     if (!hydrated || !alarms.length) return;
-    void syncAdhanAlarms(alarms, { soundEnabled: settings.adhanSound });
-  }, [alarms, hydrated, settings.adhanSound]);
+    void syncAdhanAlarms(alarms, { soundEnabled: settings.adhanSound, timezoneOffsetHours: prayerCity.timezone });
+  }, [alarms, hydrated, prayerCity.timezone, settings.adhanSound]);
 
   return <Shell />;
 }

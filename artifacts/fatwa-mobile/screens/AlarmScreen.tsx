@@ -45,17 +45,17 @@ export default function AlarmScreen() {
   const nextPrayer = useMemo(() => {
     let best: { name: PrayerName; time: string; minutes: number } | null = null;
     for (const name of PRAYERS) {
-      const minutes = minutesUntil(times[name], now);
+      const minutes = minutesUntil(times[name], now, prayerCity.timezone);
       if (minutes >= 0 && (!best || minutes < best.minutes)) best = { name, time: times[name], minutes };
     }
-    return best ?? { name: 'Fajr', time: times.Fajr, minutes: minutesUntil(times.Fajr, now) + 24 * 60 };
-  }, [now, times]);
+    return best ?? { name: 'Fajr', time: times.Fajr, minutes: minutesUntil(times.Fajr, now, prayerCity.timezone) + 24 * 60 };
+  }, [now, prayerCity.timezone, times]);
 
   const syncAlarms = useCallback(async (list: AdhanAlarm[]) => {
-    const result = await syncAdhanAlarms(list, { soundEnabled: settings.adhanSound });
+    const result = await syncAdhanAlarms(list, { soundEnabled: settings.adhanSound, timezoneOffsetHours: prayerCity.timezone });
     setScheduled(result.scheduled);
     return result;
-  }, [settings.adhanSound]);
+  }, [prayerCity.timezone, settings.adhanSound]);
 
   useEffect(() => {
     if (alarms.some((alarm) => alarm.enabled)) void syncAlarms(alarms);

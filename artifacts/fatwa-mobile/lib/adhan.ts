@@ -53,7 +53,7 @@ export async function ensureNotificationPermissions(): Promise<boolean> {
 /** Cancels every scheduled adhan alarm and re-schedules the enabled ones. */
 export async function syncAdhanAlarms(
   alarms: AdhanAlarm[],
-  options: { soundEnabled: boolean },
+  options: { soundEnabled: boolean; timezoneOffsetHours?: number },
 ): Promise<{ scheduled: number; permitted: boolean }> {
   if (Platform.OS === 'web') return { scheduled: 0, permitted: false };
 
@@ -62,6 +62,14 @@ export async function syncAdhanAlarms(
 
   const permitted = await ensureNotificationPermissions();
   if (!permitted) return { scheduled: 0, permitted: false };
+
+  const cityTimezone = options.timezoneOffsetHours !== undefined && Number.isInteger(options.timezoneOffsetHours)
+    ? options.timezoneOffsetHours === 0
+      ? 'Etc/GMT'
+      : options.timezoneOffsetHours > 0
+        ? `Etc/GMT-${options.timezoneOffsetHours}`
+        : `Etc/GMT+${Math.abs(options.timezoneOffsetHours)}`
+    : undefined;
 
   let scheduled = 0;
   for (const alarm of alarms) {
@@ -75,7 +83,14 @@ export async function syncAdhanAlarms(
         sound: options.soundEnabled ? ADHAN_SOUND : false,
         data: { kind: 'adhan', prayer: alarm.prayer },
       },
-      trigger: {
+      trigger: cityTimezone ? {
+        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+        hour,
+        minute,
+        repeats: true,
+        timezone: cityTimezone,
+        channelId: ADHAN_CHANNEL_ID,
+      } : {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
         minute,

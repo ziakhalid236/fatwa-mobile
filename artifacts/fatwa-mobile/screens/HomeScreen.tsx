@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StarPattern } from '@/components/Art';
 import { PostCard } from '@/components/PostCard';
-import { computePrayerTimes, formatClockTime, formatCountdown, minutesUntil } from '@/lib/prayer';
+import { computePrayerTimes, formatClockTime, formatCountdown, localClockParts, minutesUntil } from '@/lib/prayer';
 import { formatGregorianDate, formatIslamicDate } from '@/lib/islamic-date';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
@@ -28,7 +28,7 @@ function Hero() {
     const times = computePrayerTimes(now, prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
     const tomorrow = computePrayerTimes(new Date(now.getTime() + 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
     const yesterday = computePrayerTimes(new Date(now.getTime() - 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const currentMinutes = localClockParts(now, prayerCity.timezone).totalMinutes;
     const toMinutes = (time: string) => { const [hour, minute] = time.split(':').map(Number); return hour * 60 + minute; };
     const currentIndex = ORDER.findIndex((name) => {
       const start = toMinutes(times[name]);
@@ -47,25 +47,25 @@ function Hero() {
       const currentStart = beforeFajr ? yesterday.Isha : times[currentName];
       return {
         current: { name: currentName, start: currentStart, end: beforeFajr ? times.Fajr : prayerEnd(currentName, times, tomorrow), left: 0 },
-        next: { name: nextName, start: nextStart, end: nextEnd, left: currentName === 'Isha' ? minutesUntil(nextStart, now) + 1440 : minutesUntil(nextStart, now) },
+        next: { name: nextName, start: nextStart, end: nextEnd, left: currentName === 'Isha' ? minutesUntil(nextStart, now, prayerCity.timezone) + 1440 : minutesUntil(nextStart, now, prayerCity.timezone) },
       };
     }
-    const nextIndex = ORDER.findIndex((name) => minutesUntil(times[name], now) > 0);
+    const nextIndex = ORDER.findIndex((name) => minutesUntil(times[name], now, prayerCity.timezone) > 0);
     if (nextIndex >= 0) {
       const nextName = ORDER[nextIndex];
       const previousName = nextIndex === 0 ? 'Isha' : ORDER[nextIndex - 1];
       const previousEnd = nextIndex === 0 ? times.Fajr : prayerEnd(previousName, times, tomorrow);
       return {
         current: { name: previousName, start: previousName === 'Isha' ? yesterday.Isha : times[previousName], end: previousEnd, left: 0 },
-        next: { name: nextName, start: times[nextName], end: prayerEnd(nextName, times, tomorrow), left: minutesUntil(times[nextName], now) },
+        next: { name: nextName, start: times[nextName], end: prayerEnd(nextName, times, tomorrow), left: minutesUntil(times[nextName], now, prayerCity.timezone) },
       };
     }
     return {
       current: { name: 'Isha' as const, start: times.Isha, end: tomorrow.Fajr, left: 0 },
-      next: { name: 'Fajr' as const, start: tomorrow.Fajr, end: prayerEnd('Fajr', tomorrow, computePrayerTimes(new Date(now.getTime() + 2 * 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone)), left: minutesUntil(tomorrow.Fajr, now) + 1440 },
+      next: { name: 'Fajr' as const, start: tomorrow.Fajr, end: prayerEnd('Fajr', tomorrow, computePrayerTimes(new Date(now.getTime() + 2 * 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone)), left: minutesUntil(tomorrow.Fajr, now, prayerCity.timezone) + 1440 },
     };
   }, [now, prayerCity]);
-  const hour = now.getHours();
+  const hour = localClockParts(now, prayerCity.timezone).hour;
   const greet = hour < 5 ? 'Peaceful night' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   return (
     <LinearGradient colors={[colors.forest, colors.green]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
@@ -76,8 +76,8 @@ function Hero() {
       <View style={styles.dateBlock}>
         <Feather name="calendar" size={18} color="#fff" />
         <View style={styles.dateCopy}>
-          <Text style={styles.heroDate}>{formatGregorianDate(now)}</Text>
-          <Text style={styles.heroDate}>{formatIslamicDate(now, settings.language)}</Text>
+          <Text style={styles.heroDate}>{formatGregorianDate(now, prayerCity.timezone)}</Text>
+          <Text style={styles.heroDate}>{formatIslamicDate(now, settings.language, prayerCity.timezone)}</Text>
         </View>
       </View>
       <Pressable onPress={() => nav.push({ name: 'prayerSettings' })} style={styles.prayerPill} accessibilityRole="button">

@@ -35,7 +35,7 @@ function sunPosition(jd: number) {
   };
 }
 
-export type PrayerTimes = Record<PrayerName | 'Sunrise', string>;
+export type PrayerTimes = Record<PrayerName | 'Sunrise' | 'Sunset', string>;
 
 /**
  * Computes prayer times for a date and place using standard astronomical
@@ -47,7 +47,8 @@ export function computePrayerTimes(
   longitude: number,
   timezoneOffsetHours: number,
 ): PrayerTimes {
-  const jd = julianDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
+  const cityDate = new Date(date.getTime() + timezoneOffsetHours * 60 * 60 * 1000);
+  const jd = julianDate(cityDate.getUTCFullYear(), cityDate.getUTCMonth() + 1, cityDate.getUTCDate());
   const { fajrAngle, ishaAngle, asrFactor } = prayerMethod;
 
   const midDay = (t: number) => 12 - sunPosition(jd + t).equation;
@@ -99,8 +100,9 @@ export function computePrayerTimes(
     Sunrise: format(adjust(times.sunrise)),
     Dhuhr: format(adjust(times.dhuhr)),
     Asr: format(adjust(times.asr)),
-    Maghrib: format(adjust(times.maghrib)),
+    Maghrib: format(adjust(times.sunset)),
     Isha: format(adjust(times.isha)),
+    Sunset: format(adjust(times.sunset)),
   };
 }
 
@@ -131,11 +133,19 @@ export function haversineDistanceKm(
   return Math.round(2 * r * Math.asin(Math.sqrt(a)));
 }
 
-export function minutesUntil(time: string, now: Date): number {
+export function minutesUntil(time: string, now: Date, timezoneOffsetHours = 0): number {
   const [h, m] = time.split(':').map(Number);
   const target = h * 60 + m;
-  const current = now.getHours() * 60 + now.getMinutes();
+  const cityNow = new Date(now.getTime() + timezoneOffsetHours * 60 * 60 * 1000);
+  const current = cityNow.getUTCHours() * 60 + cityNow.getUTCMinutes();
   return target - current;
+}
+
+export function localClockParts(now: Date, timezoneOffsetHours: number): { hour: number; minute: number; totalMinutes: number } {
+  const cityNow = new Date(now.getTime() + timezoneOffsetHours * 60 * 60 * 1000);
+  const hour = cityNow.getUTCHours();
+  const minute = cityNow.getUTCMinutes();
+  return { hour, minute, totalMinutes: hour * 60 + minute };
 }
 
 export function formatCountdown(totalMinutes: number): string {
