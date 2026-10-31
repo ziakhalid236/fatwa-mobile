@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { StarPattern } from '@/components/Art';
 import { PostCard } from '@/components/PostCard';
 import { computePrayerTimes, formatClockTime, formatCountdown, minutesUntil } from '@/lib/prayer';
-import { formatIslamicDate } from '@/lib/islamic-date';
+import { formatGregorianDate, formatIslamicDate } from '@/lib/islamic-date';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { useApp } from '@/lib/store';
@@ -18,11 +18,25 @@ function Hero() {
   const { profile, prayerCity, settings } = useApp();
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t); }, []);
-  const next = useMemo(() => {
+  const prayerSummary = useMemo(() => {
     const times = computePrayerTimes(now, prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
-    for (const name of ORDER) { const m = minutesUntil(times[name], now); if (m > 0) return { name, time: times[name], left: m }; }
+    const todayIndex = ORDER.findIndex((name) => minutesUntil(times[name], now) > 0);
+    if (todayIndex >= 0) {
+      const nextName = ORDER[todayIndex];
+      const previousName = todayIndex === 0 ? 'Isha' : ORDER[todayIndex - 1];
+      const previousTime = todayIndex === 0
+        ? computePrayerTimes(new Date(now.getTime() - 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone).Isha
+        : times[previousName];
+      return {
+        next: { name: nextName, start: times[nextName], end: todayIndex === ORDER.length - 1 ? computePrayerTimes(new Date(now.getTime() + 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone).Fajr : times[ORDER[todayIndex + 1]], left: minutesUntil(times[nextName], now) },
+        previous: { name: previousName, end: times[nextName], ended: minutesUntil(previousTime, now) <= 0 },
+      };
+    }
     const tomorrow = computePrayerTimes(new Date(now.getTime() + 86400000), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
-    return { name: 'Fajr' as const, time: tomorrow.Fajr, left: minutesUntil(tomorrow.Fajr, now) + 1440 };
+    return {
+      next: { name: 'Fajr' as const, start: tomorrow.Fajr, end: tomorrow.Dhuhr, left: minutesUntil(tomorrow.Fajr, now) + 1440 },
+      previous: { name: 'Isha' as const, end: tomorrow.Fajr, ended: true },
+    };
   }, [now, prayerCity]);
   const hour = now.getHours();
   const greet = hour < 5 ? 'Peaceful night' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -33,12 +47,18 @@ function Hero() {
       <Feather name="moon" size={96} color="rgba(255,255,255,0.08)" style={styles.heroArt} />
       <Text style={styles.heroSalam}>السلام علیکم{first ? ` ${first}` : ''}</Text>
       <Text style={styles.heroGreet}>{greet}</Text>
-      <Text style={styles.heroDate}>{formatIslamicDate(now, settings.language)}</Text>
+      <View style={styles.dateRow}>
+        <Text style={styles.heroDate}>{formatIslamicDate(now, settings.language)}</Text>
+        <Text style={styles.heroDate}>{formatGregorianDate(now)}</Text>
+      </View>
       <Pressable onPress={() => nav.push({ name: 'prayerSettings' })} style={styles.prayerPill} accessibilityRole="button">
         <Feather name="clock" size={15} color="#fff" />
-        <Text style={styles.prayerText}>{next.name} at {formatClockTime(next.time)}</Text>
-        <Text style={styles.prayerLeft}>in {formatCountdown(next.left)}</Text>
+        <View style={styles.prayerCopy}>
+          <Text style={styles.prayerText}>{prayerSummary.next.name} starts {formatClockTime(prayerSummary.next.start)}</Text>
+          <Text style={styles.prayerMeta}>Ends {formatClockTime(prayerSummary.next.end)} · {formatCountdown(prayerSummary.next.left)}</Text>
+        </View>
       </Pressable>
+      <Text style={styles.previousPrayer}>Previous: {prayerSummary.previous.name} ended at {formatClockTime(prayerSummary.previous.end)}</Text>
     </LinearGradient>
   );
 }
@@ -63,9 +83,9 @@ function QuickActions() {
       {items.map((it) => (
         <Pressable key={it.label} onPress={it.onPress} style={({ pressed }) => [styles.actionWrap, { opacity: pressed ? 0.88 : 1 }]} accessibilityRole="button" accessibilityLabel={`${it.label} ${it.sub}`}>
           <LinearGradient colors={CARD_COLORS[it.label]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.action}>
-            <StarPattern opacity={0.16} size={38} />
-            <Feather name={it.icon} size={58} color="rgba(255,255,255,0.14)" style={styles.actionBig} />
-            <View style={styles.actionIcon}><Feather name={it.icon} size={18} color="#fff" /></View>
+            <StarPattern opacity={0.16} size={30} />
+            <Feather name={it.icon} size={34} color="rgba(255,255,255,0.14)" style={styles.actionBig} />
+            <View style={styles.actionIcon}><Feather name={it.icon} size={15} color="#fff" /></View>
             <View>
               <Text style={styles.actionLabel}>{it.label}</Text>
               <Text style={styles.actionSub}>{it.sub}</Text>
@@ -148,17 +168,20 @@ const styles = StyleSheet.create({
   heroArt: { position: 'absolute', right: 10, top: 6 },
   heroSalam: { color: '#fff', fontSize: 22, fontWeight: '800' },
   heroGreet: { color: '#CBE7DB', fontSize: 13, marginTop: 3, marginBottom: 12 },
-  heroDate: { color: '#D5E7DB', fontSize: 12, fontWeight: '700', marginBottom: 12 },
+  dateRow: { gap: 2, marginBottom: 12 },
+  heroDate: { color: '#D5E7DB', fontSize: 11, fontWeight: '700' },
   prayerPill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11, alignSelf: 'flex-start' },
-  prayerText: { color: '#fff', fontSize: 13.5, fontWeight: '800' },
-  prayerLeft: { color: '#E6D3A3', fontSize: 12.5, fontWeight: '700' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
-  actionWrap: { flexBasis: '47%', flexGrow: 1 },
-  action: { height: 104, borderRadius: 22, padding: 13, justifyContent: 'space-between', overflow: 'hidden' },
+  prayerCopy: { gap: 2 },
+  prayerText: { color: '#fff', fontSize: 11.5, fontWeight: '800' },
+  prayerMeta: { color: '#E6D3A3', fontSize: 10.5, fontWeight: '700' },
+  previousPrayer: { color: '#CBE7DB', fontSize: 10.5, fontWeight: '700', marginTop: 9 },
+  actions: { flexDirection: 'row', gap: 6, marginBottom: 14 },
+  actionWrap: { flex: 1, minWidth: 0 },
+  action: { height: 92, borderRadius: 17, padding: 8, justifyContent: 'space-between', overflow: 'hidden' },
   actionBig: { position: 'absolute', right: 8, bottom: 6 },
-  actionIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: -0.2 },
-  actionSub: { color: 'rgba(255,255,255,0.78)', fontSize: 11, fontWeight: '600', marginTop: 1 },
+  actionIcon: { width: 27, height: 27, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  actionLabel: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: -0.2 },
+  actionSub: { color: 'rgba(255,255,255,0.78)', fontSize: 8.5, fontWeight: '600', marginTop: 1 },
   composer: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 18, padding: 12, marginBottom: 12 },
   composerAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   composerText: { flex: 1, fontSize: 13.5 },

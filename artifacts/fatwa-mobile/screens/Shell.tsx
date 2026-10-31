@@ -25,6 +25,7 @@ import NotificationsScreen from '@/screens/NotificationsScreen';
 import PostDetailScreen from '@/screens/PostDetailScreen';
 import PostSubmissionScreen from '@/screens/PostSubmissionScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
+import PrayerDetailScreen from '@/screens/PrayerDetailScreen';
 import QiblaScreen from '@/screens/QiblaScreen';
 import QuestionsScreen from '@/screens/QuestionsScreen';
 import QuestionDetailScreen from '@/screens/QuestionDetailScreen';
@@ -46,6 +47,7 @@ const titles: Record<string, string> = {
   prayerSettings: 'Prayer settings',
   qiblaSettings: 'Qibla direction',
   questionDetail: 'Answer details',
+  prayerDetail: 'Prayer time',
 };
 
 function NetworkBanner() {
@@ -84,7 +86,7 @@ function NetworkBanner() {
 
 function Shell() {
   const colors = useColors();
-  const { alarms, unreadCount, pushNotification, refreshContent, notifications, hydrated, markNotificationRead } = useApp();
+  const { alarms, unreadCount, refreshContent, notifications, hydrated, markNotificationRead } = useApp();
 
   const [tab, setTab] = useState<TabKey>('home');
   const [stack, setStack] = useState<Route[]>([]);
@@ -155,7 +157,13 @@ function Shell() {
           : typeof data.fatwaId === 'string' ? data.fatwaId : item?.refId;
     if (!kind && !item) return;
     handledNotificationResponses.current.add(identifier);
-    if (kind === 'adhan') return;
+    if (kind === 'adhan') {
+      const prayer = data.prayer;
+      if (prayer === 'Fajr' || prayer === 'Dhuhr' || prayer === 'Asr' || prayer === 'Maghrib' || prayer === 'Isha') {
+        setStack([{ name: 'prayerDetail', prayer }]);
+      }
+      return;
+    }
     if (item) markNotificationRead(item.id);
     if (kind === 'post' && refId) {
       refreshContent();
@@ -261,6 +269,7 @@ function Shell() {
   else if (route.name === 'saved') content = <SavedScreen />;
   else if (route.name === 'settings') content = <SettingsScreen />;
   else if (route.name === 'prayerSettings') content = <AlarmScreen />;
+  else if (route.name === 'prayerDetail') content = <PrayerDetailScreen prayer={route.prayer} />;
   else if (route.name === 'qiblaSettings') content = <QiblaScreen />;
   else if (route.name === 'questionDetail') content = <QuestionDetailScreen questionId={route.questionId} />;
   else if (tab === 'home') content = <HomeScreen />;
@@ -304,20 +313,12 @@ function Shell() {
 }
 
 export default function AppShell() {
-  const { alarms, settings, pushNotification, hydrated } = useApp();
+  const { alarms, settings, hydrated } = useApp();
 
   React.useEffect(() => {
     if (!hydrated || !alarms.length) return;
-    void syncAdhanAlarms(alarms, { soundEnabled: settings.adhanSound }).then((result) => {
-      if (result.scheduled > 0) {
-        pushNotification({
-          kind: 'system',
-          title: 'Adhan alarms ready',
-          body: `${result.scheduled} adhan alarm${result.scheduled === 1 ? '' : 's'} scheduled.`,
-        });
-      }
-    });
-  }, [alarms, hydrated, settings.adhanSound, pushNotification]);
+    void syncAdhanAlarms(alarms, { soundEnabled: settings.adhanSound });
+  }, [alarms, hydrated, settings.adhanSound]);
 
   return <Shell />;
 }

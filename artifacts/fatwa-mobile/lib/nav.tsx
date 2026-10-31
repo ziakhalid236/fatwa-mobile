@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import type { TabKey } from '@/lib/types';
+import type { PrayerName, TabKey } from '@/lib/types';
 
 export type Route =
   | { name: 'tabs' }
@@ -20,6 +20,7 @@ export type Route =
   | { name: 'questionDetail'; questionId: string }
   | { name: 'settings' }
   | { name: 'prayerSettings' }
+  | { name: 'prayerDetail'; prayer: PrayerName }
   | { name: 'qiblaSettings' };
 
 export type Nav = {

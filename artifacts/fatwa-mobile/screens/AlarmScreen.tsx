@@ -71,6 +71,9 @@ export default function AlarmScreen() {
     const next = mergeAlarm(prayer, { enabled });
     updateAlarm(prayer, { enabled });
     const result = await syncAlarms(next);
+    if (enabled && result.permitted) {
+      pushNotification({ kind: 'system', title: `${prayer} alarm enabled`, body: `Your ${prayer} alarm is enabled. You will be notified when prayer time begins.` });
+    }
     if (enabled && !result.permitted) Alert.alert('Notifications are off', 'Allow notifications so the adhan alarm can sound.');
   };
 
