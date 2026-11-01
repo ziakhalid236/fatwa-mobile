@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StarPattern } from '@/components/Art';
 import { PostCard } from '@/components/PostCard';
@@ -8,6 +8,8 @@ import { computePrayerTimes, formatClockTime, formatCountdown, localClockParts, 
 import { formatGregorianDate, formatIslamicDate } from '@/lib/islamic-date';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
+import { useNetworkStatus } from '@/lib/network';
+import { sharePost } from '@/lib/share';
 import { useApp } from '@/lib/store';
 
 const ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
@@ -155,26 +157,7 @@ export default function HomeScreen({ searchQuery = '' }: { searchQuery?: string 
   const colors = useColors();
   const nav = useNav();
   const { posts, profile, hydrated, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView, refreshContent } = useApp();
-  const [connection, setConnection] = useState<'checking' | 'online' | 'offline'>('checking');
-
-  const checkConnection = useCallback(async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4500);
-    try {
-      const response = await fetch('https://fatwa-api.ziakhalid236.workers.dev/api/health', { signal: controller.signal, cache: 'no-store' });
-      setConnection(response.ok ? 'online' : 'offline');
-    } catch {
-      setConnection('offline');
-    } finally {
-      clearTimeout(timeout);
-    }
-  }, []);
-
-  useEffect(() => {
-    void checkConnection();
-    const timer = setInterval(() => void checkConnection(), 20_000);
-    return () => clearInterval(timer);
-  }, [checkConnection]);
+  const { state: networkState, retry: retryNetwork } = useNetworkStatus();
 
   const visiblePosts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -185,18 +168,17 @@ export default function HomeScreen({ searchQuery = '' }: { searchQuery?: string 
     return filtered;
   }, [posts, searchQuery]);
   const myCity = profile.city.trim().toLowerCase();
-  const showSkeleton = !hydrated || (posts.length === 0 && connection === 'checking');
+  const showSkeleton = !hydrated || (posts.length === 0 && networkState === 'checking');
   const retryOffline = () => {
-    setConnection('checking');
+    retryNetwork();
     refreshContent();
-    void checkConnection();
   };
 
   return (
     <View style={styles.container}>
       {showSkeleton ? <FeedSkeleton /> : <Hero />}
       {!showSkeleton ? <QuickActions /> : null}
-      {!showSkeleton && connection === 'offline' && posts.length ? (
+      {!showSkeleton && networkState === 'offline' && posts.length ? (
         <View style={[styles.offlineStrip, { backgroundColor: colors.accent, borderColor: colors.goldSoft }]}>
           <Feather name="wifi-off" size={14} color={colors.accentForeground} />
           <Text style={[styles.offlineStripText, { color: colors.accentForeground }]}>Offline · Showing saved posts</Text>
@@ -216,12 +198,12 @@ export default function HomeScreen({ searchQuery = '' }: { searchQuery?: string 
             nav.push({ name: 'post', postId: post.id });
           }}
           nearby={Boolean(myCity) && (post.city ?? '').trim().toLowerCase() === myCity}
-          onShare={() => undefined}
+          onShare={() => { void sharePost(post); }}
           onAuthor={post.authorId ? () => nav.push({ name: 'user', userId: post.authorId as string }) : undefined}
         />
       ))}
 
-      {!showSkeleton && !visiblePosts.length && connection === 'offline' ? (
+      {!showSkeleton && !visiblePosts.length && networkState === 'offline' ? (
         <View style={[styles.offlineEmpty, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Feather name="wifi-off" size={28} color={colors.primary} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>You are offline</Text>
@@ -232,7 +214,7 @@ export default function HomeScreen({ searchQuery = '' }: { searchQuery?: string 
         </View>
       ) : null}
 
-      {!showSkeleton && !visiblePosts.length && connection !== 'offline' ? (
+      {!showSkeleton && !visiblePosts.length && networkState !== 'offline' ? (
         <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Feather name="search" size={24} color={colors.primary} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No posts found</Text>

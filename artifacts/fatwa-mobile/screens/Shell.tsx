@@ -14,6 +14,7 @@ import { NavProvider, type Nav, type Route } from '@/lib/nav';
 import { AppProvider, useApp } from '@/lib/store';
 import { postIdFromUrl } from '@/lib/share';
 import { syncAdhanAlarms } from '@/lib/adhan';
+import { NetworkStatusProvider, useNetworkStatus } from '@/lib/network';
 import type { TabKey } from '@/lib/types';
 import AlarmScreen from '@/screens/AlarmScreen';
 import FatwaDetailScreen from '@/screens/FatwaDetailScreen';
@@ -52,30 +53,9 @@ const titles: Record<string, string> = {
 
 function NetworkBanner() {
   const colors = useColors();
-  const [state, setState] = React.useState<'offline' | 'slow' | null>(null);
+  const { state } = useNetworkStatus();
 
-  React.useEffect(() => {
-    let live = true;
-    const check = async () => {
-      const started = Date.now();
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4500);
-      try {
-        const response = await fetch('https://fatwa-api.ziakhalid236.workers.dev/api/health', { signal: controller.signal, cache: 'no-store' });
-        if (!response.ok) throw new Error('offline');
-        if (live) setState(Date.now() - started > 1800 ? 'slow' : null);
-      } catch {
-        if (live) setState('offline');
-      } finally {
-        clearTimeout(timeout);
-      }
-    };
-    void check();
-    const timer = setInterval(() => void check(), 20_000);
-    return () => { live = false; clearInterval(timer); };
-  }, []);
-
-  if (!state) return null;
+  if (state !== 'offline' && state !== 'slow') return null;
   return (
     <View style={[styles.networkBanner, { backgroundColor: state === 'offline' ? colors.coral : colors.gold }]} pointerEvents="none">
       <Feather name={state === 'offline' ? 'wifi-off' : 'wifi'} size={14} color="#fff" />
@@ -101,6 +81,8 @@ function Shell() {
 
   const goTab = useCallback((next: TabKey) => {
     void Haptics.selectionAsync();
+    setHomeSearchOpen(false);
+    setHomeSearchQuery('');
     setStack([]);
     setTab(next);
   }, []);
@@ -313,6 +295,7 @@ function Shell() {
 
   return (
     <NavProvider value={nav}>
+      <NetworkStatusProvider>
       <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <View style={[styles.app, { backgroundColor: colors.background }]}>
@@ -338,6 +321,7 @@ function Shell() {
         </View>
         <ReportModal visible={reportOpen} page={pageName} onClose={() => setReportOpen(false)} />
       </SafeAreaView>
+      </NetworkStatusProvider>
     </NavProvider>
   );
 }

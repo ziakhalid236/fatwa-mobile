@@ -32,7 +32,11 @@ export const fetchWorks = () => get<{ works: Work[] }>('/works', 'works').then((
 export const fetchWorkPage = (id: number, page: number) => get<{ work: Work; page: number; pages: number; passages: Passage[] }>(`/works/${id}?page=${page}&size=15`, `work-${id}-page-${page}`);
 export const fetchSurahs = () => get<{ surahs: Surah[] }>('/quran', 'quran-surahs').then((r) => r.surahs);
 export const fetchSurah = (n: number, from: number) => get<{ surah: Surah; from: number; ayat: Ayah[]; next: number | null }>(`/quran/${n}?from=${from}&limit=15`, `quran-${n}-${from}`);
-export const searchLibrary = (q: string) => get<{ hits: Hit[] }>(`/search?q=${encodeURIComponent(q)}`).then((r) => r.hits);
+export const searchLibrary = (q: string) => {
+  const normalized = q.trim().toLowerCase();
+  const cacheKey = `search-${encodeURIComponent(normalized).slice(0, 120)}`;
+  return get<{ hits: Hit[] }>(`/search?q=${encodeURIComponent(normalized)}`, cacheKey).then((r) => r.hits);
+};
 
 export function rightsLabel(rights: string): { text: string; tone: 'ok' | 'warn' } {
   if (rights === 'open_attribution') return { text: 'Open text · attribution', tone: 'ok' };
