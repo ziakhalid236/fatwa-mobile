@@ -135,6 +135,7 @@ async function createSchema(env: Env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS post_submissions (id TEXT PRIMARY KEY,name TEXT NOT NULL,country TEXT,city TEXT,title TEXT,body TEXT,category TEXT,language TEXT NOT NULL DEFAULT 'en',status TEXT NOT NULL DEFAULT 'pending',rejection_reason TEXT,submitter_device_id TEXT,image_url TEXT,author_image_url TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS posts (id TEXT PRIMARY KEY,title TEXT,body TEXT,category TEXT,featured INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'published',city TEXT,author TEXT,image_url TEXT,author_image_url TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS post_likes (post_id TEXT NOT NULL,device_id TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(post_id,device_id))'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS post_views (post_id TEXT NOT NULL,device_id TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(post_id,device_id))'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,question_id TEXT,post_id TEXT,read_at TEXT,created_at TEXT NOT NULL)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at)'),
   ]);
@@ -211,7 +212,7 @@ async function notify(env: Env, userId: string, n: { title: string; body: string
 }
 
 function publicFatwa(row: Row) { return { id: row.id, question: row.question, answer: row.answer, category: row.category, scholar: row.scholar, institution: row.institution, sourceUrl: row.source_url || undefined, status: row.status, createdAt: row.created_at }; }
-function publicPost(row: Row) { return { id: row.id, title: row.title, body: row.body, category: row.category, featured: Boolean(row.featured), status: row.status, author: row.author || 'Fatwa editorial team', city: row.city || '', country: row.country || '', authorId: row.user_id || '', imageUrl: row.image_url || '', authorImageUrl: row.author_image_url || '', likes: Number(row.likes || 0), likedByDevice: Boolean(row.likedByDevice), createdAt: row.created_at, expiresAt: new Date(new Date(row.created_at).getTime() + POST_TTL_MS).toISOString() }; }
+function publicPost(row: Row) { return { id: row.id, title: row.title, body: row.body, category: row.category, featured: Boolean(row.featured), status: row.status, author: row.author || 'Fatwa editorial team', city: row.city || '', country: row.country || '', authorId: row.user_id || '', imageUrl: row.image_url || '', authorImageUrl: row.author_image_url || '', likes: Number(row.likes || 0), views: Number(row.views || 0), likedByDevice: Boolean(row.likedByDevice), createdAt: row.created_at, expiresAt: new Date(new Date(row.created_at).getTime() + POST_TTL_MS).toISOString() }; }
 function adminQuestion(row: Row) { return { id: row.id, name: row.name, gender: row.gender, country: row.country, city: row.city, question: row.question, category: row.category, status: row.status, answer: row.answer || undefined, answeredBy: row.answered_by || undefined, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function adminSubmission(row: Row) { return { id: row.id, userId: row.user_id || undefined, name: row.name, country: row.country, city: row.city, title: row.title, body: row.body, category: row.category, language: row.language, imageUrl: row.image_url || undefined, authorImageUrl: row.author_image_url || undefined, status: row.status, rejectionReason: row.rejection_reason || undefined, createdAt: row.created_at }; }
 const snippet = (value: string, max: number) => { const t = value.replace(/\s+/g, ' ').trim(); return t.length > max ? `${t.slice(0, max - 1)}…` : t; };
@@ -388,7 +389,7 @@ async function handle(request: Request, env: Env) {
       const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 100, 1), 200);
       // Same city first, then same country, then everyone else; newest first inside each group.
       const rank = "CASE WHEN ?<>'' AND LOWER(TRIM(city))=? THEN 0 WHEN ?<>'' AND LOWER(TRIM(country))=? THEN 1 ELSE 2 END";
-      const selection = 'SELECT posts.*,(SELECT COUNT(*) FROM post_likes WHERE post_id=posts.id) AS likes,EXISTS(SELECT 1 FROM post_likes WHERE post_id=posts.id AND device_id=?) AS likedByDevice FROM posts';
+      const selection = 'SELECT posts.*,(SELECT COUNT(*) FROM post_likes WHERE post_id=posts.id) AS likes,(SELECT COUNT(*) FROM post_views WHERE post_id=posts.id) AS views,EXISTS(SELECT 1 FROM post_likes WHERE post_id=posts.id AND device_id=?) AS likedByDevice FROM posts';
       const rankBinds = [city, city, country, country];
       const q = search
         ? await env.DB.prepare(`${selection} WHERE status='published' AND created_at>=? AND (title LIKE ? OR body LIKE ? OR category LIKE ? OR author LIKE ?) ORDER BY ${rank}, created_at DESC LIMIT ?`).bind(deviceId, postCutoff(), `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, ...rankBinds, limit).all<Row>()
@@ -408,6 +409,19 @@ async function handle(request: Request, env: Env) {
       else await env.DB.prepare('DELETE FROM post_likes WHERE post_id=? AND device_id=?').bind(postId, deviceId).run();
       const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM post_likes WHERE post_id=?').bind(postId).first<Row>();
       return json({ liked: body.liked, likes: Number(count?.count || 0) }, 200, origin);
+    }
+    const postViewMatch = path.match(/^\/posts\/([^/]+)\/view$/);
+    if (postViewMatch && request.method === 'POST') {
+      if (!await rateLimit(env, request, 'post-view', 300)) return json({ error: 'Too many view events.' }, 429, origin);
+      const body = await readJson(request);
+      const deviceId = String(body.deviceId || '').trim();
+      if (deviceId.length < 8) return json({ error: 'A valid device is required.' }, 400, origin);
+      const postId = decodeURIComponent(postViewMatch[1]);
+      const post = await env.DB.prepare("SELECT id FROM posts WHERE id=? AND status='published'").bind(postId).first<Row>();
+      if (!post) return json({ error: 'Post not found.' }, 404, origin);
+      await env.DB.prepare('INSERT OR IGNORE INTO post_views(post_id,device_id,created_at) VALUES(?,?,?)').bind(postId, deviceId, now()).run();
+      const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM post_views WHERE post_id=?').bind(postId).first<Row>();
+      return json({ views: Number(count?.count || 0) }, 200, origin);
     }
     if (path === '/profile' && request.method === 'POST') {
       if (!await rateLimit(env, request, 'profile', 30)) return json({ error: 'Too many requests.' }, 429, origin);

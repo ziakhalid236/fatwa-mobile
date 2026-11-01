@@ -1,8 +1,8 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { sharePost } from '@/lib/share';
@@ -41,6 +41,8 @@ export function PostCard({
   onOpen,
   onShare,
   onAuthor,
+  onVisible,
+  visibilityTick = 0,
   nearby = false,
 }: {
   post: Post;
@@ -52,9 +54,26 @@ export function PostCard({
   onOpen: () => void;
   onShare: () => void;
   onAuthor?: () => void;
+  onVisible?: () => void;
+  visibilityTick?: number;
   nearby?: boolean;
 }) {
   const colors = useColors();
+  const cardRef = useRef<View>(null);
+  const reportedVisible = useRef(false);
+  const checkVisibility = useCallback(() => {
+    if (!onVisible || reportedVisible.current) return;
+    requestAnimationFrame(() => {
+      cardRef.current?.measureInWindow((_x, y, _width, height) => {
+        const screenHeight = Dimensions.get('window').height;
+        if (y + height > 72 && y < screenHeight - 84) {
+          reportedVisible.current = true;
+          onVisible();
+        }
+      });
+    });
+  }, [onVisible]);
+  useEffect(() => { checkVisibility(); }, [checkVisibility, visibilityTick]);
   const excerpt = cleanPostBody(post.title, post.body);
   const imageOnly = Boolean(post.imageUrl && !post.body.trim());
   const isRtl = containsArabic(`${post.title}\n${excerpt}`);
@@ -66,6 +85,8 @@ export function PostCard({
 
   return (
     <View
+      ref={cardRef}
+      onLayout={checkVisibility}
       style={[
         styles.card,
         {

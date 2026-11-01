@@ -153,7 +153,7 @@ function FeedSkeleton() {
   );
 }
 
-export default function HomeScreen({ searchQuery = '' }: { searchQuery?: string }) {
+export default function HomeScreen({ searchQuery = '', visibilityTick = 0 }: { searchQuery?: string; visibilityTick?: number }) {
   const colors = useColors();
   const nav = useNav();
   const { posts, profile, hydrated, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView, refreshContent } = useApp();
@@ -199,6 +199,8 @@ export default function HomeScreen({ searchQuery = '' }: { searchQuery?: string 
           }}
           nearby={Boolean(myCity) && (post.city ?? '').trim().toLowerCase() === myCity}
           onShare={() => { void sharePost(post); }}
+          onVisible={() => registerView(post.id)}
+          visibilityTick={visibilityTick}
           onAuthor={post.authorId ? () => nav.push({ name: 'user', userId: post.authorId as string }) : undefined}
         />
       ))}
