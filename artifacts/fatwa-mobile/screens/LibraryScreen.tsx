@@ -1,4 +1,5 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -11,6 +12,14 @@ import { useNav } from '@/lib/nav';
 const LANG: Record<string, string> = { ar: 'العربية', ur: 'اردو', en: 'English' };
 const rtl = (lang?: string | null) => lang === 'ar' || lang === 'ur';
 const QURAN_COVER = require('../assets/images/quran-cover.jpg');
+const CONTINUE_READING_KEY = '@fatwa/library/continue-reading';
+type ContinueReading =
+  | { kind: 'quran'; number: number; from: number; title: string; updatedAt: number }
+  | { kind: 'book'; workId: number; page: number; title: string; updatedAt: number };
+
+function saveContinueReading(value: ContinueReading) {
+  void AsyncStorage.setItem(CONTINUE_READING_KEY, JSON.stringify(value)).catch(() => undefined);
+}
 
 function Badge({ text, tone }: { text: string; tone: 'ok' | 'warn' | 'plain' }) {
   const colors = useColors();
@@ -98,6 +107,7 @@ export default function LibraryScreen() {
   const colors = useColors();
   const nav = useNav();
   const works = useLoad(fetchWorks, []);
+  const [continueReading, setContinueReading] = useState<ContinueReading | null>(null);
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -117,6 +127,18 @@ export default function LibraryScreen() {
     setSearching(true); setSearchError('');
     try { setHits(await searchLibrary(q)); } catch (e) { setSearchError(e instanceof Error ? e.message : 'Search failed.'); } finally { setSearching(false); }
   };
+
+  useEffect(() => {
+    void AsyncStorage.getItem(CONTINUE_READING_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const value = JSON.parse(raw) as ContinueReading;
+        if ((value.kind === 'quran' && Number.isFinite(value.number) && Number.isFinite(value.from)) || (value.kind === 'book' && Number.isFinite(value.workId) && Number.isFinite(value.page))) setContinueReading(value);
+      } catch {
+        // Ignore a corrupted progress record.
+      }
+    });
+  }, []);
 
   const groups = useMemo(() => {
     const map = new Map<string, { key: string; author: string; genre: string; works: Work[] }>();
@@ -167,6 +189,24 @@ export default function LibraryScreen() {
         </>
       ) : (
         <>
+          {continueReading ? (
+            <Pressable
+              onPress={() => continueReading.kind === 'quran'
+                ? nav.push({ name: 'surah', number: continueReading.number, title: continueReading.title })
+                : nav.push({ name: 'reader', workId: continueReading.workId, title: continueReading.title })}
+              style={[styles.continueCard, { backgroundColor: colors.primarySoft, borderColor: colors.primarySoft }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Continue reading ${continueReading.title}`}
+            >
+              <View style={[styles.continueIcon, { backgroundColor: colors.primary }]}><Feather name="book-open" size={17} color={colors.primaryForeground} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.continueEyebrow, { color: colors.primary }]}>CONTINUE READING</Text>
+                <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>{continueReading.title}</Text>
+                <Text style={[styles.muted, { color: colors.mutedForeground }]}>{continueReading.kind === 'quran' ? `Page ${Math.floor((continueReading.from - 1) / 15) + 1}` : `Page ${continueReading.page}`}</Text>
+              </View>
+              <Feather name="arrow-right" size={19} color={colors.primary} />
+            </Pressable>
+          ) : null}
           <Pressable onPress={() => nav.push({ name: 'quranList' })} style={[styles.quranCard, { backgroundColor: colors.card, borderColor: colors.goldSoft }]} accessibilityRole="button" testID="library-quran">
             <Image source={QURAN_COVER} style={styles.quranCover} accessibilityLabel="Quran Majeed cover" />
             <View style={{ flex: 1 }}>
@@ -226,6 +266,9 @@ export function SurahScreen({ number }: { number: number }) {
   const page = useLoad(() => fetchSurah(number, from), [number, from]);
   const s = page.data?.surah;
   const pages = s ? Math.ceil(s.ayat / 15) : 1;
+  useEffect(() => {
+    saveContinueReading({ kind: 'quran', number, from, title: s?.name ?? `Surah ${number}`, updatedAt: Date.now() });
+  }, [from, number, s?.name]);
   return (
     <View style={uiStyles.screenPadding}>
       <View style={[styles.surahHead, { backgroundColor: colors.forest }]}>
@@ -259,6 +302,9 @@ export function ReaderScreen({ workId }: { workId: number }) {
   const [page, setPage] = useState(1);
   const data = useLoad(() => fetchWorkPage(workId, page), [workId, page]);
   const w = data.data?.work;
+  useEffect(() => {
+    if (w) saveContinueReading({ kind: 'book', workId, page, title: w.title, updatedAt: Date.now() });
+  }, [page, w, workId]);
   return (
     <View style={uiStyles.screenPadding}>
       {w ? (
@@ -299,6 +345,9 @@ const styles = StyleSheet.create({
   rowCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   quranCard: { borderWidth: 1.5, borderRadius: 22, padding: 16, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 13 },
   quranCover: { width: 72, height: 72, borderRadius: 18 },
+  continueCard: { borderRadius: 20, padding: 13, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 11 },
+  continueIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  continueEyebrow: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.8, marginBottom: 2 },
   cardTitle: { fontSize: 14.5, fontWeight: '700', marginBottom: 3 },
   muted: { fontSize: 11.5, lineHeight: 17 },
   body: { fontSize: 14, lineHeight: 22, marginTop: 6 },

@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StarPattern } from '@/components/Art';
 import { PostCard } from '@/components/PostCard';
@@ -131,13 +131,53 @@ function QuickActions() {
   );
 }
 
+function FeedSkeleton() {
+  const colors = useColors();
+  return (
+    <View accessibilityLabel="Loading home feed">
+      <View style={[styles.skeletonHero, { backgroundColor: colors.muted }]} />
+      <View style={styles.skeletonActions}>{[0, 1, 2, 3].map((item) => <View key={item} style={[styles.skeletonAction, { backgroundColor: colors.muted }]} />)}</View>
+      {[0, 1].map((item) => (
+        <View key={item} style={[styles.skeletonPost, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.skeletonAvatar, { backgroundColor: colors.muted }]} />
+          <View style={styles.skeletonLines}>
+            <View style={[styles.skeletonLine, { backgroundColor: colors.muted, width: '44%' }]} />
+            <View style={[styles.skeletonLine, { backgroundColor: colors.muted, width: '88%' }]} />
+            <View style={[styles.skeletonLine, { backgroundColor: colors.muted, width: '72%' }]} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function HomeScreen({ focusSearchSignal = 0 }: { focusSearchSignal?: number }) {
   const colors = useColors();
   const nav = useNav();
-  const { posts, profile, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView } = useApp();
+  const { posts, profile, hydrated, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView, refreshContent } = useApp();
   const [search, setSearch] = useState('');
+  const [connection, setConnection] = useState<'checking' | 'online' | 'offline'>('checking');
   const searchInputRef = useRef<TextInput>(null);
   useEffect(() => { if (focusSearchSignal > 0) searchInputRef.current?.focus(); }, [focusSearchSignal]);
+
+  const checkConnection = useCallback(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4500);
+    try {
+      const response = await fetch('https://fatwa-api.ziakhalid236.workers.dev/api/health', { signal: controller.signal, cache: 'no-store' });
+      setConnection(response.ok ? 'online' : 'offline');
+    } catch {
+      setConnection('offline');
+    } finally {
+      clearTimeout(timeout);
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkConnection();
+    const timer = setInterval(() => void checkConnection(), 20_000);
+    return () => clearInterval(timer);
+  }, [checkConnection]);
 
   const visiblePosts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -148,12 +188,24 @@ export default function HomeScreen({ focusSearchSignal = 0 }: { focusSearchSigna
     return filtered;
   }, [posts, search]);
   const myCity = profile.city.trim().toLowerCase();
+  const showSkeleton = !hydrated || (posts.length === 0 && connection === 'checking');
+  const retryOffline = () => {
+    setConnection('checking');
+    refreshContent();
+    void checkConnection();
+  };
 
   return (
     <View style={styles.container}>
-      <Hero />
-      <QuickActions />
-      <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+      {showSkeleton ? <FeedSkeleton /> : <Hero />}
+      {!showSkeleton ? <QuickActions /> : null}
+      {!showSkeleton && connection === 'offline' && posts.length ? (
+        <View style={[styles.offlineStrip, { backgroundColor: colors.accent, borderColor: colors.goldSoft }]}>
+          <Feather name="wifi-off" size={14} color={colors.accentForeground} />
+          <Text style={[styles.offlineStripText, { color: colors.accentForeground }]}>Offline · Showing saved posts</Text>
+        </View>
+      ) : null}
+      {!showSkeleton ? <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
         <Feather name="search" size={21} color={colors.primary} />
         <TextInput
           ref={searchInputRef}
@@ -166,7 +218,7 @@ export default function HomeScreen({ focusSearchSignal = 0 }: { focusSearchSigna
           accessibilityLabel="Search posts"
         />
         {search ? <Pressable onPress={() => setSearch('')} hitSlop={10} accessibilityLabel="Clear search"><Feather name="x-circle" size={18} color={colors.mutedForeground} /></Pressable> : null}
-      </View>
+      </View> : null}
 
       {visiblePosts.map((post) => (
         <PostCard
@@ -187,7 +239,18 @@ export default function HomeScreen({ focusSearchSignal = 0 }: { focusSearchSigna
         />
       ))}
 
-      {!visiblePosts.length ? (
+      {!showSkeleton && !visiblePosts.length && connection === 'offline' ? (
+        <View style={[styles.offlineEmpty, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="wifi-off" size={28} color={colors.primary} />
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>You are offline</Text>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No saved posts are available yet. Connect to the internet and try again.</Text>
+          <Pressable onPress={retryOffline} style={[styles.retryButton, { backgroundColor: colors.primary }]} accessibilityRole="button">
+            <Text style={{ color: colors.primaryForeground, fontWeight: '800' }}>Try again</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {!showSkeleton && !visiblePosts.length && connection !== 'offline' ? (
         <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Feather name="search" size={24} color={colors.primary} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No posts found</Text>
@@ -245,4 +308,15 @@ const styles = StyleSheet.create({
   empty: { borderWidth: 1, borderRadius: 22, padding: 28, alignItems: 'center', marginBottom: 18 },
   emptyTitle: { fontSize: 16, fontWeight: '700', marginTop: 10 },
   emptyText: { fontSize: 12, marginTop: 5 },
+  offlineStrip: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 12 },
+  offlineStripText: { fontSize: 11.5, fontWeight: '800' },
+  offlineEmpty: { borderWidth: 1, borderRadius: 22, padding: 28, alignItems: 'center', marginBottom: 18 },
+  retryButton: { borderRadius: 14, paddingHorizontal: 17, paddingVertical: 10, marginTop: 14 },
+  skeletonHero: { height: 184, borderRadius: 26, marginBottom: 12, opacity: 0.6 },
+  skeletonActions: { flexDirection: 'row', gap: 6, marginBottom: 14 },
+  skeletonAction: { flex: 1, height: 92, borderRadius: 17, opacity: 0.6 },
+  skeletonPost: { borderWidth: 1, borderRadius: 26, padding: 17, marginBottom: 16, flexDirection: 'row', gap: 10, opacity: 0.8 },
+  skeletonAvatar: { width: 38, height: 38, borderRadius: 19 },
+  skeletonLines: { flex: 1, gap: 10, paddingTop: 4 },
+  skeletonLine: { height: 12, borderRadius: 99 },
 });
