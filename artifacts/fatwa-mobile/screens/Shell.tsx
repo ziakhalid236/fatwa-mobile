@@ -73,6 +73,7 @@ function Shell() {
   const [askSignal, setAskSignal] = useState(0);
   const [homeSearchOpen, setHomeSearchOpen] = useState(false);
   const [homeSearchQuery, setHomeSearchQuery] = useState('');
+  const [feedVisibilityTick, setFeedVisibilityTick] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const handledNotificationResponses = React.useRef(new Set<string>());
@@ -284,7 +285,7 @@ function Shell() {
   else if (route.name === 'prayerDetail') content = <PrayerDetailScreen prayer={route.prayer} />;
   else if (route.name === 'qiblaSettings') content = <QiblaScreen />;
   else if (route.name === 'questionDetail') content = <QuestionDetailScreen questionId={route.questionId} />;
-  else if (tab === 'home') content = <HomeScreen searchQuery={homeSearchQuery} />;
+  else if (tab === 'home') content = <HomeScreen searchQuery={homeSearchQuery} visibilityTick={feedVisibilityTick} />;
   else if (tab === 'library') content = <LibraryScreen />;
   else if (tab === 'questions') content = <QuestionsScreen askSignal={askSignal} />;
   else if (tab === 'alarm') content = <NotificationsScreen />;
@@ -306,12 +307,14 @@ function Shell() {
               <View style={styles.chatContent}>{content}</View>
             </View>
           ) : (
-            <KeyboardAwareScrollViewCompat
-              style={styles.scroll}
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
+              <KeyboardAwareScrollViewCompat
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                scrollEventThrottle={250}
+                onScroll={route.name === 'tabs' && tab === 'home' ? () => setFeedVisibilityTick((current) => current + 1) : undefined}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
             >
               {!hideTopHeader ? header() : null}
               {content}

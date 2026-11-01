@@ -15,7 +15,7 @@ import type { Post } from '@/lib/types';
 /** Cover photos are always shown as a 2:1 banner; the picker crops to the same ratio (ideal size 1200 x 600). */
 const COVER_ASPECT: [number, number] = [2, 1];
 
-type ProfilePost = { id: string; title: string; body: string; imageUrl: string; createdAt: string; likes: number; status?: string; rejectionReason?: string };
+type ProfilePost = { id: string; title: string; body: string; imageUrl: string; createdAt: string; likes: number; views?: number; status?: string; rejectionReason?: string };
 type PublicProfile = { user: { id: string; name: string; city: string; country: string; avatarUrl: string; coverUrl?: string; bio: string; joinedAt: string }; posts: ProfilePost[]; likesReceived: number };
 const RESERVED_PROFILE_NAMES = new Set(['fatwa', 'fatwa app', 'fatwa app official', 'fatwa team', 'fatwa editorial team']);
 
@@ -33,7 +33,7 @@ function asPostCard(post: ProfilePost, user: PublicProfile['user']): Post {
     imageUrl: post.imageUrl || undefined,
     createdAt: post.createdAt,
     date: post.createdAt,
-    views: 0,
+    views: Number(post.views ?? 0),
     likes: post.likes,
     accent: 'forest',
     icon: 'file-text',

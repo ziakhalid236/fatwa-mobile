@@ -102,8 +102,8 @@ function Hero() {
 const CARD_COLORS: Record<string, [string, string]> = {
   Fatwa: ['#0B6B53', '#013A2D'],
   Library: ['#8A5A12', '#4A2E08'],
+  Prayer: ['#7A5B12', '#3F2B08'],
   Qibla: ['#1D4F7A', '#0F2A47'],
-  Saved: ['#6B2F5B', '#3A1633'],
 };
 
 function QuickActions() {
@@ -111,8 +111,8 @@ function QuickActions() {
   const items: Array<{ icon: keyof typeof Feather.glyphMap; label: string; sub: string; onPress: () => void }> = [
     { icon: 'message-circle', label: 'Fatwa', sub: 'Ask AI', onPress: nav.openAsk },
     { icon: 'book-open', label: 'Library', sub: 'Quran & books', onPress: () => nav.goTab('library') },
+    { icon: 'bell', label: 'Prayer', sub: 'Adhan alarm', onPress: () => nav.push({ name: 'prayerSettings' }) },
     { icon: 'compass', label: 'Qibla', sub: 'Direction', onPress: () => nav.push({ name: 'qiblaSettings' }) },
-    { icon: 'bookmark', label: 'Saved', sub: 'Your posts', onPress: () => nav.push({ name: 'saved' }) },
   ];
   return (
     <View style={styles.actions}>
@@ -153,7 +153,7 @@ function FeedSkeleton() {
   );
 }
 
-export default function HomeScreen({ searchQuery = '' }: { searchQuery?: string }) {
+export default function HomeScreen({ searchQuery = '', visibilityTick = 0 }: { searchQuery?: string; visibilityTick?: number }) {
   const colors = useColors();
   const nav = useNav();
   const { posts, profile, hydrated, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView, refreshContent } = useApp();
@@ -199,6 +199,8 @@ export default function HomeScreen({ searchQuery = '' }: { searchQuery?: string 
           }}
           nearby={Boolean(myCity) && (post.city ?? '').trim().toLowerCase() === myCity}
           onShare={() => { void sharePost(post); }}
+          onVisible={() => registerView(post.id)}
+          visibilityTick={visibilityTick}
           onAuthor={post.authorId ? () => nav.push({ name: 'user', userId: post.authorId as string }) : undefined}
         />
       ))}
@@ -228,21 +230,21 @@ export default function HomeScreen({ searchQuery = '' }: { searchQuery?: string 
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 16, paddingBottom: 12 },
-  hero: { borderRadius: 26, padding: 18, marginBottom: 12, overflow: 'hidden' },
+  hero: { borderRadius: 24, padding: 14, marginBottom: 10, overflow: 'hidden' },
   heroArt: { position: 'absolute', right: 10, top: 6 },
-  heroSalam: { color: '#fff', fontSize: 23, fontWeight: '800' },
-  heroGreet: { color: '#CBE7DB', fontSize: 12, marginTop: 2, marginBottom: 9 },
-  dateBlock: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  heroSalam: { color: '#fff', fontSize: 21, fontWeight: '800' },
+  heroGreet: { color: '#CBE7DB', fontSize: 11.5, marginTop: 1, marginBottom: 6 },
+  dateBlock: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
   dateCopy: { gap: 1 },
-  heroDate: { color: '#E3F1E7', fontSize: 11, fontWeight: '700' },
-  prayerPill: { flexDirection: 'row', alignItems: 'stretch', gap: 12, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 18, paddingHorizontal: 13, paddingVertical: 11, alignSelf: 'stretch' },
+  heroDate: { color: '#E3F1E7', fontSize: 10.5, fontWeight: '700' },
+  prayerPill: { flexDirection: 'row', alignItems: 'stretch', gap: 9, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 8, alignSelf: 'stretch' },
   prayerSection: { flex: 1, gap: 2 },
-  prayerHeading: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  prayerLabel: { color: '#CBE7DB', fontSize: 8.5, fontWeight: '800', letterSpacing: 0.5 },
-  prayerName: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  prayerHeading: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  prayerLabel: { color: '#CBE7DB', fontSize: 8, fontWeight: '800', letterSpacing: 0.35 },
+  prayerName: { color: '#fff', fontSize: 13, fontWeight: '800' },
   prayerDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.32)' },
-  prayerText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  prayerMeta: { color: '#F8E59B', fontSize: 10, fontWeight: '800' },
+  prayerText: { color: '#fff', fontSize: 10.5, fontWeight: '800' },
+  prayerMeta: { color: '#F8E59B', fontSize: 9.5, fontWeight: '800' },
   previousPrayer: { color: '#CBE7DB', fontSize: 10.5, fontWeight: '700', marginTop: 9 },
   actions: { flexDirection: 'row', gap: 6, marginBottom: 14 },
   actionWrap: { flex: 1, minWidth: 0 },

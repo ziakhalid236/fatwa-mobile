@@ -29,7 +29,7 @@ export const extraColumns: Record<string, Array<[string, string]>> = {
 
 const count = async (env: any, sql: string, ...b: unknown[]) => Number((await env.DB.prepare(sql).bind(...b).first())?.c ?? 0);
 const isEmail = (v: string) => /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/.test(v) && v.length <= 160;
-const publicPostRow = (r: Row) => ({ id: r.id, title: r.title, body: r.body, category: r.category, imageUrl: r.image_url || '', createdAt: r.created_at, featured: Boolean(r.featured), likes: Number(r.likes || 0) });
+const publicPostRow = (r: Row) => ({ id: r.id, title: r.title, body: r.body, category: r.category, imageUrl: r.image_url || '', createdAt: r.created_at, featured: Boolean(r.featured), likes: Number(r.likes || 0), views: Number(r.views || 0) });
 
 async function newSession(c: Ctx, userId: string) {
   const raw = `${crypto.randomUUID()}-${crypto.randomUUID()}`; const t = c.now();
@@ -96,7 +96,7 @@ export async function publicExtras(c: Ctx): Promise<Response | null> {
   if (prof && m === 'GET') {
     const u = await env.DB.prepare('SELECT id,name,country,city,avatar_url,cover_url,bio,created_at,banned_at FROM users WHERE id=?').bind(prof[1]).first();
     if (!u || u.banned_at) return json({ error: 'User not found.' }, 404, origin);
-    const posts = await env.DB.prepare("SELECT p.*,(SELECT COUNT(*) FROM post_likes l WHERE l.post_id=p.id) AS likes FROM posts p WHERE p.user_id=? AND p.status='published' ORDER BY p.created_at DESC LIMIT 100").bind(u.id).all();
+    const posts = await env.DB.prepare("SELECT p.*,(SELECT COUNT(*) FROM post_likes l WHERE l.post_id=p.id) AS likes,(SELECT COUNT(*) FROM post_views v WHERE v.post_id=p.id) AS views FROM posts p WHERE p.user_id=? AND p.status='published' ORDER BY p.created_at DESC LIMIT 100").bind(u.id).all();
     return json({ user: { id: u.id, name: u.name, country: u.country || '', city: u.city || '', avatarUrl: u.avatar_url || '', coverUrl: u.cover_url || '', bio: u.bio || '', joinedAt: u.created_at }, posts: posts.results.map(publicPostRow), likesReceived: posts.results.reduce((a: number, r: Row) => a + Number(r.likes || 0), 0) }, 200, origin);
   }
   if (path === '/profile/bio' && m === 'POST') {

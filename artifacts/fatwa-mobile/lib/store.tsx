@@ -699,6 +699,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (current.includes(id)) return current;
         const next = [...current, id];
         persist([[STORE_KEYS.viewedPosts, next]]);
+        if (API_BASE_URL) {
+          void getDeviceId().then((deviceId) => fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(id)}/view`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId }),
+          })).catch(() => undefined);
+        }
         return next;
       });
     },

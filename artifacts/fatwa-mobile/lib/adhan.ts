@@ -57,11 +57,14 @@ export async function syncAdhanAlarms(
 ): Promise<{ scheduled: number; permitted: boolean }> {
   if (Platform.OS === 'web') return { scheduled: 0, permitted: false };
 
-  await Notifications.cancelAllScheduledNotificationsAsync();
-  await ensureChannels(options.soundEnabled);
-
   const permitted = await ensureNotificationPermissions();
+  // Check permission before cancelling anything. If Android permissions are
+  // denied/revoked, keep the existing local schedules instead of silently
+  // deleting the user's alarms.
   if (!permitted) return { scheduled: 0, permitted: false };
+
+  await ensureChannels(options.soundEnabled);
+  await Notifications.cancelAllScheduledNotificationsAsync();
 
   const cityTimezone = options.timezoneOffsetHours !== undefined && Number.isInteger(options.timezoneOffsetHours)
     ? options.timezoneOffsetHours === 0
