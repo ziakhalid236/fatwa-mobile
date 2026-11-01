@@ -7,6 +7,7 @@ import { StarPattern } from '@/components/Art';
 import { PostCard, timeAgo } from '@/components/PostCard';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
+import { sharePost } from '@/lib/share';
 import { API_BASE_URL, useApp } from '@/lib/store';
 import { IMAGE_PICKER_OPTIONS, uploadImage } from '@/lib/upload';
 import type { Post } from '@/lib/types';
@@ -220,7 +221,7 @@ export function ProfileView({ userId, self, onEdit }: { userId: string; self?: b
               onToggleLike={() => toggleLike(p.id)}
               onToggleSave={() => toggleSaved(p.id)}
               onOpen={() => { registerView(p.id); nav.push({ name: 'post', postId: p.id }); }}
-              onShare={() => undefined}
+              onShare={() => { void sharePost(cardPost); }}
               onAuthor={undefined}
             />;
           }) : !mine.length ? (

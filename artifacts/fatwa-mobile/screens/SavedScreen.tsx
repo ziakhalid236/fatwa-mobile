@@ -4,6 +4,7 @@ import { PostCard } from '@/components/PostCard';
 import { EmptyState, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
+import { sharePost } from '@/lib/share';
 import { useApp } from '@/lib/store';
 
 export default function SavedScreen() {
@@ -48,8 +49,8 @@ export default function SavedScreen() {
               registerView(post.id);
               nav.push({ name: 'post', postId: post.id });
             }}
-            onShare={() => undefined}
-          onAuthor={post.authorId ? () => nav.push({ name: 'user', userId: post.authorId as string }) : undefined}
+            onShare={() => { void sharePost(post); }}
+            onAuthor={post.authorId ? () => nav.push({ name: 'user', userId: post.authorId as string }) : undefined}
           />
         ))
       ) : (
