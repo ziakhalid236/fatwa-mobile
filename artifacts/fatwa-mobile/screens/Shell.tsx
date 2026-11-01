@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 import React, { useCallback, useMemo, useState } from 'react';
-import { BackHandler, Platform, Pressable, RefreshControl, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Platform, Pressable, RefreshControl, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { LogoMark } from '@/components/ui';
@@ -91,7 +91,8 @@ function Shell() {
   const [tab, setTab] = useState<TabKey>('home');
   const [stack, setStack] = useState<Route[]>([]);
   const [askSignal, setAskSignal] = useState(0);
-  const [homeSearchSignal, setHomeSearchSignal] = useState(0);
+  const [homeSearchOpen, setHomeSearchOpen] = useState(false);
+  const [homeSearchQuery, setHomeSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const handledNotificationResponses = React.useRef(new Set<string>());
@@ -234,15 +235,33 @@ function Shell() {
         )}
         {title ? <Text style={[styles.topBarTitle, { color: colors.foreground }]}>{title}</Text> : null}
         <View style={styles.headerRight}>
-        {route.name === 'tabs' && tab === 'home' ? (
+        {route.name === 'tabs' && tab === 'home' && homeSearchOpen ? (
+          <View style={[styles.headerSearchInput, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+            <Feather name="search" size={18} color={colors.primary} />
+            <TextInput
+              autoFocus
+              value={homeSearchQuery}
+              onChangeText={setHomeSearchQuery}
+              placeholder="Search posts..."
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.headerSearchText, { color: colors.foreground }]}
+              returnKeyType="search"
+              accessibilityLabel="Search posts"
+              testID="home-header-search-input"
+            />
+            <Pressable onPress={() => { setHomeSearchQuery(''); setHomeSearchOpen(false); }} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close search">
+              <Feather name="x" size={19} color={colors.primary} />
+            </Pressable>
+          </View>
+        ) : route.name === 'tabs' && tab === 'home' ? (
           <Pressable
-            style={[styles.headerSearch, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
+            style={[styles.headerSearch, { backgroundColor: colors.primarySoft, borderColor: colors.primary, shadowColor: colors.shadow }]}
             accessibilityRole="button"
             accessibilityLabel="Search posts"
-            onPress={() => setHomeSearchSignal((value) => value + 1)}
+            onPress={() => setHomeSearchOpen(true)}
             testID="home-header-search"
           >
-            <Feather name="search" size={25} color={colors.primary} />
+            <Feather name="search" size={23} color={colors.primary} />
           </Pressable>
         ) : reportable ? (
           <Pressable style={styles.headerSide} accessibilityRole="button" accessibilityLabel="Report a problem" onPress={() => setReportOpen(true)} testID="report-problem">
@@ -283,7 +302,7 @@ function Shell() {
   else if (route.name === 'prayerDetail') content = <PrayerDetailScreen prayer={route.prayer} />;
   else if (route.name === 'qiblaSettings') content = <QiblaScreen />;
   else if (route.name === 'questionDetail') content = <QuestionDetailScreen questionId={route.questionId} />;
-  else if (tab === 'home') content = <HomeScreen focusSearchSignal={homeSearchSignal} />;
+  else if (tab === 'home') content = <HomeScreen searchQuery={homeSearchQuery} />;
   else if (tab === 'library') content = <LibraryScreen />;
   else if (tab === 'questions') content = <QuestionsScreen askSignal={askSignal} />;
   else if (tab === 'alarm') content = <NotificationsScreen />;
@@ -355,7 +374,9 @@ const styles = StyleSheet.create({
   topBarTitle: { position: 'absolute', left: 70, right: 66, textAlign: 'center', fontSize: 16, fontWeight: '700' },
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   headerSide: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  headerSearch: { width: 92, height: 46, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center', shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  headerSearch: { width: 52, height: 46, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center', shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  headerSearchInput: { width: 202, height: 46, borderRadius: 18, borderWidth: 1.5, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerSearchText: { flex: 1, minWidth: 0, height: 44, fontSize: 13.5, fontWeight: '600' },
   notificationDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 9, right: 9 },
   tabBar: {
     minHeight: 80,
