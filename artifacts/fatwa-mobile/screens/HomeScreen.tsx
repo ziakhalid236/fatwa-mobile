@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StarPattern } from '@/components/Art';
 import { PostCard } from '@/components/PostCard';
 import { computePrayerTimes, formatClockTime, formatCountdown, localClockParts, minutesUntil } from '@/lib/prayer';
@@ -151,14 +151,11 @@ function FeedSkeleton() {
   );
 }
 
-export default function HomeScreen({ focusSearchSignal = 0 }: { focusSearchSignal?: number }) {
+export default function HomeScreen({ searchQuery = '' }: { searchQuery?: string }) {
   const colors = useColors();
   const nav = useNav();
   const { posts, profile, hydrated, likedPostIds, savedPostIds, viewedPostIds, toggleLike, toggleSaved, registerView, refreshContent } = useApp();
-  const [search, setSearch] = useState('');
   const [connection, setConnection] = useState<'checking' | 'online' | 'offline'>('checking');
-  const searchInputRef = useRef<TextInput>(null);
-  useEffect(() => { if (focusSearchSignal > 0) searchInputRef.current?.focus(); }, [focusSearchSignal]);
 
   const checkConnection = useCallback(async () => {
     const controller = new AbortController();
@@ -180,13 +177,13 @@ export default function HomeScreen({ focusSearchSignal = 0 }: { focusSearchSigna
   }, [checkConnection]);
 
   const visiblePosts = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
     const filtered = posts.filter((post) => {
       return !query || `${post.title} ${post.body} ${post.author} ${post.city ?? ''} ${post.category ?? ''}`.toLowerCase().includes(query);
     });
     // The server already orders posts: same city, then same country, then the rest.
     return filtered;
-  }, [posts, search]);
+  }, [posts, searchQuery]);
   const myCity = profile.city.trim().toLowerCase();
   const showSkeleton = !hydrated || (posts.length === 0 && connection === 'checking');
   const retryOffline = () => {
@@ -205,21 +202,6 @@ export default function HomeScreen({ focusSearchSignal = 0 }: { focusSearchSigna
           <Text style={[styles.offlineStripText, { color: colors.accentForeground }]}>Offline · Showing saved posts</Text>
         </View>
       ) : null}
-      {!showSkeleton ? <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-        <Feather name="search" size={21} color={colors.primary} />
-        <TextInput
-          ref={searchInputRef}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search posts, people, cities"
-          placeholderTextColor={colors.mutedForeground}
-          style={[styles.searchInput, { color: colors.foreground }]}
-          returnKeyType="search"
-          accessibilityLabel="Search posts"
-        />
-        {search ? <Pressable onPress={() => setSearch('')} hitSlop={10} accessibilityLabel="Clear search"><Feather name="x-circle" size={18} color={colors.mutedForeground} /></Pressable> : null}
-      </View> : null}
-
       {visiblePosts.map((post) => (
         <PostCard
           key={post.id}
@@ -290,21 +272,6 @@ const styles = StyleSheet.create({
   composer: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 18, padding: 12, marginBottom: 12 },
   composerAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   composerText: { flex: 1, fontSize: 13.5 },
-  searchBar: {
-    minHeight: 52,
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 13,
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-    marginBottom: 14,
-  },
-  searchInput: { flex: 1, minHeight: 54, fontSize: 14, fontWeight: '500' },
   empty: { borderWidth: 1, borderRadius: 22, padding: 28, alignItems: 'center', marginBottom: 18 },
   emptyTitle: { fontSize: 16, fontWeight: '700', marginTop: 10 },
   emptyText: { fontSize: 12, marginTop: 5 },
