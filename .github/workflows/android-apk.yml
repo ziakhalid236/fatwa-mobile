@@ -85,6 +85,7 @@ jobs:
           done
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload-key.p12"
           keytool -list -keystore "$RUNNER_TEMP/upload-key.p12" -storetype PKCS12 -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/upload-key.p12"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload-key.p12" >> "$GITHUB_ENV"
           echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
           echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
