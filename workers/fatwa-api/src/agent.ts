@@ -43,8 +43,9 @@ async function makeDraft(env: AgentEnv, item: Row, source: Row) {
 }
 
 export async function runContentAgent(env: AgentEnv, reason = 'scheduled') {
-  await env.DB.prepare("UPDATE agent_runs SET status='failed',finished_at=?,error='stale_run_timeout' WHERE status='running' AND started_at<?").bind(now(), new Date(Date.now() - 30 * 60 * 1000).toISOString()).run();
-  const active = await env.DB.prepare("SELECT id FROM agent_runs WHERE status='running' AND started_at>? LIMIT 1").bind(new Date(Date.now() - 30 * 60 * 1000).toISOString()).first();
+  const staleCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  await env.DB.prepare("UPDATE agent_runs SET status='failed',finished_at=?,error='stale_run_timeout' WHERE status='running' AND started_at<?").bind(now(), staleCutoff).run();
+  const active = await env.DB.prepare("SELECT id FROM agent_runs WHERE status='running' AND started_at>? LIMIT 1").bind(staleCutoff).first();
   if (active) return { runId: active.id, status: 'already_running', sources: 0, fetched: 0, drafts: 0, skipped: 0 };
   const runId = id('agent-run'); const started = now();
   await env.DB.prepare('INSERT INTO agent_runs(id,status,started_at) VALUES(?,?,?)').bind(runId, 'running', started).run();
