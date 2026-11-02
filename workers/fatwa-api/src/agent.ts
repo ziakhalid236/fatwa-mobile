@@ -4,6 +4,8 @@ type AgentEnv = { DB: any; AI?: { run: (model: string, input: unknown) => Promis
 const DRAFT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const MAX_ITEM_AGE_MS = 48 * 60 * 60 * 1000;
 const MAX_FEED_BYTES = 600_000;
+const SOURCE_TIMEOUT_MS = 12_000;
+const AI_TIMEOUT_MS = 30_000;
 
 export const agentSchema = (db: any) => [
   db.prepare("CREATE TABLE IF NOT EXISTS content_sources (id TEXT PRIMARY KEY,name TEXT NOT NULL,url TEXT NOT NULL UNIQUE,kind TEXT NOT NULL DEFAULT 'news',language TEXT NOT NULL DEFAULT 'en',active INTEGER NOT NULL DEFAULT 1,auto_publish INTEGER NOT NULL DEFAULT 0,last_fetched_at TEXT,last_error TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
@@ -28,18 +30,20 @@ function parseFeed(xml: string) {
 }
 function parseDate(value: string) { const d = Date.parse(value); return Number.isFinite(d) ? new Date(d).toISOString() : null; }
 function jsonFromAi(value: any): Row | null { const raw = typeof value === 'string' ? value : value?.response ?? value?.choices?.[0]?.message?.content ?? ''; const m = String(raw).match(/\{[\s\S]*\}/); if (!m) return null; try { return JSON.parse(m[0]) as Row; } catch { return null; } }
+function timeout<T>(promise: Promise<T>, ms: number, label: string) { return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label}_timeout`)), ms))]); }
 
 async function makeDraft(env: AgentEnv, item: Row, source: Row) {
   if (!env.AI) throw new Error('ai_unavailable');
   const language = source.language === 'ur' ? 'Urdu' : source.language === 'ar' ? 'Arabic' : 'English';
   const prompt = `You are the editorial AI for a Muslim community app. Create a SHORT draft from the supplied source only. Never invent facts, dates, names, quotes or religious rulings. If this is not clearly suitable for a Muslim audience, still classify it but set publishable=false. Return JSON only with exactly these keys: {"kind":"news|poetry|quote|reflection|islamic_news|other","language":"en|ur|ar","title":"","body":"","claims":[""],"confidence":0.0,"publishable":false}. Use ${language} unless the source text clearly uses another language. For news, include the source attribution in the body. For quotes or poetry, do not attribute unless the source does. Keep body under 900 characters. Do not add a fatwa or religious ruling.`;
-  const result = await env.AI.run(DRAFT_MODEL, { messages: [{ role: 'system', content: prompt }, { role: 'user', content: `SOURCE: ${source.name}\nURL: ${item.url}\nPUBLISHED: ${item.publishedAt || 'unknown'}\nTITLE: ${item.title}\nTEXT: ${item.summary}` }], max_tokens: 900, temperature: 0.1 });
+  const result = await timeout(env.AI.run(DRAFT_MODEL, { messages: [{ role: 'system', content: prompt }, { role: 'user', content: `SOURCE: ${source.name}\nURL: ${item.url}\nPUBLISHED: ${item.publishedAt || 'unknown'}\nTITLE: ${item.title}\nTEXT: ${item.summary}` }], max_tokens: 900, temperature: 0.1 }), AI_TIMEOUT_MS, 'ai');
   const draft = jsonFromAi(result);
   if (!draft || !clean(draft.body, 2000)) throw new Error('invalid_ai_draft');
   return { kind: ['news', 'poetry', 'quote', 'reflection', 'islamic_news'].includes(String(draft.kind)) ? String(draft.kind) : 'other', language: ['en', 'ur', 'ar'].includes(String(draft.language)) ? String(draft.language) : source.language, title: clean(draft.title, 180), body: clean(draft.body, 1500), claims: Array.isArray(draft.claims) ? draft.claims.map((x: unknown) => clean(x, 300)).filter(Boolean).slice(0, 8) : [], confidence: Math.max(0, Math.min(1, Number(draft.confidence) || 0)), publishable: draft.publishable === true };
 }
 
 export async function runContentAgent(env: AgentEnv, reason = 'scheduled') {
+  await env.DB.prepare("UPDATE agent_runs SET status='failed',finished_at=?,error='stale_run_timeout' WHERE status='running' AND started_at<?").bind(now(), new Date(Date.now() - 30 * 60 * 1000).toISOString()).run();
   const active = await env.DB.prepare("SELECT id FROM agent_runs WHERE status='running' AND started_at>? LIMIT 1").bind(new Date(Date.now() - 30 * 60 * 1000).toISOString()).first();
   if (active) return { runId: active.id, status: 'already_running', sources: 0, fetched: 0, drafts: 0, skipped: 0 };
   const runId = id('agent-run'); const started = now();
@@ -51,7 +55,9 @@ export async function runContentAgent(env: AgentEnv, reason = 'scheduled') {
     for (const source of sources.results.slice(0, 10)) {
       try {
         await event(env, runId, 'fetch', `Fetching ${source.name}`, { url: source.url });
-        const response = await fetch(source.url, { headers: { 'user-agent': 'FatwaContentAgent/1.0 (+https://fatwa-api.ziakhalid236.workers.dev)' } });
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), SOURCE_TIMEOUT_MS);
+        const response = await fetch(source.url, { signal: controller.signal, headers: { 'user-agent': 'FatwaContentAgent/1.0 (+https://fatwa-api.ziakhalid236.workers.dev)' } }).finally(() => clearTimeout(timer));
         if (!response.ok) throw new Error(`source_http_${response.status}`);
         const xml = (await response.text()).slice(0, MAX_FEED_BYTES);
         const items = parseFeed(xml); fetched += items.length;
