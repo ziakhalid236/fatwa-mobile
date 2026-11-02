@@ -11,6 +11,10 @@ workers_dev = true
 
 [vars]
 ALLOWED_ORIGINS = "https://fatwa-admin.pages.dev,https://fatwa-api.ziakhalid236.workers.dev"
+ANDROID_PACKAGE_NAME = "com.fatwa.mobile"
+PLAY_MEMBERSHIP_PRODUCT_ID = "fatwa_membership"
+PLAY_PREMIUM_BASE_PLAN_ID = "premium-monthly"
+PLAY_HIGH_PREMIUM_BASE_PLAN_ID = "high-premium-monthly"
 
 [[d1_databases]]
 binding = "DB"

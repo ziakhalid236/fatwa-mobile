@@ -1,27 +1,37 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PrimaryButton, SectionTitle, uiStyles } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { API_BASE_URL, useApp } from '@/lib/store';
-import { IMAGE_PICKER_OPTIONS, uploadImage } from '@/lib/upload';
+import { IMAGE_PICKER_OPTIONS, uploadImage, uploadVideo } from '@/lib/upload';
 
 const MAX_POST_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_POST_VIDEO_BYTES = 12 * 1024 * 1024;
+const MAX_POST_VIDEO_SECONDS = 60;
 const ACCEPTED_POST_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+function VideoPreview({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri);
+  return <VideoView player={player} style={styles.videoPreview} contentFit="cover" nativeControls fullscreenOptions={{ enable: false }} />;
+}
 
 export default function PostSubmissionScreen() {
   const colors = useColors();
   const nav = useNav();
-  const { profile, settings, signedIn, authHeaders, refreshContent } = useApp();
+  const { profile, settings, signedIn, authHeaders, refreshContent, membership, refreshMembership } = useApp();
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [videoAsset, setVideoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [mediaProgress, setMediaProgress] = useState<number | null>(null);
   const imageUri = imageAsset?.uri ?? '';
   const MAX_CHARS = 5000;
   // Keep what the user typed if they leave the screen before sending.
@@ -56,8 +66,56 @@ export default function PostSubmissionScreen() {
       }
       setError('');
       setImageAsset({ ...selected, mimeType });
+      setVideoAsset(null);
     } catch {
       setError('Could not open photos. Please try again.');
+    }
+  };
+
+  const pickVideo = async () => {
+    if (!signedIn) {
+      setError('Sign in before submitting a video.');
+      nav.goTab('profile');
+      return;
+    }
+    if (membership.plan === 'free') {
+      setError('Short videos are available with Premium. Choose a plan to continue.');
+      nav.push({ name: 'membership' });
+      return;
+    }
+    if (membership.plan === 'premium' && membership.usage.videoLimit !== null && membership.usage.videos >= membership.usage.videoLimit) {
+      setError('You have used today’s Premium video allowance. High Premium includes unlimited videos.');
+      nav.push({ name: 'membership' });
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], allowsEditing: false, videoMaxDuration: MAX_POST_VIDEO_SECONDS });
+      if (result.canceled) return;
+      const selected = result.assets[0];
+      if (!selected?.uri) throw new Error('Could not open this video. Please choose another file.');
+      setMediaProgress(0);
+      let ready = selected;
+      if (Platform.OS !== 'web') {
+        const { Video, getVideoMetaData } = await import('react-native-compressor');
+        const source = await getVideoMetaData(selected.uri);
+        if (source.duration > MAX_POST_VIDEO_SECONDS || source.duration < 0.5) throw new Error('Choose a video between half a second and 60 seconds long.');
+        const compressedUri = await Video.compress(selected.uri, { compressionMethod: 'auto', maxSize: 720, bitrate: 1_400_000 }, (progress) => setMediaProgress(Math.round(progress)));
+        const compressed = await getVideoMetaData(compressedUri);
+        if (compressed.size > MAX_POST_VIDEO_BYTES) throw new Error('Compressed video is still larger than 12 MB. Choose a shorter video.');
+        ready = { ...selected, uri: compressedUri, fileName: `fatwa-video-${Date.now()}.mp4`, mimeType: 'video/mp4', fileSize: compressed.size, duration: compressed.duration * 1000 };
+      } else if (typeof selected.fileSize === 'number' && selected.fileSize > MAX_POST_VIDEO_BYTES) {
+        throw new Error('Videos must be 12 MB or smaller on the web.');
+      } else if (typeof selected.duration === 'number' && selected.duration > MAX_POST_VIDEO_SECONDS * 1000) {
+        throw new Error('Choose a video no longer than 60 seconds.');
+      }
+      setImageAsset(null);
+      setVideoAsset({ ...ready, mimeType: 'video/mp4' });
+      setError('');
+    } catch (reason) {
+      setVideoAsset(null);
+      setError(reason instanceof Error ? reason.message : 'Could not prepare this video. Please try another.');
+    } finally {
+      setMediaProgress(null);
     }
   };
 
@@ -68,8 +126,13 @@ export default function PostSubmissionScreen() {
       nav.push({ name: 'settings' });
       return;
     }
-    if (!body.trim() && !imageAsset) {
-      setError('Please add a description or choose an image.');
+    if (!body.trim() && !imageAsset && !videoAsset) {
+      setError('Please add a description, photo, or short video.');
+      return;
+    }
+    if (membership.usage.postLimit !== null && membership.usage.posts >= membership.usage.postLimit) {
+      setError('You have used today’s free post allowance. See membership options to continue.');
+      nav.push({ name: 'membership' });
       return;
     }
     setBusy(true);
@@ -78,6 +141,10 @@ export default function PostSubmissionScreen() {
       let response: Response;
       if (imageAsset) {
         response = await uploadImage(`${API_BASE_URL}/api/post-submissions`, imageAsset, 'image', fields, authHeaders());
+      } else if (videoAsset) {
+        const result = await uploadVideo(`${API_BASE_URL}/api/post-submissions`, videoAsset, fields, authHeaders(), setMediaProgress);
+        if (!result.ok) throw new Error(result.body.error ?? 'Unable to upload your video.');
+        response = new Response(JSON.stringify(result.body), { status: result.status, headers: { 'content-type': 'application/json' } });
       } else {
         const form = new FormData();
         for (const [key, value] of Object.entries(fields)) form.append(key, value);
@@ -86,6 +153,7 @@ export default function PostSubmissionScreen() {
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Unable to send your post');
       refreshContent();
+      void refreshMembership();
       void AsyncStorage.removeItem('fatwa.postDraft');
       setSubmitted(true);
     } catch (error) {
@@ -117,6 +185,13 @@ export default function PostSubmissionScreen() {
 
       <SectionTitle title="Your profile" subtitle={`${profile.name || 'Guest'} · ${profile.city || 'City'}, ${profile.country || 'Country'}`} />
 
+      <SectionTitle
+        title={membership.plan === 'high_premium' ? 'High Premium' : membership.plan === 'premium' ? 'Premium' : 'Free membership'}
+        subtitle={`${membership.usage.postLimit == null ? 'Unlimited posts' : `${membership.usage.posts}/${membership.usage.postLimit} posts today`} · ${membership.usage.videoLimit == null ? 'Unlimited videos' : `${membership.usage.videos}/${membership.usage.videoLimit} videos today`}`}
+        action="Plans"
+        onAction={() => nav.push({ name: 'membership' })}
+      />
+
       <SectionTitle title="Post" subtitle="Your post is reviewed before it is published." />
       <Text style={[styles.label, { color: colors.foreground }]}>Description (optional)</Text>
       <TextInput
@@ -131,12 +206,13 @@ export default function PostSubmissionScreen() {
         style={[styles.textarea, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
       />
       <Text style={[styles.counter, { color: body.length > MAX_CHARS * 0.9 ? colors.coral : colors.mutedForeground }]}>{body.length}/{MAX_CHARS} · draft saved automatically</Text>
-      <SectionTitle title="Photo (optional)" subtitle="The full image will be uploaded without forcing a crop. You can share it without a description." />
+      <SectionTitle title="Photo (optional)" subtitle="Choose one photo or one short video. You can share it without a description." />
       <Pressable
         onPress={() => { if (!submitted && !busy) void pickPhoto(); }}
-        style={[styles.photoPicker, { backgroundColor: colors.card, borderColor: colors.border }]}
+        style={[styles.photoPicker, { backgroundColor: colors.card, borderColor: colors.border, opacity: busy || submitted || mediaProgress !== null ? 0.6 : 1 }]}
         accessibilityRole="button"
         accessibilityLabel={imageUri ? 'Change selected photo' : 'Choose a photo'}
+        disabled={busy || submitted || mediaProgress !== null}
       >
         {imageUri ? (
           <Image source={{ uri: imageUri }} style={styles.photoPreview} contentFit="cover" />
@@ -154,10 +230,22 @@ export default function PostSubmissionScreen() {
           <Text style={[styles.removePhotoText, { color: colors.coral }]}>Remove photo</Text>
         </Pressable>
       ) : null}
+      <Pressable
+        onPress={() => { if (!submitted && !busy) void pickVideo(); }}
+        style={[styles.videoPicker, { backgroundColor: colors.card, borderColor: colors.border, opacity: busy || submitted || mediaProgress !== null ? 0.6 : 1 }]}
+        accessibilityRole="button"
+        accessibilityLabel={videoAsset ? 'Change selected video' : 'Choose a video'}
+        disabled={busy || submitted || mediaProgress !== null}
+      >
+        {videoAsset ? <VideoPreview uri={videoAsset.uri} /> : <View style={styles.videoPlaceholder}><Feather name="film" size={22} color={colors.primary} /><Text style={[styles.photoLabel, { color: colors.foreground }]}>{mediaProgress === null ? 'Choose a short video' : 'Preparing video…'}</Text><Text style={[styles.photoHint, { color: colors.mutedForeground }]}>MP4 · up to 60 seconds · compressed to fit within 12 MB</Text></View>}
+      </Pressable>
+      {videoAsset ? <Pressable onPress={() => { if (!submitted && !busy) setVideoAsset(null); }} style={styles.removePhoto} accessibilityRole="button"><Feather name="x-circle" size={15} color={colors.coral} /><Text style={[styles.removePhotoText, { color: colors.coral }]}>Remove video</Text></Pressable> : null}
+      {mediaProgress !== null ? <Text style={[styles.counter, { color: colors.mutedForeground }]}>{busy ? `Uploading video · ${mediaProgress}%` : `Compressing video · ${mediaProgress}%`}</Text> : null}
       <PrimaryButton
-        label={submitted ? 'Back to feed' : busy ? 'Sending…' : 'Send for approval'}
+        label={submitted ? 'Back to feed' : busy ? (videoAsset ? 'Uploading…' : 'Sending…') : mediaProgress !== null ? 'Preparing video…' : 'Send for approval'}
         icon={submitted ? 'check' : 'send'}
         onPress={() => { if (submitted) nav.back(); else void submit(); }}
+        disabled={mediaProgress !== null && !busy}
         loading={busy}
       />
       <View style={styles.note}>
@@ -183,6 +271,9 @@ const styles = StyleSheet.create({
   photoPicker: { minHeight: 150, borderWidth: 1, borderStyle: 'dashed', borderRadius: 18, overflow: 'hidden', marginBottom: 8 },
   photoPlaceholder: { minHeight: 150, alignItems: 'center', justifyContent: 'center', padding: 18 },
   photoPreview: { width: '100%', height: 210 },
+  videoPicker: { minHeight: 150, borderWidth: 1, borderStyle: 'dashed', borderRadius: 18, overflow: 'hidden', marginBottom: 8 },
+  videoPlaceholder: { minHeight: 150, alignItems: 'center', justifyContent: 'center', padding: 18 },
+  videoPreview: { width: '100%', height: 250, backgroundColor: '#071A14' },
   photoLabel: { fontSize: 13, fontWeight: '800', marginTop: 10 },
   photoHint: { fontSize: 10.5, textAlign: 'center', marginTop: 5 },
   removePhoto: { flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-end', paddingVertical: 9, marginBottom: 8 },

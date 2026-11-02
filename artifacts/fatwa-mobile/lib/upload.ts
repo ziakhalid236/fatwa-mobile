@@ -89,3 +89,35 @@ export async function uploadImages(
   for (const part of parts) { body.set(part, offset); offset += part.length; }
   return fetch(url, { method: 'POST', body, headers: { ...headers, 'Content-Type': `multipart/form-data; boundary=${boundary}` } });
 }
+
+export async function uploadVideo(
+  url: string,
+  asset: ImagePicker.ImagePickerAsset,
+  fields: Record<string, string>,
+  headers: Record<string, string> = {},
+  onProgress?: (progress: number) => void,
+): Promise<{ ok: boolean; status: number; body: { error?: string; id?: string } }> {
+  if (Platform.OS === 'web') {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) form.append(key, value);
+    const mime = asset.mimeType ?? 'video/mp4';
+    const fileName = asset.fileName ?? `community-${Date.now()}.mp4`;
+    const file = asset.file ?? new File([await (await fetch(asset.uri)).blob()], fileName, { type: mime });
+    form.append('video', file, fileName);
+    const response = await fetch(url, { method: 'POST', body: form, headers });
+    return { ok: response.ok, status: response.status, body: await response.json().catch(() => ({})) };
+  }
+
+  const { backgroundUpload, UploadType } = await import('react-native-compressor');
+  const response = await backgroundUpload(url, asset.uri, {
+    uploadType: UploadType.MULTIPART,
+    fieldName: 'video',
+    mimeType: 'video/mp4',
+    parameters: fields,
+    headers,
+  }, (written, total) => { if (total > 0) onProgress?.(Math.round((written / total) * 100)); });
+  let body: { error?: string; id?: string } = {};
+  try { body = typeof response.body === 'string' ? JSON.parse(response.body) : response.body ?? {}; } catch { body = {}; }
+  const status = Number(response.status || 0);
+  return { ok: status >= 200 && status < 300, status, body };
+}

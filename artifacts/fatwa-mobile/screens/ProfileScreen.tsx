@@ -13,7 +13,7 @@ type MenuItem = { icon: keyof typeof Feather.glyphMap; label: string; badge?: nu
 export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () => void }) {
   const colors = useColors();
   const nav = useNav();
-  const { profile, questions, savedPostIds, unreadCount, clearLocalData, signedIn } = useApp();
+  const { profile, questions, savedPostIds, unreadCount, clearLocalData, signedIn, membership } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const confirmClear = () => {
@@ -25,6 +25,7 @@ export default function ProfileScreen({ onOpenSettings }: { onOpenSettings: () =
 
   const go = (action: () => void) => () => { setMenuOpen(false); action(); };
   const items: MenuItem[] = [
+    { icon: 'award', label: membership.plan === 'free' ? 'Explore memberships' : 'Manage membership', onPress: go(() => nav.push({ name: 'membership' })) },
     { icon: 'bookmark', label: savedPostIds.length ? `Saved posts (${savedPostIds.length})` : 'Saved posts', onPress: go(() => nav.push({ name: 'saved' })) },
     { icon: 'settings', label: 'Settings', onPress: go(onOpenSettings) },
     { icon: 'message-square', label: questions.length ? `My questions (${questions.length})` : 'My questions', onPress: go(() => nav.goTab('questions')) },

@@ -8,6 +8,10 @@ crons = ["17 3 * * *", "*/15 * * * *", "* * * * *"]
 
 [vars]
 ALLOWED_ORIGINS = "https://fatwa-admin.pages.dev,https://fatwa-preview.ziakhalid236.workers.dev,https://fatwa-api.ziakhalid236.workers.dev"
+ANDROID_PACKAGE_NAME = "com.fatwa.mobile"
+PLAY_MEMBERSHIP_PRODUCT_ID = "fatwa_membership"
+PLAY_PREMIUM_BASE_PLAN_ID = "premium-monthly"
+PLAY_HIGH_PREMIUM_BASE_PLAN_ID = "high-premium-monthly"
 
 [[d1_databases]]
 binding = "DB"
@@ -44,7 +48,11 @@ workers_dev = true
 crons = ["17 3 * * *", "*/15 * * * *", "* * * * *"]
 
 [env.staging.vars]
-ALLOWED_ORIGINS = "https://fatwa-preview.ziakhalid236.workers.dev,https://fatwa-admin-staging.pages.dev,https://fatwa-admin-staging.ziakhalid236.workers.dev,http://localhost:8081"
+ALLOWED_ORIGINS = "https://fatwa-preview.ziakhalid236.workers.dev,https://fatwa-preview-staging.ziakhalid236.workers.dev,https://fatwa-admin-staging.pages.dev,https://fatwa-admin-staging.ziakhalid236.workers.dev,http://localhost:8081"
+ANDROID_PACKAGE_NAME = "com.fatwa.mobile"
+PLAY_MEMBERSHIP_PRODUCT_ID = "fatwa_membership"
+PLAY_PREMIUM_BASE_PLAN_ID = "premium-monthly"
+PLAY_HIGH_PREMIUM_BASE_PLAN_ID = "high-premium-monthly"
 
 [[env.staging.d1_databases]]
 binding = "DB"

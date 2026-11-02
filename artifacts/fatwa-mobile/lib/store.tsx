@@ -19,6 +19,7 @@ import type {
   AdhanAlarm,
   AppNotification,
   Fatwa,
+  Membership,
   NotificationKind,
   Post,
   PrayerCity,
@@ -72,6 +73,7 @@ const legacyTranslations: Record<string, NonNullable<Post['translations']>> = {
 type AppState = {
   hydrated: boolean;
   profile: Profile;
+  membership: Membership;
   posts: Post[];
   fatwas: Fatwa[];
   questions: UserQuestion[];
@@ -117,12 +119,14 @@ type AppState = {
   markAllNotificationsRead: () => void;
   clearNotifications: () => void;
   refreshContent: () => void;
+  refreshMembership: () => Promise<void>;
   clearLocalData: () => void;
 };
 
 const AppContext = createContext<AppState | null>(null);
 
 const emptyProfile: Profile = { name: '', country: '', city: '' };
+const FREE_MEMBERSHIP: Membership = { plan: 'free', expiresAt: null, usage: { posts: 0, postLimit: 3, videos: 0, videoLimit: 0 } };
 
 function makeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -139,6 +143,7 @@ export async function getDeviceId(): Promise<string> {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [profile, setProfileState] = useState<Profile>(emptyProfile);
+  const [membership, setMembership] = useState<Membership>(FREE_MEMBERSHIP);
   const [sessionToken, setSessionToken] = useState('');
   const [onboarded, setOnboarded] = useState(false);
   const tokenRef = useRef('');
@@ -407,7 +412,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               return 'General';
             };
             const nextPosts: Post[] = [
-              ...payload.posts.map((item) => ({
+              ...payload.posts.map((item): Post => ({
                 id: String(item.id),
                 title: String(item.title ?? 'Untitled post'),
                 body: String(item.body ?? ''),
@@ -419,6 +424,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 country: typeof item.country === 'string' ? item.country : undefined,
                 createdAt: typeof item.createdAt === 'string' ? item.createdAt : undefined,
                 imageUrl: typeof item.imageUrl === 'string' && item.imageUrl ? item.imageUrl : undefined,
+                videoUrl: typeof item.videoUrl === 'string' && item.videoUrl ? item.videoUrl : undefined,
+                mediaType: item.mediaType === 'video' || item.mediaType === 'image' ? item.mediaType : 'text',
+                videoDurationMs: Number(item.videoDurationMs ?? 0),
                 source: typeof item.source === 'string' ? item.source : undefined,
                 views: Number(item.views ?? 0),
                 likes: Math.max(0, Number(item.likes ?? 0) - (item.likedByDevice === true ? 1 : 0)),
@@ -484,6 +492,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const authHeaders = useCallback((): Record<string, string> => (tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {}), []);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refreshMembership = useCallback(async () => {
+    const token = tokenRef.current;
+    if (!token) { setMembership(FREE_MEMBERSHIP); return; }
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subscription`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) return;
+      const value = await response.json() as Membership;
+      if (tokenRef.current !== token || !['free', 'premium', 'high_premium'].includes(value.plan)) return;
+      setMembership({
+        plan: value.plan,
+        expiresAt: typeof value.expiresAt === 'string' ? value.expiresAt : null,
+        usage: {
+          posts: Math.max(0, Number(value.usage?.posts || 0)),
+          postLimit: value.usage?.postLimit == null ? null : Math.max(0, Number(value.usage.postLimit)),
+          videos: Math.max(0, Number(value.usage?.videos || 0)),
+          videoLimit: value.usage?.videoLimit == null ? null : Math.max(0, Number(value.usage.videoLimit)),
+        },
+      });
+    } catch {
+      // Keep the last verified membership summary when the API is offline.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void refreshMembership();
+    const interval = setInterval(() => { void refreshMembership(); }, 5 * 60_000);
+    const appState = NativeAppState.addEventListener('change', (state) => { if (state === 'active') void refreshMembership(); });
+    return () => { clearInterval(interval); appState.remove(); };
+  }, [hydrated, sessionToken, refreshMembership]);
 
   const storeSession = useCallback((token: string) => {
     tokenRef.current = token;
@@ -911,6 +950,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const clearLocalData = useCallback(() => {
     setProfileState(emptyProfile);
+    setMembership(FREE_MEMBERSHIP);
     tokenRef.current = '';
     setSessionToken('');
     setOnboarded(false);
@@ -939,6 +979,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       hydrated,
       profile,
+      membership,
       posts,
       fatwas: fatwaList,
       questions,
@@ -972,11 +1013,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markAllNotificationsRead,
       clearNotifications,
       refreshContent,
+      refreshMembership,
       clearLocalData,
     }),
     [
       hydrated,
       profile,
+      membership,
       posts,
       fatwaList,
       questions,
@@ -1010,6 +1053,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markAllNotificationsRead,
       clearNotifications,
       refreshContent,
+      refreshMembership,
       clearLocalData,
     ],
   );

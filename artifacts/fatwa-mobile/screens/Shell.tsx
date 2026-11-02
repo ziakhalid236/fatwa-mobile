@@ -33,10 +33,14 @@ import QuestionDetailScreen from '@/screens/QuestionDetailScreen';
 import SavedScreen from '@/screens/SavedScreen';
 import SettingsScreen from '@/screens/SettingsScreen';
 import UserProfileScreen from '@/screens/UserProfileScreen';
+import MembershipScreen from '@/screens/MembershipScreen';
+import ShortsScreen from '@/screens/ShortsScreen';
 
 const titles: Record<string, string> = {
   post: 'Post',
   postSubmit: 'Share a reminder',
+  shorts: 'Community Shorts',
+  membership: 'Membership',
   user: 'Profile',
   fatwa: 'Fatwa',
   fatwaList: 'Published rulings',
@@ -251,6 +255,12 @@ function Shell() {
             <Feather name="flag" size={18} color={colors.mutedForeground} />
           </Pressable>
         ) : null}
+        {route.name === 'tabs' && tab === 'home' ? (
+          <Pressable style={styles.headerSide} accessibilityRole="button" accessibilityLabel="Notifications" onPress={() => push({ name: 'notifications' })} testID="home-notifications">
+            <Feather name="bell" size={20} color={colors.foreground} />
+            {unreadCount > 0 ? <View style={[styles.notificationDot, { backgroundColor: colors.coral }]} /> : null}
+          </Pressable>
+        ) : null}
         {route.name === 'tabs' && tab !== 'home' ? (
           <Pressable
             style={styles.headerSide}
@@ -270,6 +280,8 @@ function Shell() {
   let content: React.ReactNode;
   if (route.name === 'post') content = <PostDetailScreen postId={route.postId} />;
   else if (route.name === 'postSubmit') content = <PostSubmissionScreen />;
+  else if (route.name === 'shorts') content = <ShortsScreen />;
+  else if (route.name === 'membership') content = <MembershipScreen />;
   else if (route.name === 'user') content = <UserProfileScreen userId={route.userId} />;
   else if (route.name === 'fatwa') content = <FatwaDetailScreen fatwaId={route.fatwaId} />;
   else if (route.name === 'fatwaList') content = <FatwaScreen />;
@@ -305,6 +317,11 @@ function Shell() {
             <View style={styles.chatContent}>
               {header()}
               <View style={styles.chatContent}>{content}</View>
+            </View>
+          ) : route.name === 'shorts' ? (
+            <View style={styles.immersive}>
+              {header()}
+              <View style={styles.immersiveContent}>{content}</View>
             </View>
           ) : (
               <KeyboardAwareScrollViewCompat
@@ -347,6 +364,8 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, paddingBottom: 12 },
   chatScrollContent: { flex: 1 },
   chatContent: { flex: 1, minHeight: 0 },
+  immersive: { flex: 1, minHeight: 0 },
+  immersiveContent: { flex: 1, minHeight: 0 },
   topBar: {
     minHeight: 60,
     paddingHorizontal: 20,

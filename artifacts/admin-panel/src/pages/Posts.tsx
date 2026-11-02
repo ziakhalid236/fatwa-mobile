@@ -5,6 +5,11 @@ import { Badge, Btn, Empty, Modal, Spinner, Tabs, useLoad, useToast } from "../u
 
 const CATS = ["Aqeedah", "Namaz", "Roza", "Zakat", "Hajj & Umrah", "Nikah & Family", "Muamalat", "Tafseer & Quran"];
 const Avatar = ({ src, name }: { src?: string; name?: string }) => src ? <img className="avatar" src={src} /> : <div className="avatar">{(name || "?")[0]}</div>;
+function PostMedia({ imageUrl, videoUrl }: { imageUrl?: string; videoUrl?: string }) {
+  if (videoUrl) return <video className="thumb" controls playsInline preload="metadata" aria-label="Community video" style={{ width: "min(100%,360px)", maxHeight: 480 }} src={videoUrl} />;
+  if (imageUrl) return <img className="thumb" style={{ width: "min(100%,360px)", height: "auto" }} src={imageUrl} alt="Community post" />;
+  return null;
+}
 
 export default function Posts() {
   const [tab, setTab] = useState("pending");
@@ -39,7 +44,7 @@ function Pending({ s, onApprove, onReject, onDelete }: any) {
     <div className="body">
       <div className="row"><b>{s.name}</b><span className="meta">{[s.city, s.country].filter(Boolean).join(", ")} · {ago(s.createdAt)}</span><Badge tone="amber">Pending</Badge></div>
       {s.title && <h4>{s.title}</h4>}<p>{s.body}</p>
-      {s.imageUrl && <img className="thumb" style={{ width: "min(100%,360px)", height: "auto" }} src={s.imageUrl} />}
+      <PostMedia imageUrl={s.imageUrl} videoUrl={s.videoUrl} />
       <div className="row" style={{ marginTop: 10 }}>
         <select style={{ width: 190 }} value={notify} onChange={(e) => setNotify(e.target.value)}><option value="">No notification</option><option value="all">Notify all users</option><option value="country">Notify same country</option><option value="city">Notify same city</option></select>
         <Btn tone="primary" small onClick={() => onApprove(s, notify)}><Check size={14} /> Approve</Btn>
@@ -57,7 +62,7 @@ function Live({ p, reload }: { p: any; reload: () => void }) {
     <div className="body">
       <div className="row"><b>{p.author}</b><span className="meta">{[p.city, p.country].filter(Boolean).join(", ")} · {ago(p.createdAt)}</span>{p.featured && <Badge tone="blue">Pinned</Badge>}<Badge tone="green">{p.likes} likes</Badge><span className="meta">expires {new Date(p.expiresAt).toLocaleDateString()}</span></div>
       {p.title && <h4>{p.title}</h4>}<p>{p.body}</p>
-      {p.imageUrl && <img className="thumb" style={{ width: "min(100%,360px)", height: "auto" }} src={p.imageUrl} />}
+      <PostMedia imageUrl={p.imageUrl} videoUrl={p.videoUrl} />
       <div className="row" style={{ marginTop: 10 }}>
         <Btn small onClick={async () => { await patch(`/admin/posts/${p.id}`, { action: p.featured ? "unpin" : "pin" }); reload(); }}><Pin size={13} /> {p.featured ? "Unpin" : "Pin"}</Btn>
         <Btn small onClick={async () => { const scope = prompt("Send a notification to: all / country / city", "all"); if (!scope) return; const r = await post(`/admin/posts/${p.id}/notify`, { scope, force: true }); toast(`Notified ${r.notified ?? 0} users`); }}><Send size={13} /> Notify</Btn>

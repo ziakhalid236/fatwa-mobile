@@ -4,6 +4,7 @@ import { withTurso } from './turso';
 import { adminExtras, extraColumns, extraSchema, publicExtras, type Ctx } from './extras';
 import { expandQuery, tokens as kbTokens, kbSchemaStatements, searchKb, kbContext, publicHit, ingest as kbIngest, importScholars, kbStats, kbMigrate, reseq as kbReseq, type KbHit } from './kb';
 import { agentRoutes, agentSchema, runContentAgent, seedAgentSources } from './agent';
+import { effectivePlan, utcDayKey, verifyGooglePlaySubscription } from './subscriptions';
 interface Env {
   APP_DOWNLOAD_URL?: string;
   APP_SIGNING_SHA256?: string;
@@ -23,11 +24,19 @@ interface Env {
   MAIL_FROM?: string;
   SMTP_USER?: string;
   SMTP_PASS?: string;
+  ANDROID_PACKAGE_NAME?: string;
+  PLAY_MEMBERSHIP_PRODUCT_ID?: string;
+  PLAY_PREMIUM_BASE_PLAN_ID?: string;
+  PLAY_HIGH_PREMIUM_BASE_PLAN_ID?: string;
+  PLAY_SERVICE_ACCOUNT_JSON?: string;
 }
 
 type Row = Record<string, any>;
 const MAX_BODY = 4 * 1024 * 1024;
 const IMAGE_MAX = 8 * 1024 * 1024;
+const VIDEO_MAX = 12 * 1024 * 1024;
+const MULTIPART_MAX = VIDEO_MAX + 1024 * 1024;
+const VIDEO_MAX_SECONDS = 60;
 const CATEGORIES = new Set(['Aqeedah', 'Namaz', 'Roza', 'Zakat', 'Hajj & Umrah', 'Nikah & Family', 'Muamalat', 'Tafseer & Quran']);
 
 const CHAT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
@@ -89,6 +98,26 @@ function corsOrigin(request: Request, env: Env) {
 function clientKey(request: Request) { return request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || 'unknown'; }
 async function hash(value: string) { const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join(''); }
 async function readJson(request: Request) { const length = Number(request.headers.get('content-length') || 0); if (length > MAX_BODY) throw new Error('payload_too_large'); return await request.json() as Row; }
+async function readFormDataLimited(request: Request, maxBytes: number): Promise<FormData> {
+  const reader = request.body?.getReader();
+  if (!reader) return new FormData();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error('payload_too_large');
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new Request(request.url, { method: 'POST', headers: request.headers, body: bytes }).formData();
+}
 function bearer(request: Request) { return (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim() || request.headers.get('x-admin-token') || ''; }
 function safeError(error: unknown) { const message = String(error); if (message.includes('payload_too_large')) return ['Payload is too large.', 413] as const; console.error('worker error', message); return ['Request could not be completed.', 500] as const; }
 
@@ -144,9 +173,9 @@ async function createSchema(env: Env) {
   ]);
   // Additive columns (idempotent, safe on production data).
   const wanted: Record<string, Array<[string, string]>> = {
-    posts: [['country', 'TEXT'], ['user_id', 'TEXT'], ['notified_at', 'TEXT']],
+    posts: [['country', 'TEXT'], ['user_id', 'TEXT'], ['notified_at', 'TEXT'], ['video_url', 'TEXT'], ['media_type', "TEXT NOT NULL DEFAULT 'text'"], ['video_duration_ms', 'INTEGER']],
     users: [['notify_posts', 'INTEGER NOT NULL DEFAULT 1'], ...extraColumns.users],
-    post_submissions: [['user_id', 'TEXT']],
+    post_submissions: [['user_id', 'TEXT'], ['video_url', 'TEXT'], ['media_type', "TEXT NOT NULL DEFAULT 'text'"], ['video_duration_ms', 'INTEGER']],
     notifications: [['kind', 'TEXT'], ['image_url', 'TEXT']],
   };
   for (const [table, columns] of Object.entries(wanted)) {
@@ -159,6 +188,8 @@ async function createSchema(env: Env) {
       if (table === 'users' && name === 'welcomed_at') await env.DB.prepare('UPDATE users SET welcomed_at=created_at WHERE email IS NOT NULL').run();
     }
   }
+  await env.DB.prepare('UPDATE post_submissions SET user_id=(SELECT id FROM users WHERE users.device_id=post_submissions.submitter_device_id) WHERE user_id IS NULL AND submitter_device_id IS NOT NULL').run();
+  await env.DB.prepare("INSERT OR IGNORE INTO daily_post_usage(user_id,usage_date,posts,videos,updated_at) SELECT user_id,substr(created_at,1,10),COUNT(*),SUM(CASE WHEN media_type='video' THEN 1 ELSE 0 END),? FROM post_submissions WHERE user_id IS NOT NULL GROUP BY user_id,substr(created_at,1,10)").bind(now()).run();
 }
 
 async function userFor(env: Env, request: Request, _body?: Row) {
@@ -210,14 +241,112 @@ async function storeImage(env: Env, origin: string, folder: string, file: File, 
   return { url: `${origin}/api/media/${encodeURIComponent(key)}` };
 }
 
+function mp4DurationMs(fileBytes: ArrayBuffer): number | null {
+  const view = new DataView(fileBytes);
+  const text = (offset: number, length: number) => String.fromCharCode(...new Uint8Array(fileBytes, offset, length));
+  const readBox = (offset: number, limit: number) => {
+    if (offset + 8 > limit) return null;
+    const type = text(offset + 4, 4);
+    let size = view.getUint32(offset);
+    let header = 8;
+    if (size === 1) {
+      if (offset + 16 > limit) return null;
+      const largeSize = view.getBigUint64(offset + 8);
+      if (largeSize > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+      size = Number(largeSize);
+      header = 16;
+    } else if (size === 0) size = limit - offset;
+    if (size < header || offset + size > limit) return null;
+    return { type, data: offset + header, end: offset + size };
+  };
+
+  let top = 0;
+  while (top + 8 <= view.byteLength) {
+    const box = readBox(top, view.byteLength);
+    if (!box) return null;
+    if (box.type === 'moov') {
+      let child = box.data;
+      while (child + 8 <= box.end) {
+        const nested = readBox(child, box.end);
+        if (!nested) return null;
+        if (nested.type === 'trak') {
+          let trackChild = nested.data;
+          while (trackChild + 8 <= nested.end) {
+            const mdia = readBox(trackChild, nested.end);
+            if (!mdia) return null;
+            if (mdia.type === 'mdia') {
+              let mediaChild = mdia.data;
+              let isVideo = false;
+              let durationMs: number | null = null;
+              while (mediaChild + 8 <= mdia.end) {
+                const mediaBox = readBox(mediaChild, mdia.end);
+                if (!mediaBox) return null;
+                if (mediaBox.type === 'hdlr' && mediaBox.data + 12 <= mediaBox.end) isVideo = text(mediaBox.data + 8, 4) === 'vide';
+                if (mediaBox.type === 'mdhd') {
+                  if (mediaBox.data + 20 > mediaBox.end) return null;
+                  const version = view.getUint8(mediaBox.data);
+                  const timescaleOffset = mediaBox.data + (version === 1 ? 20 : 12);
+                  const durationOffset = mediaBox.data + (version === 1 ? 24 : 16);
+                  if (timescaleOffset + 4 > mediaBox.end || durationOffset + (version === 1 ? 8 : 4) > mediaBox.end) return null;
+                  const timescale = view.getUint32(timescaleOffset);
+                  const duration = version === 1 ? Number(view.getBigUint64(durationOffset)) : view.getUint32(durationOffset);
+                  if (timescale > 0 && Number.isFinite(duration)) durationMs = Math.round((duration / timescale) * 1000);
+                }
+                mediaChild = mediaBox.end;
+              }
+              if (isVideo && durationMs !== null) return durationMs;
+            }
+            trackChild = mdia.end;
+          }
+        }
+        child = nested.end;
+      }
+    }
+    top = box.end;
+  }
+  return null;
+}
+
+async function storeVideo(env: Env, origin: string, folder: string, file: File, maxBytes: number): Promise<{ url: string; durationMs: number } | { error: string; status: number }> {
+  if (file.size > maxBytes) return { error: `Compressed video must be smaller than ${Math.round(maxBytes / 1048576)} MB.`, status: 413 };
+  const prefix = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  if (prefix.length < 12 || String.fromCharCode(...prefix.slice(4, 8)) !== 'ftyp') return { error: 'Only MP4 videos are supported.', status: 415 };
+  const durationMs = mp4DurationMs(await file.arrayBuffer());
+  if (durationMs === null || durationMs < 500) return { error: 'The MP4 video duration could not be verified.', status: 415 };
+  if (durationMs > VIDEO_MAX_SECONDS * 1000) return { error: `Videos must be ${VIDEO_MAX_SECONDS} seconds or shorter.`, status: 413 };
+  const key = `${folder}/${crypto.randomUUID()}.mp4`;
+  await env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: 'video/mp4' } });
+  return { url: `${origin}/api/media/${encodeURIComponent(key)}`, durationMs };
+}
+
+async function reservePostQuota(env: Env, userId: string, usageDate: string, plan: string, isVideo: boolean): Promise<boolean> {
+  const result = await env.DB.prepare("INSERT INTO daily_post_usage(user_id,usage_date,posts,videos,updated_at) SELECT ?,?,?,?,? WHERE (?!='free' OR ?=0) ON CONFLICT(user_id,usage_date) DO UPDATE SET posts=posts+1,videos=videos+excluded.videos,updated_at=excluded.updated_at WHERE (?!='free' OR (posts<3 AND excluded.videos=0)) AND (?!='premium' OR excluded.videos=0 OR videos<5)")
+    .bind(userId, usageDate, 1, isVideo ? 1 : 0, now(), plan, isVideo ? 1 : 0, plan, plan).run();
+  return Number(result.meta?.changes || 0) > 0;
+}
+
+async function releasePostQuota(env: Env, userId: string, usageDate: string, isVideo: boolean) {
+  await env.DB.prepare('UPDATE daily_post_usage SET posts=MAX(posts-1,0),videos=MAX(videos-?,0),updated_at=? WHERE user_id=? AND usage_date=?').bind(isVideo ? 1 : 0, now(), userId, usageDate).run();
+}
+
+async function deleteMedia(env: Env, url: unknown) {
+  try {
+    const parsed = new URL(String(url || ''));
+    const key = decodeURIComponent(parsed.pathname.replace(/^\/api\/media\//, ''));
+    if (parsed.pathname.startsWith('/api/media/') && /^(posts|avatars|covers|reports)\/[A-Za-z0-9._/-]+$/.test(key) && !key.includes('..')) await env.MEDIA.delete(key);
+  } catch (error) {
+    console.error('media cleanup failed', error instanceof Error ? error.message : 'unknown error');
+  }
+}
+
 async function notify(env: Env, userId: string, n: { title: string; body: string; kind: string; postId?: string | null; questionId?: string | null; imageUrl?: string | null }) {
   await env.DB.prepare('INSERT INTO notifications(id,user_id,title,body,question_id,post_id,kind,image_url,read_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(id('notification'), userId, n.title, n.body, n.questionId || null, n.postId || null, n.kind, n.imageUrl || null, null, now()).run();
 }
 
 function publicFatwa(row: Row) { return { id: row.id, question: row.question, answer: row.answer, category: row.category, scholar: row.scholar, institution: row.institution, sourceUrl: row.source_url || undefined, status: row.status, createdAt: row.created_at }; }
-function publicPost(row: Row) { return { id: row.id, title: row.title, body: row.body, category: row.category, featured: Boolean(row.featured), status: row.status, author: row.author || 'Fatwa editorial team', city: row.city || '', country: row.country || '', authorId: row.user_id || '', imageUrl: row.image_url || '', authorImageUrl: row.author_image_url || '', likes: Number(row.likes || 0), views: Number(row.views || 0), likedByDevice: Boolean(row.likedByDevice), createdAt: row.created_at, expiresAt: new Date(new Date(row.created_at).getTime() + POST_TTL_MS).toISOString() }; }
+function publicPost(row: Row) { return { id: row.id, title: row.title, body: row.body, category: row.category, featured: Boolean(row.featured), status: row.status, author: row.author || 'Fatwa editorial team', city: row.city || '', country: row.country || '', authorId: row.user_id || '', imageUrl: row.image_url || '', videoUrl: row.video_url || '', mediaType: row.media_type || 'text', videoDurationMs: Number(row.video_duration_ms || 0), authorImageUrl: row.author_image_url || '', likes: Number(row.likes || 0), views: Number(row.views || 0), likedByDevice: Boolean(row.likedByDevice), createdAt: row.created_at, expiresAt: new Date(new Date(row.created_at).getTime() + POST_TTL_MS).toISOString() }; }
 function adminQuestion(row: Row) { return { id: row.id, name: row.name, gender: row.gender, country: row.country, city: row.city, question: row.question, category: row.category, status: row.status, answer: row.answer || undefined, answeredBy: row.answered_by || undefined, createdAt: row.created_at, updatedAt: row.updated_at }; }
-function adminSubmission(row: Row) { return { id: row.id, userId: row.user_id || undefined, name: row.name, country: row.country, city: row.city, title: row.title, body: row.body, category: row.category, language: row.language, imageUrl: row.image_url || undefined, authorImageUrl: row.author_image_url || undefined, status: row.status, rejectionReason: row.rejection_reason || undefined, createdAt: row.created_at }; }
+function adminSubmission(row: Row) { return { id: row.id, userId: row.user_id || undefined, name: row.name, country: row.country, city: row.city, title: row.title, body: row.body, category: row.category, language: row.language, imageUrl: row.image_url || undefined, videoUrl: row.video_url || undefined, mediaType: row.media_type || 'text', videoDurationMs: Number(row.video_duration_ms || 0), authorImageUrl: row.author_image_url || undefined, status: row.status, rejectionReason: row.rejection_reason || undefined, createdAt: row.created_at }; }
 const snippet = (value: string, max: number) => { const t = value.replace(/\s+/g, ' ').trim(); return t.length > max ? `${t.slice(0, max - 1)}…` : t; };
 
 async function submissionUserId(env: Env, submission: Row): Promise<string | null> {
@@ -233,7 +362,7 @@ async function approveSubmission(env: Env, submission: Row) {
   const postId = id('post');
   const author = submission.user_id ? await env.DB.prepare('SELECT id,name,avatar_url FROM users WHERE id=?').bind(submission.user_id).first<Row>() : null;
   const avatar = author?.avatar_url || submission.author_image_url || null;
-  await env.DB.prepare('INSERT INTO posts(id,title,body,category,featured,status,created_at,updated_at,city,country,author,image_url,author_image_url,user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(postId, submission.title, submission.body, submission.category, 0, 'published', timestamp, timestamp, submission.city || '', submission.country || '', submission.name, submission.image_url, avatar, submission.user_id || null).run();
+  await env.DB.prepare('INSERT INTO posts(id,title,body,category,featured,status,created_at,updated_at,city,country,author,image_url,video_url,media_type,video_duration_ms,author_image_url,user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(postId, submission.title, submission.body, submission.category, 0, 'published', timestamp, timestamp, submission.city || '', submission.country || '', submission.name, submission.image_url, submission.video_url || null, submission.media_type || (submission.image_url ? 'image' : 'text'), Number(submission.video_duration_ms || 0), avatar, submission.user_id || null).run();
   await env.DB.prepare('UPDATE post_submissions SET status=?,updated_at=? WHERE id=?').bind('approved', timestamp, submission.id).run();
   if (submission.user_id) await notify(env, submission.user_id, { title: 'Your post is live', body: snippet(String(submission.body || submission.title || 'Your post'), 140), kind: 'post_approved', postId, imageUrl: submission.image_url });
   return postId;
@@ -399,6 +528,11 @@ async function handle(request: Request, env: Env) {
         : await env.DB.prepare(`${selection} WHERE status='published' AND created_at>=? ORDER BY ${rank}, created_at DESC LIMIT ?`).bind(deviceId, postCutoff(), ...rankBinds, limit).all<Row>();
       return json({ posts: q.results.map(publicPost) }, 200, origin);
     }
+    if (path === '/videos' && request.method === 'GET') {
+      const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 30, 1), 100);
+      const q = await env.DB.prepare("SELECT posts.*,(SELECT COUNT(*) FROM post_likes WHERE post_id=posts.id) AS likes,(SELECT COUNT(*) FROM post_views WHERE post_id=posts.id) AS views FROM posts WHERE status='published' AND video_url IS NOT NULL AND created_at>=? ORDER BY created_at DESC LIMIT ?").bind(postCutoff(), limit).all<Row>();
+      return json({ videos: q.results.map(publicPost) }, 200, origin);
+    }
     const postLikeMatch = path.match(/^\/posts\/([^/]+)\/like$/);
     if (postLikeMatch && request.method === 'POST') {
       if (!await rateLimit(env, request, 'post-like', 120)) return json({ error: 'Too many requests.' }, 429, origin);
@@ -432,7 +566,7 @@ async function handle(request: Request, env: Env) {
       const result = await saveProfile(env, await userFor(env, request), request, body);
       return json({ ok: true, sessionToken: result.sessionToken, user: publicUser(result.user) }, 200, origin);
     }
-    const xc: Ctx = { env, request, url, path, origin, json, id, now, hash, readJson, userFor, rateLimit, storeImage, publicUser, audit, notify, chat: (message) => chatReply(env, [{ role: 'user', content: message }], message) };
+    const xc: Ctx = { env, request, url, path, origin, json, id, now, hash, readJson, userFor, rateLimit, storeImage, storeVideo, deleteMedia: (mediaUrl) => deleteMedia(env, mediaUrl), publicUser, audit, notify, chat: (message) => chatReply(env, [{ role: 'user', content: message }], message) };
     if (!path.startsWith('/admin')) { const r = await publicExtras(xc); if (r) return r; }
     if (path === '/push-token' && request.method === 'POST') {
       const user = await userFor(env, request); if (!user) return json({ error: 'Sign in required.' }, 401, origin);
@@ -442,6 +576,28 @@ async function handle(request: Request, env: Env) {
       return json({ ok: true }, 200, origin);
     }
     if (path === '/me' && request.method === 'GET') { const user = await userFor(env, request); if (!user) return json({ error: 'Not signed in.' }, 401, origin); return json({ user: publicUser(user) }, 200, origin); }
+    if (path === '/subscription' && request.method === 'GET') {
+      const user = await userFor(env, request); if (!user) return json({ error: 'Sign in to view your membership.' }, 401, origin);
+      const plan = effectivePlan(user);
+      const usage = await env.DB.prepare('SELECT posts,videos FROM daily_post_usage WHERE user_id=? AND usage_date=?').bind(user.id, utcDayKey()).first<Row>();
+      const posts = Number(usage?.posts || 0); const videos = Number(usage?.videos || 0);
+      return json({ plan, expiresAt: plan === 'free' ? null : user.subscription_expires_at, usage: { posts, postLimit: plan === 'free' ? 3 : null, videos, videoLimit: plan === 'free' ? 0 : plan === 'premium' ? 5 : null } }, 200, origin);
+    }
+    if (path === '/subscription/verify' && request.method === 'POST') {
+      if (!await rateLimit(env, request, 'subscription-verify', 6)) return json({ error: 'Too many verification attempts. Try again shortly.' }, 429, origin);
+      const user = await userFor(env, request); if (!user) return json({ error: 'Sign in before restoring or purchasing a membership.' }, 401, origin);
+      const body = await readJson(request); const purchaseToken = String(body.purchaseToken || '').trim();
+      if (purchaseToken.length < 20 || purchaseToken.length > 4096) return json({ error: 'The Google Play purchase token is invalid.' }, 400, origin);
+      const verified = await verifyGooglePlaySubscription(env, purchaseToken, await hash(`fatwa:${user.id}`));
+      if (!verified.ok) return json({ error: verified.error, code: verified.status === 503 && !env.PLAY_SERVICE_ACCOUNT_JSON ? 'billing_not_configured' : 'verification_failed' }, verified.status, origin);
+      const tokenHash = await hash(purchaseToken);
+      await env.DB.prepare('INSERT OR IGNORE INTO subscriptions(purchase_token_hash,user_id,provider,product_id,base_plan_id,expires_at,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(tokenHash, user.id, 'google_play', verified.productId, verified.basePlanId, verified.expiresAt, 'active', now(), now()).run();
+      const owner = await env.DB.prepare('SELECT user_id FROM subscriptions WHERE purchase_token_hash=?').bind(tokenHash).first<Row>();
+      if (owner?.user_id !== user.id) return json({ error: 'This purchase is already linked to another account.' }, 409, origin);
+      await env.DB.prepare('UPDATE subscriptions SET product_id=?,base_plan_id=?,expires_at=?,status=?,updated_at=? WHERE purchase_token_hash=? AND user_id=?').bind(verified.productId, verified.basePlanId, verified.expiresAt, 'active', now(), tokenHash, user.id).run();
+      await env.DB.prepare('UPDATE users SET subscription_tier=?,subscription_source=?,subscription_expires_at=?,subscription_product_id=?,updated_at=? WHERE id=?').bind(verified.plan, 'google_play', verified.expiresAt, verified.productId, now(), user.id).run();
+      return json({ ok: true, plan: verified.plan, expiresAt: verified.expiresAt }, 200, origin);
+    }
     if (path === '/profile/cover' && request.method === 'POST') {
       if (!await rateLimit(env, request, 'cover', 10)) return json({ error: 'Too many requests.' }, 429, origin);
       const user = await userFor(env, request); if (!user) return json({ error: 'Sign in first.' }, 401, origin);
@@ -466,7 +622,7 @@ async function handle(request: Request, env: Env) {
       await env.DB.prepare('UPDATE posts SET author_image_url=? WHERE user_id=?').bind(stored.url, user.id).run();
       return json({ ok: true, user: publicUser({ ...user, avatar_url: stored.url }) }, 200, origin);
     }
-    if (path === '/my/posts' && request.method === 'GET') { const user = await userFor(env, request); const q = user ? await env.DB.prepare('SELECT id,title,body,category,status,rejection_reason AS rejectionReason,image_url AS imageUrl,created_at AS createdAt FROM post_submissions WHERE user_id=? OR submitter_device_id=? ORDER BY created_at DESC LIMIT 50').bind(user.id, user.device_id).all<Row>() : { results: [] }; return json({ posts: q.results }, 200, origin); }
+    if (path === '/my/posts' && request.method === 'GET') { const user = await userFor(env, request); const q = user ? await env.DB.prepare('SELECT id,title,body,category,status,rejection_reason AS rejectionReason,image_url AS imageUrl,video_url AS videoUrl,media_type AS mediaType,video_duration_ms AS videoDurationMs,created_at AS createdAt FROM post_submissions WHERE user_id=? OR submitter_device_id=? ORDER BY created_at DESC LIMIT 50').bind(user.id, user.device_id).all<Row>() : { results: [] }; return json({ posts: q.results }, 200, origin); }
     if (path === '/questions' && request.method === 'POST') { if (!await rateLimit(env, request, 'question', 10)) return json({ error: 'Too many requests.' }, 429, origin); const body = await readJson(request); const user = await userFor(env, request); if (!user) return json({ error: 'Complete your profile before submitting.' }, 401, origin); const question = String(body.question || '').trim(); const category = String(body.category || ''); if (question.length < 20 || !CATEGORIES.has(category)) return json({ error: 'Question and a valid category are required.' }, 400, origin); const timestamp = now(); const questionId = id('question'); await env.DB.prepare('INSERT INTO questions(id,user_id,name,gender,country,city,question,category,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(questionId, user.id, user.name, ['male','female'].includes(body.gender) ? body.gender : 'unspecified', user.country || body.country || '', user.city || body.city || '', question, category, 'submitted', timestamp, timestamp).run(); return json({ id: questionId, userId: user.id, status: 'submitted', createdAt: timestamp }, 201, origin); }
     if (path === '/questions' && request.method === 'GET') { const user = await userFor(env, request); const q = user ? await env.DB.prepare('SELECT id,name,gender,country,city,question,category,status,answer,answered_by AS answeredBy,created_at AS createdAt,updated_at AS updatedAt FROM questions WHERE user_id=? ORDER BY created_at DESC').bind(user.id).all<Row>() : { results: [] }; return json({ questions: q.results }, 200, origin); }
     if (path === '/notifications' && request.method === 'GET') { const user = await userFor(env, request); const q = user ? await env.DB.prepare('SELECT id,title,body,kind,image_url AS imageUrl,question_id AS questionId,post_id AS postId,read_at AS readAt,created_at AS createdAt FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 100').bind(user.id).all<Row>() : { results: [] }; return json({ notifications: q.results }, 200, origin); }
@@ -495,20 +651,75 @@ async function handle(request: Request, env: Env) {
     if (path === '/post-submissions' && request.method === 'POST') {
       if (!await rateLimit(env, request, 'post', 12)) return json({ error: 'Too many requests.' }, 429, origin);
       const user = await userFor(env, request); if (!user) return json({ error: 'Complete your profile before submitting.' }, 401, origin);
-      const form = await request.formData();
+      const length = Number(request.headers.get('content-length') || 0);
+      if (length > MULTIPART_MAX) return json({ error: 'The compressed upload is too large.' }, 413, origin);
+      const form = await readFormDataLimited(request, MULTIPART_MAX);
       const body = String(form.get('body') || '').trim();
-      const image = form.get('image');
-      const hasImage = image instanceof File && image.size > 0;
-      if (!body && !hasImage) return json({ error: 'Description or image is required.' }, 400, origin);
+      const imageEntry = form.get('image'); const videoEntry = form.get('video');
+      const image = imageEntry instanceof File && imageEntry.size > 0 ? imageEntry : null;
+      const video = videoEntry instanceof File && videoEntry.size > 0 ? videoEntry : null;
+      if (image && video) return json({ error: 'Attach one image or one video, not both.' }, 400, origin);
+      if (!body && !image && !video) return json({ error: 'Description, image, or video is required.' }, 400, origin);
       if (body.length > 5000) return json({ error: 'Post is too long.' }, 413, origin);
+      const plan = effectivePlan(user);
+      if (video && plan === 'free') return json({ error: 'Video posts are available with Premium. Upgrade to share a short video.', code: 'video_plan_required' }, 403, origin);
+      const usageDate = utcDayKey();
+      if (!await reservePostQuota(env, user.id, usageDate, plan, Boolean(video))) {
+        return plan === 'free'
+          ? json({ error: 'You have used today’s 3 free posts. Upgrade for unlimited text and photo posts.', code: 'post_limit' }, 429, origin)
+          : json({ error: 'You have used today’s 5 Premium video posts. High Premium includes unlimited videos.', code: 'video_limit' }, 429, origin);
+      }
       let imageUrl = '';
-      if (hasImage) { const stored = await storeImage(env, url.origin, 'posts', image as File, IMAGE_MAX); if ('error' in stored) return json({ error: stored.error }, stored.status, origin); imageUrl = stored.url; }
+      let videoUrl = ''; let videoDurationMs = 0;
       const timestamp = now(); const submissionId = id('submission');
-      await env.DB.prepare('INSERT INTO post_submissions(id,name,country,city,title,body,category,language,status,rejection_reason,submitter_device_id,user_id,image_url,author_image_url,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(submissionId, user.name, user.country || '', user.city || '', body.slice(0, 80) || 'Community image', body, String(form.get('category') || ''), ['ur', 'ar'].includes(String(form.get('language'))) ? String(form.get('language')) : 'en', 'pending', null, user.device_id, user.id, imageUrl || null, user.avatar_url || null, timestamp, timestamp).run();
-      await notify(env, user.id, { title: 'Post received', body: 'Thank you. Your post is being reviewed and you will be notified when it is live.', kind: 'post_pending', imageUrl });
-      return json({ id: submissionId, status: 'pending', createdAt: timestamp, imageUrl }, 201, origin);
+      const mediaType = video ? 'video' : image ? 'image' : 'text';
+      let uploadIssue: { error: string; status: number } | null = null;
+      try {
+        if (image) {
+          const stored = await storeImage(env, url.origin, 'posts', image, IMAGE_MAX);
+          if ('error' in stored) { uploadIssue = stored; throw new Error('upload_rejected'); }
+          imageUrl = stored.url;
+        }
+        if (video) {
+          const stored = await storeVideo(env, url.origin, 'posts', video, VIDEO_MAX);
+          if ('error' in stored) { uploadIssue = stored; throw new Error('upload_rejected'); }
+          videoUrl = stored.url; videoDurationMs = stored.durationMs;
+        }
+        await env.DB.prepare('INSERT INTO post_submissions(id,name,country,city,title,body,category,language,status,rejection_reason,submitter_device_id,user_id,image_url,video_url,media_type,video_duration_ms,author_image_url,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(submissionId, user.name, user.country || '', user.city || '', body.slice(0, 80) || (video ? 'Community video' : 'Community image'), body, String(form.get('category') || ''), ['ur', 'ar'].includes(String(form.get('language'))) ? String(form.get('language')) : 'en', 'pending', null, user.device_id, user.id, imageUrl || null, videoUrl || null, mediaType, videoDurationMs, user.avatar_url || null, timestamp, timestamp).run();
+      } catch (error) {
+        await deleteMedia(env, imageUrl); await deleteMedia(env, videoUrl);
+        await releasePostQuota(env, user.id, usageDate, Boolean(video));
+        if (uploadIssue) return json({ error: uploadIssue.error }, uploadIssue.status, origin);
+        throw error;
+      }
+      await notify(env, user.id, { title: 'Post received', body: 'Thank you. Your post is being reviewed and you will be notified when it is live.', kind: 'post_pending', imageUrl }).catch((error) => console.error('submission notification failed', String(error)));
+      return json({ id: submissionId, status: 'pending', createdAt: timestamp, imageUrl, videoUrl, mediaType, videoDurationMs }, 201, origin);
     }
-    if (path.startsWith('/media/') && request.method === 'GET') { const key = decodeURIComponent(path.slice(7)); const object = await env.MEDIA.get(key); if (!object) return text('Not found', 404, origin); const headers = new Headers({ 'cache-control': 'public, max-age=31536000, immutable', 'access-control-allow-origin': origin, 'x-content-type-options': 'nosniff' }); if (object.httpMetadata?.contentType) headers.set('content-type', object.httpMetadata.contentType); return new Response(object.body, { headers }); }
+    if (path.startsWith('/media/') && request.method === 'GET') {
+      const key = decodeURIComponent(path.slice(7));
+      const rangeHeader = request.headers.get('range');
+      const match = rangeHeader?.match(/^bytes=(\d*)-(\d*)$/);
+      if (rangeHeader && !match) return new Response(null, { status: 416, headers: { 'content-range': 'bytes */0', 'access-control-allow-origin': origin } });
+      let start = 0; let end = -1;
+      let range: R2Range | undefined;
+      if (match) {
+        if (!match[1] && !match[2]) return new Response(null, { status: 416, headers: { 'content-range': 'bytes */0', 'access-control-allow-origin': origin } });
+        if (!match[1]) range = { suffix: Number(match[2]) };
+        else { start = Number(match[1]); range = match[2] ? { offset: start, length: Number(match[2]) - start + 1 } : { offset: start }; }
+      }
+      const object = await env.MEDIA.get(key, range ? { range } : undefined);
+      if (!object) return text('Not found', 404, origin);
+      if (match) {
+        if (!match[1]) { const suffix = Math.min(Number(match[2]), object.size); start = object.size - suffix; end = object.size - 1; }
+        else { end = match[2] ? Math.min(Number(match[2]), object.size - 1) : object.size - 1; }
+        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= object.size) return new Response(null, { status: 416, headers: { 'content-range': `bytes */${object.size}`, 'access-control-allow-origin': origin } });
+      }
+      const length = match ? end - start + 1 : object.size;
+      const headers = new Headers({ 'cache-control': 'public, max-age=31536000, immutable', 'access-control-allow-origin': origin, 'access-control-expose-headers': 'Accept-Ranges, Content-Length, Content-Range', 'accept-ranges': 'bytes', 'content-length': String(length), 'x-content-type-options': 'nosniff' });
+      if (object.httpMetadata?.contentType) headers.set('content-type', object.httpMetadata.contentType);
+      if (match) headers.set('content-range', `bytes ${start}-${end}/${object.size}`);
+      return new Response(object.body, { status: match ? 206 : 200, headers });
+    }
     if (path.startsWith('/admin')) {
       if (!await adminOk(env, request)) return json({ error: 'Admin authentication required.' }, 401, origin);
 
@@ -536,7 +747,7 @@ async function handle(request: Request, env: Env) {
           if (result) return json(result, 200, origin);
         } catch (error) { return json({ error: String(error) }, 400, origin); }
       }
-      if (path === '/admin/purge-expired' && request.method === 'POST') return json(await purgeExpired(env), 200, origin);
+    if (path === '/admin/purge-expired' && request.method === 'POST') return json(await purgeExpired(env), 200, origin);
       if (path === '/admin/posts' && request.method === 'GET') { const q = await env.DB.prepare('SELECT * FROM posts ORDER BY created_at DESC').all<Row>(); return json({ posts: q.results.map(publicPost) }, 200, origin); }
       if (path === '/admin/fatwas' && request.method === 'GET') { const q = await env.DB.prepare('SELECT * FROM fatwas ORDER BY created_at DESC').all<Row>(); return json({ fatwas: q.results.map(publicFatwa) }, 200, origin); }
       if (path === '/admin/questions' && request.method === 'GET') { const q = await env.DB.prepare('SELECT * FROM questions ORDER BY created_at DESC').all<Row>(); return json({ questions: q.results.map(adminQuestion) }, 200, origin); }
@@ -643,6 +854,7 @@ async function handle(request: Request, env: Env) {
           return json({ ok: true, id: postId, featured: Boolean(featured) }, 200, origin);
         }
         if (request.method === 'DELETE') {
+          await deleteMedia(env, post.image_url); await deleteMedia(env, post.video_url);
           await env.DB.prepare('DELETE FROM posts WHERE id=?').bind(postId).run();
           await audit(env, 'delete', 'post', postId);
           return json({ ok: true }, 200, origin);
@@ -653,14 +865,16 @@ async function handle(request: Request, env: Env) {
   } catch (error) { const [message, status] = safeError(error); return json({ error: message }, status, origin); }
 }
 
-// Deletes everything older than the post lifetime: posts, their likes, uploaded images and stale notifications.
+// Deletes everything older than the post lifetime: posts, their likes, uploaded media and stale notifications.
 async function purgeExpired(env: Env) {
   const cutoff = postCutoff();
   const mediaKey = (url: unknown) => { const m = String(url || '').match(/\/api\/media\/(.+)$/); return m ? decodeURIComponent(m[1]) : null; };
-  const posts = await env.DB.prepare('SELECT id,image_url FROM posts WHERE created_at<?').bind(cutoff).all<Row>();
-  const subs = await env.DB.prepare("SELECT id,image_url FROM post_submissions WHERE created_at<? AND image_url IS NOT NULL").bind(cutoff).all<Row>();
+  const posts = await env.DB.prepare('SELECT id,image_url,video_url FROM posts WHERE created_at<?').bind(cutoff).all<Row>();
+  const subs = await env.DB.prepare('SELECT id,image_url,video_url FROM post_submissions WHERE created_at<?').bind(cutoff).all<Row>();
   const keys = new Set<string>();
-  for (const row of [...posts.results, ...subs.results]) { const key = mediaKey(row.image_url); if (key && key.startsWith('posts/')) keys.add(key); }
+  for (const row of [...posts.results, ...subs.results]) {
+    for (const mediaUrl of [row.image_url, row.video_url]) { const key = mediaKey(mediaUrl); if (key && key.startsWith('posts/')) keys.add(key); }
+  }
   if (keys.size) await env.MEDIA.delete([...keys]);
   await env.DB.batch([
     env.DB.prepare('DELETE FROM post_likes WHERE post_id IN (SELECT id FROM posts WHERE created_at<?)').bind(cutoff),
@@ -669,7 +883,7 @@ async function purgeExpired(env: Env) {
     env.DB.prepare('DELETE FROM notifications WHERE created_at<?').bind(cutoff),
     env.DB.prepare('DELETE FROM rate_limits WHERE window_started_at<?').bind(Date.now() - 3600_000),
   ]);
-  return { posts: posts.results.length, submissions: subs.results.length, images: keys.size };
+  return { posts: posts.results.length, submissions: subs.results.length, media: keys.size };
 }
 
 export default {

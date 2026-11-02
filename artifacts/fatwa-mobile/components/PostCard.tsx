@@ -127,6 +127,13 @@ export function PostCard({
           </Pressable>
         ) : null}
 
+        {post.videoUrl ? (
+          <Pressable onPress={onOpen} style={[styles.videoPreview, { backgroundColor: colors.forest }]} accessibilityRole="button" accessibilityLabel="Watch community video">
+            <View style={styles.videoPlay}><Feather name="play" size={18} color={colors.forest} /></View>
+            <View><Text style={styles.videoTitle}>Community video</Text><Text style={styles.videoHint}>{post.videoDurationMs ? `${Math.ceil(post.videoDurationMs / 1000)} sec · Tap to watch` : 'Tap to watch'}</Text></View>
+          </Pressable>
+        ) : null}
+
         <View style={[styles.footer, { borderTopColor: colors.border }]}>
           <Pressable
             onPress={() => {
@@ -248,6 +255,10 @@ const styles = StyleSheet.create({
   nearby: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   nearbyText: { fontSize: 10.5, fontWeight: '800' },
   postImage: { width: '100%', height: 240, borderRadius: 20, marginTop: 2, marginBottom: 4 },
+  videoPreview: { minHeight: 104, borderRadius: 20, marginTop: 2, marginBottom: 4, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  videoPlay: { width: 43, height: 43, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  videoTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  videoHint: { color: '#D5E7DB', fontSize: 11, marginTop: 4 },
   rtlExcerpt: { fontSize: 16, lineHeight: 30, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   author: { fontSize: 13, fontWeight: '700' },
   authorAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E5F2EC' },

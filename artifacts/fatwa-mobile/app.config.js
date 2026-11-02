@@ -9,4 +9,5 @@ module.exports = ({ config }) => ({
     ...(process.env.APP_VERSION_CODE ? { versionCode: Number(process.env.APP_VERSION_CODE) } : {}),
     ...(fs.existsSync('./google-services.json') ? { googleServicesFile: './google-services.json' } : {}),
   },
+  plugins: [...(config.plugins || []), 'expo-iap', 'react-native-compressor'],
 });

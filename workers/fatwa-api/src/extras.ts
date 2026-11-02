@@ -1,5 +1,6 @@
 import { queueBroadcast } from './push';
 import { mailEnabled, otpMail, sendMail, welcomeMail } from './mail';
+import { effectivePlan } from './subscriptions';
 // Reports, public profiles, account control, dashboard stats and Google / email-OTP sign-in.
 type Row = Record<string, any>;
 export interface Ctx {
@@ -10,6 +11,8 @@ export interface Ctx {
   userFor: (env: any, r: Request) => Promise<Row | null>;
   rateLimit: (env: any, r: Request, bucket: string, limit: number) => Promise<boolean>;
   storeImage: (env: any, origin: string, folder: string, file: File, max: number) => Promise<{ url: string } | { error: string; status: number }>;
+  storeVideo: (env: any, origin: string, folder: string, file: File, max: number) => Promise<{ url: string; durationMs: number } | { error: string; status: number }>;
+  deleteMedia: (url: unknown) => Promise<void>;
   publicUser: (u: Row) => Row; audit: (env: any, a: string, t: string, i: string | null, m?: Row) => Promise<void>;
   notify: (env: any, uid: string, n: any) => Promise<void>;
   chat?: (message: string) => Promise<unknown>;
@@ -22,14 +25,17 @@ export const extraSchema = (db: any) => [
   db.prepare('CREATE INDEX IF NOT EXISTS idx_visits_created ON visits(created_at)'),
   db.prepare('CREATE INDEX IF NOT EXISTS idx_visits_device ON visits(device_id, created_at)'),
   db.prepare('CREATE TABLE IF NOT EXISTS auth_otps (email TEXT PRIMARY KEY,code_hash TEXT NOT NULL,expires_at INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL)'),
+  db.prepare('CREATE TABLE IF NOT EXISTS subscriptions (purchase_token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,provider TEXT NOT NULL,product_id TEXT NOT NULL,base_plan_id TEXT NOT NULL,expires_at TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)'),
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id, expires_at)'),
+  db.prepare('CREATE TABLE IF NOT EXISTS daily_post_usage (user_id TEXT NOT NULL,usage_date TEXT NOT NULL,posts INTEGER NOT NULL DEFAULT 0,videos INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,usage_date))'),
 ];
 export const extraColumns: Record<string, Array<[string, string]>> = {
-  users: [['email', 'TEXT'], ['google_sub', 'TEXT'], ['banned_at', 'TEXT'], ['ban_reason', 'TEXT'], ['bio', 'TEXT'], ['auth_provider', 'TEXT'], ['welcomed_at', 'TEXT'], ['cover_url', 'TEXT']],
+  users: [['email', 'TEXT'], ['google_sub', 'TEXT'], ['banned_at', 'TEXT'], ['ban_reason', 'TEXT'], ['bio', 'TEXT'], ['auth_provider', 'TEXT'], ['welcomed_at', 'TEXT'], ['cover_url', 'TEXT'], ['subscription_tier', "TEXT NOT NULL DEFAULT 'free'"], ['subscription_source', 'TEXT'], ['subscription_expires_at', 'TEXT'], ['subscription_product_id', 'TEXT']],
 };
 
 const count = async (env: any, sql: string, ...b: unknown[]) => Number((await env.DB.prepare(sql).bind(...b).first())?.c ?? 0);
 const isEmail = (v: string) => /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/.test(v) && v.length <= 160;
-const publicPostRow = (r: Row) => ({ id: r.id, title: r.title, body: r.body, category: r.category, imageUrl: r.image_url || '', createdAt: r.created_at, featured: Boolean(r.featured), likes: Number(r.likes || 0), views: Number(r.views || 0) });
+const publicPostRow = (r: Row) => ({ id: r.id, title: r.title, body: r.body, category: r.category, imageUrl: r.image_url || '', videoUrl: r.video_url || '', mediaType: r.media_type || 'text', videoDurationMs: Number(r.video_duration_ms || 0), createdAt: r.created_at, featured: Boolean(r.featured), likes: Number(r.likes || 0), views: Number(r.views || 0) });
 
 async function newSession(c: Ctx, userId: string) {
   const raw = `${crypto.randomUUID()}-${crypto.randomUUID()}`; const t = c.now();
@@ -107,8 +113,11 @@ export async function publicExtras(c: Ctx): Promise<Response | null> {
   const mine = path.match(/^\/my\/posts\/([^/]+)$/);
   if (mine && m === 'DELETE') {
     const user = await c.userFor(env, request); if (!user) return json({ error: 'Sign in required.' }, 401, origin);
+    const submitted = await env.DB.prepare('SELECT image_url,video_url FROM post_submissions WHERE id=? AND (user_id=? OR submitter_device_id=?)').bind(mine[1], user.id, user.device_id).first();
+    const published = await env.DB.prepare('SELECT image_url,video_url FROM posts WHERE id=? AND user_id=?').bind(mine[1], user.id).first();
     const a = await env.DB.prepare('DELETE FROM posts WHERE id=? AND user_id=?').bind(mine[1], user.id).run();
     const b = await env.DB.prepare('DELETE FROM post_submissions WHERE id=? AND (user_id=? OR submitter_device_id=?)').bind(mine[1], user.id, user.device_id).run();
+    for (const row of [submitted, published]) if (row) { await c.deleteMedia(row.image_url); await c.deleteMedia(row.video_url); }
     return json({ ok: true, removed: Number(a.meta?.changes || 0) + Number(b.meta?.changes || 0) }, 200, origin);
   }
   if (path === '/auth/config' && m === 'GET') return json({ google: Boolean(env.GOOGLE_CLIENT_IDS), email: mailEnabled(env) }, 200, origin);
@@ -193,8 +202,23 @@ export async function adminExtras(c: Ctx): Promise<Response | null> {
   if (rep && m === 'PATCH') { const b = await c.readJson(request); const st = ['new', 'read', 'resolved'].includes(b.status) ? b.status : 'read'; await env.DB.prepare('UPDATE reports SET status=?,admin_note=COALESCE(?,admin_note),updated_at=? WHERE id=?').bind(st, b.adminNote ?? null, c.now(), rep[1]).run(); await c.audit(env, 'report_' + st, 'report', rep[1]); return json({ ok: true }, 200, origin); }
   if (rep && m === 'DELETE') { await env.DB.prepare('DELETE FROM reports WHERE id=?').bind(rep[1]).run(); await c.audit(env, 'delete', 'report', rep[1]); return json({ ok: true }, 200, origin); }
   if (path === '/admin/users' && m === 'GET') {
-    const q = await env.DB.prepare("SELECT u.id,u.name,u.email,u.country,u.city,u.avatar_url AS avatarUrl,u.auth_provider AS provider,u.banned_at AS bannedAt,u.ban_reason AS banReason,u.created_at AS createdAt,u.updated_at AS updatedAt,(SELECT COUNT(*) FROM posts p WHERE p.user_id=u.id) AS livePosts,(SELECT COUNT(*) FROM post_submissions s WHERE s.user_id=u.id AND s.status='pending') AS pendingPosts,(SELECT COUNT(*) FROM reports r WHERE r.user_id=u.id) AS reports FROM users u ORDER BY u.updated_at DESC").all();
-    return json({ users: q.results }, 200, origin);
+    const q = await env.DB.prepare("SELECT u.id,u.name,u.email,u.country,u.city,u.avatar_url AS avatarUrl,u.auth_provider AS provider,u.banned_at AS bannedAt,u.ban_reason AS banReason,u.subscription_tier AS tier,u.subscription_source AS subscriptionSource,u.subscription_expires_at AS expiresAt,u.created_at AS createdAt,u.updated_at AS updatedAt,(SELECT COUNT(*) FROM posts p WHERE p.user_id=u.id) AS livePosts,(SELECT COUNT(*) FROM post_submissions s WHERE s.user_id=u.id AND s.status='pending') AS pendingPosts,(SELECT COUNT(*) FROM reports r WHERE r.user_id=u.id) AS reports FROM users u ORDER BY u.updated_at DESC").all();
+    return json({ users: q.results.map((user: Row) => ({ ...user, tier: effectivePlan({ subscription_tier: user.tier, subscription_source: user.subscriptionSource, subscription_expires_at: user.expiresAt }) })) }, 200, origin);
+  }
+  const planUser = path.match(/^\/admin\/users\/([^/]+)\/subscription$/);
+  if (planUser && m === 'PATCH') {
+    const b = await c.readJson(request); const tier = String(b.tier || '');
+    if (!['free', 'premium', 'high_premium'].includes(tier)) return json({ error: 'Choose Free, Premium, or High Premium.' }, 400, origin);
+    let expiresAt: string | null = null;
+    if (tier !== 'free' && b.expiresAt) {
+      const parsed = Date.parse(String(b.expiresAt));
+      if (!Number.isFinite(parsed) || parsed <= Date.now()) return json({ error: 'The expiry date must be in the future.' }, 400, origin);
+      expiresAt = new Date(parsed).toISOString();
+    }
+    const result = await env.DB.prepare('UPDATE users SET subscription_tier=?,subscription_source=?,subscription_expires_at=?,subscription_product_id=NULL,updated_at=? WHERE id=?').bind(tier, tier === 'free' ? null : 'admin', expiresAt, c.now(), planUser[1]).run();
+    if (!Number(result.meta?.changes || 0)) return json({ error: 'User not found.' }, 404, origin);
+    await c.audit(env, 'subscription_' + tier, 'user', planUser[1], { expiresAt });
+    return json({ ok: true, tier, expiresAt }, 200, origin);
   }
   const usr = path.match(/^\/admin\/users\/([^/]+)(?:\/(ban|unban))?$/);
   if (usr && m === 'POST' && usr[2]) {
@@ -205,10 +229,12 @@ export async function adminExtras(c: Ctx): Promise<Response | null> {
   }
   if (usr && m === 'DELETE' && !usr[2]) {
     const uid = usr[1];
+    const media = await env.DB.prepare('SELECT image_url,video_url FROM posts WHERE user_id=? UNION SELECT image_url,video_url FROM post_submissions WHERE user_id=?').bind(uid, uid).all();
+    for (const row of media.results) { await c.deleteMedia(row.image_url); await c.deleteMedia(row.video_url); }
     await env.DB.batch([
       env.DB.prepare('DELETE FROM post_likes WHERE post_id IN (SELECT id FROM posts WHERE user_id=?)').bind(uid), env.DB.prepare('DELETE FROM posts WHERE user_id=?').bind(uid),
       env.DB.prepare('DELETE FROM post_submissions WHERE user_id=?').bind(uid), env.DB.prepare('DELETE FROM notifications WHERE user_id=?').bind(uid),
-      env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(uid), env.DB.prepare('UPDATE reports SET user_id=NULL WHERE user_id=?').bind(uid), env.DB.prepare('DELETE FROM users WHERE id=?').bind(uid),
+      env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(uid), env.DB.prepare('DELETE FROM subscriptions WHERE user_id=?').bind(uid), env.DB.prepare('UPDATE reports SET user_id=NULL WHERE user_id=?').bind(uid), env.DB.prepare('DELETE FROM users WHERE id=?').bind(uid),
     ]);
     await c.audit(env, 'delete', 'user', uid); return json({ ok: true }, 200, origin);
   }
@@ -222,7 +248,7 @@ export async function adminExtras(c: Ctx): Promise<Response | null> {
     await c.audit(env, 'create', 'post', pid); return json({ ok: true, id: pid }, 201, origin);
   }
   const sub = path.match(/^\/admin\/post-submissions\/([^/]+)$/);
-  if (sub && m === 'DELETE') { await env.DB.prepare('DELETE FROM post_submissions WHERE id=?').bind(sub[1]).run(); await c.audit(env, 'delete', 'post_submission', sub[1]); return json({ ok: true }, 200, origin); }
+  if (sub && m === 'DELETE') { const row = await env.DB.prepare('SELECT image_url,video_url FROM post_submissions WHERE id=?').bind(sub[1]).first(); await env.DB.prepare('DELETE FROM post_submissions WHERE id=?').bind(sub[1]).run(); if (row) { await c.deleteMedia(row.image_url); await c.deleteMedia(row.video_url); } await c.audit(env, 'delete', 'post_submission', sub[1]); return json({ ok: true }, 200, origin); }
   if (path === '/admin/broadcast' && m === 'POST') {
     const b = await c.readJson(request); const title = String(b.title || '').trim().slice(0, 80); const body = String(b.body || '').trim().slice(0, 240);
     if (!title || !body) return json({ error: 'Title and message are required.' }, 400, origin);

@@ -189,6 +189,11 @@ export default function LibraryScreen() {
         </>
       ) : (
         <>
+          <Pressable onPress={() => nav.push({ name: 'shorts' })} style={[styles.card, styles.rowCard, { backgroundColor: colors.forest, borderColor: colors.forest }]} accessibilityRole="button" accessibilityLabel="Watch community videos">
+            <View style={styles.shortsIcon}><Feather name="play" size={17} color="#0B6B53" /></View>
+            <View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: '#FFFFFF' }]}>Community Shorts</Text><Text style={[styles.muted, { color: '#D5E7DB' }]}>Watch quick reminders from the community</Text></View>
+            <Feather name="chevron-right" size={20} color="#FFFFFF" />
+          </Pressable>
           {continueReading ? (
             <Pressable
               onPress={() => continueReading.kind === 'quran'
@@ -344,6 +349,7 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 20, padding: 15, marginBottom: 10 },
   rowCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   quranCard: { borderWidth: 1.5, borderRadius: 22, padding: 16, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 13 },
+  shortsIcon: { width: 38, height: 38, borderRadius: 14, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   quranCover: { width: 72, height: 72, borderRadius: 18 },
   continueCard: { borderRadius: 20, padding: 13, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 11 },
   continueIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },

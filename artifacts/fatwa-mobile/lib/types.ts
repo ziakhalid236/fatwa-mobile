@@ -44,6 +44,9 @@ export type Post = {
   city?: string;
   country?: string;
   imageUrl?: string;
+  videoUrl?: string;
+  mediaType?: 'text' | 'image' | 'video';
+  videoDurationMs?: number;
   source?: string;
   createdAt?: string;
   views: number;
@@ -123,6 +126,13 @@ export type Profile = {
   id?: string;
   bio?: string;
   email?: string;
+};
+
+export type MembershipPlan = 'free' | 'premium' | 'high_premium';
+export type Membership = {
+  plan: MembershipPlan;
+  expiresAt: string | null;
+  usage: { posts: number; postLimit: number | null; videos: number; videoLimit: number | null };
 };
 
 export type PrayerCity = {
