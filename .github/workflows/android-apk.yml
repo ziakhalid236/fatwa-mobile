@@ -15,6 +15,7 @@ permissions:
 env:
   NODE_VERSION: 22
   JAVA_VERSION: 17
+  EXPO_PUBLIC_API_URL: https://fatwa-api.ziakhalid236.workers.dev
   # Preview builds only need the ABI real phones use. Building all four
   # (armeabi-v7a, arm64-v8a, x86, x86_64) doubles the native CMake work.
   REACT_NATIVE_ARCHITECTURES: arm64-v8a
@@ -33,6 +34,8 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -54,6 +57,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      - name: Validate Expo toolchain
+        working-directory: artifacts/fatwa-mobile
+        run: |
+          pnpm exec expo --version
+          pnpm exec expo config --type public --json > "$RUNNER_TEMP/expo-config.json"
+          node -e "const c=require(process.env.RUNNER_TEMP + '/expo-config.json'); if(c.android?.package !== 'com.fatwa.mobile') throw new Error('Unexpected Android package'); console.log('Expo config OK:', c.name, c.version, c.android.package)"
+
       # versionCode rises on every run, so each build can be uploaded to Google Play as an update.
       # Base 100 keeps it above the versionCode already used by earlier manual builds.
       - name: Compute version
@@ -70,11 +80,11 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "$KEYSTORE_B64" ]; then
-            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set. The build is signed with the debug key and cannot be uploaded to Google Play."
-            exit 0
-          fi
+          for v in KEYSTORE_B64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!v}" ]; then echo "::error::$v is not set; refusing to create an unsigned/debug release artifact"; exit 1; fi
+          done
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload-key.p12"
+          keytool -list -keystore "$RUNNER_TEMP/upload-key.p12" -storetype PKCS12 -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload-key.p12" >> "$GITHUB_ENV"
           echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
           echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
@@ -100,6 +110,12 @@ jobs:
           -PreactNativeArchitectures=${{ env.REACT_NATIVE_ARCHITECTURES }}
           -x lintVitalAnalyzeRelease
           -x lintVitalRelease
+
+      - name: Verify signed release artifacts
+        working-directory: artifacts/fatwa-mobile/android
+        run: |
+          apksigner verify --verbose app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify -strict app/build/outputs/bundle/release/app-release.aab
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
