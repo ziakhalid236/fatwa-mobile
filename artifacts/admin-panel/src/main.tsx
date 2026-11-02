@@ -13,6 +13,7 @@ import Notifications from "./pages/Notifications";
 import Library from "./pages/Library";
 import AiTester from "./pages/AiTester";
 import Activity from "./pages/Activity";
+import Agent from "./pages/Agent";
 
 const PAGES: [string, string, string, ReactNode][] = [
   ["dashboard", "Dashboard", "Live overview of the whole app", <LayoutDashboard size={17} />],
@@ -23,6 +24,7 @@ const PAGES: [string, string, string, ReactNode][] = [
   ["notifications", "Notifications", "Announcements to your users", <Bell size={17} />],
   ["library", "Library", "Books, passages and search testing", <BookOpen size={17} />],
   ["ai", "AI tester", "Check the assistant's answers", <Bot size={17} />],
+  ["agent", "Content Agent", "Review AI drafts before publishing", <Bot size={17} />],
   ["activity", "Activity log", "Everything admins changed", <History size={17} />],
 ];
 
@@ -42,7 +44,7 @@ function App() {
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
   const go = (p: string) => { location.hash = p; setPage(p); };
   const cur = PAGES.find((p) => p[0] === page) ?? PAGES[0];
-  const body = { dashboard: <Dashboard go={go} />, posts: <Posts />, users: <Users />, reports: <Reports />, questions: <Questions />, notifications: <Notifications />, library: <Library />, ai: <AiTester />, activity: <Activity /> }[cur[0]];
+  const body = { dashboard: <Dashboard go={go} />, posts: <Posts />, users: <Users />, reports: <Reports />, questions: <Questions />, notifications: <Notifications />, library: <Library />, ai: <AiTester />, agent: <Agent />, activity: <Activity /> }[cur[0]];
   return <ToastHost><div className="shell">
     <aside className="side"><div className="brand"><img src="/fatwa-icon.png" /><div>Fatwa<small>Control Room</small></div></div>
       {PAGES.map(([k, label, , icon]) => <button key={k} className={`nav ${cur[0] === k ? "on" : ""}`} onClick={() => go(k)}>{icon}{label}{k === "posts" && badge.posts > 0 && <span className="pill">{badge.posts}</span>}{k === "reports" && badge.reports > 0 && <span className="pill">{badge.reports}</span>}</button>)}

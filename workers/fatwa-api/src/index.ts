@@ -3,6 +3,7 @@ import { libraryRoute } from './library';
 import { withTurso } from './turso';
 import { adminExtras, extraColumns, extraSchema, publicExtras, type Ctx } from './extras';
 import { expandQuery, tokens as kbTokens, kbSchemaStatements, searchKb, kbContext, publicHit, ingest as kbIngest, importScholars, kbStats, kbMigrate, reseq as kbReseq, type KbHit } from './kb';
+import { agentRoutes, agentSchema, runContentAgent, seedAgentSources } from './agent';
 interface Env {
   APP_DOWNLOAD_URL?: string;
   APP_SIGNING_SHA256?: string;
@@ -123,6 +124,8 @@ async function createSchema(env: Env) {
   await step('kb-migrate', () => kbMigrate(env.KB));
   await step('push-schema', () => env.DB.batch(pushSchemaStatements(env.DB)));
   await step('extra-schema', () => env.DB.batch(extraSchema(env.DB)));
+  await step('agent-schema', () => env.DB.batch(agentSchema(env.DB)));
+  await step('agent-default-sources', () => seedAgentSources(env.DB));
   await env.DB.batch([
     env.DB.prepare('CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,last_seen_at TEXT NOT NULL,revoked_at TEXT)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS fatwa_revisions (id TEXT PRIMARY KEY,fatwa_id TEXT NOT NULL,question TEXT NOT NULL,answer TEXT NOT NULL,category TEXT NOT NULL,scholar TEXT NOT NULL,institution TEXT NOT NULL,source_url TEXT,status TEXT NOT NULL,changed_by TEXT,created_at TEXT NOT NULL)'),
@@ -526,6 +529,13 @@ async function handle(request: Request, env: Env) {
       if (path === '/admin/kb/scholars' && request.method === 'POST') { const b = await readJson(request); return json(await importScholars(env, Array.isArray(b.scholars) ? b.scholars : []), 200, origin); }
       if (path === '/admin/kb/search' && request.method === 'GET') { const q = url.searchParams.get('q') || ''; return json({ direct: kbTokens(q, 12), expanded: await expandQuery(env, q), hits: await searchKb(env, q, 8) }, 200, origin); }
       if (path === '/admin/kb/stats' && request.method === 'GET') return json(await kbStats(env), 200, origin);
+      if (path.startsWith('/admin/agent/')) {
+        try {
+          const body = ['POST', 'PATCH'].includes(request.method) ? await readJson(request) : {};
+          const result = await agentRoutes(env, path, request.method, url, body);
+          if (result) return json(result, 200, origin);
+        } catch (error) { return json({ error: String(error) }, 400, origin); }
+      }
       if (path === '/admin/purge-expired' && request.method === 'POST') return json(await purgeExpired(env), 200, origin);
       if (path === '/admin/posts' && request.method === 'GET') { const q = await env.DB.prepare('SELECT * FROM posts ORDER BY created_at DESC').all<Row>(); return json({ posts: q.results.map(publicPost) }, 200, origin); }
       if (path === '/admin/fatwas' && request.method === 'GET') { const q = await env.DB.prepare('SELECT * FROM fatwas ORDER BY created_at DESC').all<Row>(); return json({ fatwas: q.results.map(publicFatwa) }, 200, origin); }
@@ -666,7 +676,9 @@ export default {
   fetch(request: Request, rawEnv: Env) { return handle(request, withTurso(rawEnv)); },
   async scheduled(event: { cron?: string }, rawEnv: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }) {
     const env = withTurso(rawEnv);
-    const job = event.cron === '* * * * *'
+    const job = event.cron === '*/15 * * * *'
+      ? ensureSchema(env).then(() => runContentAgent(env, 'scheduled')).then((r) => console.log('content-agent', JSON.stringify(r))).catch((e) => console.error('content-agent failed', String(e)))
+      : event.cron === '* * * * *'
       ? ensureSchema(env).then(() => processPushQueue(env, 45)).then((r) => { if (r.sent || r.failed) console.log('push', JSON.stringify(r)); })
       : ensureSchema(env).then(() => purgeExpired(env)).then((r) => console.log('purge', JSON.stringify(r)));
     ctx.waitUntil(job);
