@@ -12,16 +12,10 @@ import { useApp } from '@/lib/store';
 import { formatCount } from '@/components/PostCard';
 
 function PostVideo({ uri }: { uri: string }) {
-  const [muted, setMuted] = useState(true);
-  const player = useVideoPlayer(uri, (instance) => { instance.loop = true; instance.muted = true; instance.play(); });
-  useEffect(() => { player.muted = muted; }, [muted, player]);
+  const player = useVideoPlayer(uri, (instance) => { instance.loop = true; instance.muted = false; instance.play(); });
   return (
     <View style={styles.videoWrap}>
       <VideoView player={player} style={styles.postVideo} contentFit="contain" nativeControls fullscreenOptions={{ enable: true }} allowsPictureInPicture />
-      <Pressable onPress={() => setMuted((value) => !value)} style={styles.videoMute} accessibilityRole="button" accessibilityLabel={muted ? 'Unmute video' : 'Mute video'}>
-        <Feather name={muted ? 'volume-x' : 'volume-2'} size={16} color="#FFFFFF" />
-        <Text style={styles.videoMuteText}>{muted ? 'Tap for sound' : 'Sound on'}</Text>
-      </Pressable>
     </View>
   );
 }
@@ -235,8 +229,6 @@ const styles = StyleSheet.create({
   postImage: { width: '100%', height: 240, borderRadius: 18, marginBottom: 16, backgroundColor: '#EEF5F0' },
   postVideo: { width: '100%', aspectRatio: 9 / 16, maxHeight: 520, borderRadius: 18, marginBottom: 0, backgroundColor: '#071A14' },
   videoWrap: { position: 'relative', marginBottom: 16 },
-  videoMute: { position: 'absolute', bottom: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 16, paddingHorizontal: 11, paddingVertical: 7 },
-  videoMuteText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   imageOnlyPost: { height: 360, marginBottom: 0 },
   bodyText: { fontSize: 15.5, lineHeight: 27, letterSpacing: 0.05 },
   source: { flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, marginTop: 16, paddingTop: 13 },

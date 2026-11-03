@@ -18,7 +18,8 @@ const prayerEnd = (name: PrayerName, times: ReturnType<typeof computePrayerTimes
 
 export default function PrayerDetailScreen({ prayer }: { prayer: PrayerName }) {
   const colors = useColors();
-  const { prayerCity } = useApp();
+  const { prayerCity, alarms } = useApp();
+  const alarmOn = alarms.some((alarm) => alarm.prayer === prayer && alarm.enabled);
   const now = new Date();
   const details = useMemo(() => {
     const times = computePrayerTimes(now, prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
@@ -52,7 +53,7 @@ export default function PrayerDetailScreen({ prayer }: { prayer: PrayerName }) {
         <Feather name="clock" size={19} color={colors.primary} />
         <View style={{ flex: 1 }}><Text style={[styles.label, { color: colors.primary }]}>NEXT PRAYER</Text><Text style={[styles.nextName, { color: colors.foreground }]}>{details.nextPrayer}</Text><Text style={[styles.nextCopy, { color: colors.mutedForeground }]}>Starts {formatClockTime(details.nextStart)} · Ends {formatClockTime(details.nextEnd)}</Text></View>
       </View>
-      <InfoBanner icon="bell" text="Your adhan alarm is enabled on this device. Prayer times follow your selected location." />
+      <InfoBanner icon="bell" text={alarmOn ? `Your ${prayer} adhan alarm is enabled on this device. Prayer times follow your selected location.` : `No ${prayer} adhan alarm is set. Open Prayer alarms to turn one on. Prayer times follow your selected location.`} />
     </View>
   );
 }
