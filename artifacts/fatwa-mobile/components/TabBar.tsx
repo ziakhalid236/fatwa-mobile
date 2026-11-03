@@ -11,9 +11,9 @@ import type { TabKey } from '@/lib/types';
 type Icon = keyof typeof MaterialCommunityIcons.glyphMap;
 const ITEMS: Array<{ key: TabKey; label: string; on: Icon; off: Icon }> = [
   { key: 'home', label: 'Home', on: 'home-variant', off: 'home-variant-outline' },
-  { key: 'library', label: 'Books', on: 'book-open-page-variant', off: 'book-open-page-variant-outline' },
-  { key: 'questions', label: 'Fatwa AI', on: 'creation', off: 'creation-outline' },
   { key: 'shorts', label: 'Shorts', on: 'play-circle', off: 'play-circle-outline' },
+  { key: 'questions', label: 'Fatwa AI', on: 'creation', off: 'creation-outline' },
+  { key: 'library', label: 'Books', on: 'book-open-page-variant', off: 'book-open-page-variant-outline' },
   { key: 'profile', label: 'Profile', on: 'account-circle', off: 'account-circle-outline' },
 ];
 const PADDING = 6;
