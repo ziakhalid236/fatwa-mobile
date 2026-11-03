@@ -193,12 +193,12 @@ function Shell() {
   const onSettings = useCallback(() => push({ name: 'settings' }), [push]);
 
   const REPORTABLE = new Set(['post', 'fatwa', 'questionDetail', 'reader', 'surah', 'quranList', 'user', 'fatwaList', 'postSubmit']);
-  const reportable = route.name === 'tabs' ? tab !== 'alarm' : REPORTABLE.has(route.name);
+  const reportable = route.name === 'tabs' ? tab !== 'shorts' : REPORTABLE.has(route.name);
   const pageName = route.name === 'tabs' ? tab : route.name;
   const hideTopHeader = (route.name === 'tabs' && tab === 'profile') || route.name === 'settings';
 
   const header = () => {
-    const title = route.name === 'surah' || route.name === 'reader' ? route.title : titles[route.name] ?? (route.name === 'tabs' && tab === 'alarm' ? 'Notifications' : undefined);
+    const title = route.name === 'surah' || route.name === 'reader' ? route.title : titles[route.name] ?? (route.name === 'tabs' && tab === 'shorts' ? 'Community Shorts' : undefined);
     const canGoBack = stack.length > 0 || tab !== 'home';
     return (
       <View style={[styles.topBar, { paddingTop: Platform.OS === 'web' ? 67 : 6 }]}>
@@ -300,11 +300,12 @@ function Shell() {
   else if (tab === 'home') content = <HomeScreen searchQuery={homeSearchQuery} visibilityTick={feedVisibilityTick} />;
   else if (tab === 'library') content = <LibraryScreen />;
   else if (tab === 'questions') content = <QuestionsScreen askSignal={askSignal} />;
-  else if (tab === 'alarm') content = <NotificationsScreen />;
+  else if (tab === 'shorts') content = <ShortsScreen />;
   else content = <ProfileScreen onOpenSettings={onSettings} />;
 
   const showTabBar = route.name === 'tabs';
   const isAskTab = route.name === 'tabs' && tab === 'questions';
+  const isShortsTab = route.name === 'shorts' || (route.name === 'tabs' && tab === 'shorts');
 
   return (
     <NavProvider value={nav}>
@@ -318,7 +319,7 @@ function Shell() {
               {header()}
               <View style={styles.chatContent}>{content}</View>
             </View>
-          ) : route.name === 'shorts' ? (
+          ) : isShortsTab ? (
             <View style={styles.immersive}>
               {header()}
               <View style={styles.immersiveContent}>{content}</View>

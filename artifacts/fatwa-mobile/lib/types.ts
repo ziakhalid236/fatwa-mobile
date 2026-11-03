@@ -1,4 +1,4 @@
-export type TabKey = 'home' | 'library' | 'questions' | 'alarm' | 'profile';
+export type TabKey = 'home' | 'library' | 'questions' | 'shorts' | 'profile';
 
 export type PostCategory =
   | 'Islamic'

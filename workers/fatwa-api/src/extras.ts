@@ -27,6 +27,8 @@ export const extraSchema = (db: any) => [
   db.prepare('CREATE TABLE IF NOT EXISTS auth_otps (email TEXT PRIMARY KEY,code_hash TEXT NOT NULL,expires_at INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL)'),
   db.prepare('CREATE TABLE IF NOT EXISTS subscriptions (purchase_token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,provider TEXT NOT NULL,product_id TEXT NOT NULL,base_plan_id TEXT NOT NULL,expires_at TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)'),
   db.prepare('CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id, expires_at)'),
+  db.prepare("CREATE TABLE IF NOT EXISTS subscription_requests (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,plan TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',review_note TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_subscription_requests_status ON subscription_requests(status, created_at)'),
   db.prepare('CREATE TABLE IF NOT EXISTS daily_post_usage (user_id TEXT NOT NULL,usage_date TEXT NOT NULL,posts INTEGER NOT NULL DEFAULT 0,videos INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,usage_date))'),
 ];
 export const extraColumns: Record<string, Array<[string, string]>> = {
@@ -204,6 +206,27 @@ export async function adminExtras(c: Ctx): Promise<Response | null> {
   if (path === '/admin/users' && m === 'GET') {
     const q = await env.DB.prepare("SELECT u.id,u.name,u.email,u.country,u.city,u.avatar_url AS avatarUrl,u.auth_provider AS provider,u.banned_at AS bannedAt,u.ban_reason AS banReason,u.subscription_tier AS tier,u.subscription_source AS subscriptionSource,u.subscription_expires_at AS expiresAt,u.created_at AS createdAt,u.updated_at AS updatedAt,(SELECT COUNT(*) FROM posts p WHERE p.user_id=u.id) AS livePosts,(SELECT COUNT(*) FROM post_submissions s WHERE s.user_id=u.id AND s.status='pending') AS pendingPosts,(SELECT COUNT(*) FROM reports r WHERE r.user_id=u.id) AS reports FROM users u ORDER BY u.updated_at DESC").all();
     return json({ users: q.results.map((user: Row) => ({ ...user, tier: effectivePlan({ subscription_tier: user.tier, subscription_source: user.subscriptionSource, subscription_expires_at: user.expiresAt }) })) }, 200, origin);
+  }
+  if (path === '/admin/subscription-requests' && m === 'GET') {
+    const q = await env.DB.prepare("SELECT r.id,r.user_id AS userId,r.plan,r.status,r.review_note AS reviewNote,r.created_at AS createdAt,u.name,u.email,u.city,u.country FROM subscription_requests r JOIN users u ON u.id=r.user_id WHERE r.status='pending' ORDER BY r.created_at ASC LIMIT 200").all();
+    return json({ requests: q.results }, 200, origin);
+  }
+  const subscriptionRequest = path.match(/^\/admin\/subscription-requests\/([^/]+)$/);
+  if (subscriptionRequest && m === 'PATCH') {
+    const b = await c.readJson(request); const action = String(b.action || '');
+    if (!['approve', 'reject'].includes(action)) return json({ error: 'Action must be approve or reject.' }, 400, origin);
+    const requestRow = await env.DB.prepare("SELECT * FROM subscription_requests WHERE id=? AND status='pending'").bind(subscriptionRequest[1]).first();
+    if (!requestRow) return json({ error: 'Pending subscription request not found.' }, 404, origin);
+    const timestamp = c.now(); const note = String(b.note || '').slice(0, 300) || null;
+    if (action === 'approve') {
+      const expiresAt = b.expiresAt ? new Date(String(b.expiresAt)).toISOString() : null;
+      await env.DB.prepare('UPDATE users SET subscription_tier=?,subscription_source=?,subscription_expires_at=?,subscription_product_id=NULL,updated_at=? WHERE id=?').bind(requestRow.plan, 'admin', expiresAt, timestamp, requestRow.user_id).run();
+      await c.notify(env, requestRow.user_id, { kind: 'system', title: 'Membership approved', body: `Your ${requestRow.plan === 'high_premium' ? 'High Premium' : 'Premium'} membership has been approved.`, tone: 'approved' });
+    }
+    await env.DB.prepare('UPDATE subscription_requests SET status=?,review_note=?,updated_at=? WHERE id=?').bind(action === 'approve' ? 'approved' : 'rejected', note, timestamp, requestRow.id).run();
+    await c.audit(env, 'subscription_request_' + action, 'subscription_request', requestRow.id, { userId: requestRow.user_id, plan: requestRow.plan });
+    if (action === 'reject') await c.notify(env, requestRow.user_id, { kind: 'system', title: 'Membership request update', body: 'Your membership request was not approved at this time.', tone: 'rejected' });
+    return json({ ok: true, status: action === 'approve' ? 'approved' : 'rejected' }, 200, origin);
   }
   const planUser = path.match(/^\/admin\/users\/([^/]+)\/subscription$/);
   if (planUser && m === 'PATCH') {

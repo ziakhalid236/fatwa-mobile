@@ -583,6 +583,16 @@ async function handle(request: Request, env: Env) {
       const posts = Number(usage?.posts || 0); const videos = Number(usage?.videos || 0);
       return json({ plan, expiresAt: plan === 'free' ? null : user.subscription_expires_at, usage: { posts, postLimit: plan === 'free' ? 3 : null, videos, videoLimit: plan === 'free' ? 0 : plan === 'premium' ? 5 : null } }, 200, origin);
     }
+    if (path === '/subscription/request' && request.method === 'POST') {
+      const user = await userFor(env, request); if (!user) return json({ error: 'Sign in before requesting a membership.' }, 401, origin);
+      const body = await readJson(request); const plan = String(body.plan || '');
+      if (!['premium', 'high_premium'].includes(plan)) return json({ error: 'Choose Premium or High Premium.' }, 400, origin);
+      const existing = await env.DB.prepare("SELECT id,status FROM subscription_requests WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1").bind(user.id).first<Row>();
+      if (existing) return json({ ok: true, status: 'pending', requestId: existing.id }, 200, origin);
+      const requestId = id('subscription-request'); const timestamp = now();
+      await env.DB.prepare('INSERT INTO subscription_requests(id,user_id,plan,status,review_note,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(requestId, user.id, plan, 'pending', null, timestamp, timestamp).run();
+      return json({ ok: true, status: 'pending', requestId }, 201, origin);
+    }
     if (path === '/subscription/verify' && request.method === 'POST') {
       if (!await rateLimit(env, request, 'subscription-verify', 6)) return json({ error: 'Too many verification attempts. Try again shortly.' }, 429, origin);
       const user = await userFor(env, request); if (!user) return json({ error: 'Sign in before restoring or purchasing a membership.' }, 401, origin);

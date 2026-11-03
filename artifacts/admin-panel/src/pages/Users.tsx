@@ -1,13 +1,26 @@
 import { useState } from "react";
-import { Ban, Crown, Trash2, UserCheck } from "lucide-react";
+import { Ban, Check, Crown, Trash2, UserCheck, X } from "lucide-react";
 import { api, ago, del, patch, post } from "../api";
 import { Badge, Btn, Empty, Modal, Spinner, useLoad, useToast } from "../ui";
 
 export default function Users() {
-  const { data, reload } = useLoad(() => api("/admin/users")); const [q, setQ] = useState(""); const [editingPlan, setEditingPlan] = useState<any>(null); const toast = useToast();
+  const { data, reload } = useLoad(async () => { const [users, requests] = await Promise.all([api("/admin/users"), api("/admin/subscription-requests")]); return { ...users, requests: requests.requests || [] } as any; }); const [q, setQ] = useState(""); const [editingPlan, setEditingPlan] = useState<any>(null); const toast = useToast();
   if (!data) return <Spinner />;
   const users = (data.users as any[]).filter((u) => !q || `${u.name} ${u.email || ""} ${u.city} ${u.country}`.toLowerCase().includes(q.toLowerCase()));
+  const reviewRequest = async (request: any, action: "approve" | "reject") => {
+    if (!confirm(`${action === "approve" ? "Approve" : "Reject"} ${request.name}'s ${request.plan === "high_premium" ? "High Premium" : "Premium"} request?`)) return;
+    await patch(`/admin/subscription-requests/${request.id}`, { action });
+    toast(action === "approve" ? "Membership approved" : "Membership rejected");
+    reload();
+  };
   return <>
+    <section className="panel" style={{ marginBottom: 18 }}>
+      <div className="panel-heading"><div><h2>Membership requests</h2><p>Users submit here; only an admin can approve or reject access.</p></div><Badge tone="amber">{data.requests.length} pending</Badge></div>
+      {data.requests.length === 0 ? <Empty text="No pending membership requests." /> : data.requests.map((r: any) => <div className="row" key={r.id}>
+        <div className="row-main"><div className="row-meta"><Badge tone={r.plan === "high_premium" ? "blue" : "amber"}>{r.plan === "high_premium" ? "High Premium" : "Premium"}</Badge><span>{ago(r.createdAt)}</span></div><h3>{r.name}</h3><p>{[r.email, r.city, r.country].filter(Boolean).join(" · ") || "Account details unavailable"}</p></div>
+        <div className="row" style={{ borderTop: 0, padding: 0 }}><Btn tone="primary" small onClick={() => void reviewRequest(r, "approve")}><Check size={13} /> Approve</Btn><Btn tone="danger" small onClick={() => void reviewRequest(r, "reject")}><X size={13} /> Reject</Btn></div>
+      </div>)}
+    </section>
     <div className="row sp" style={{ marginBottom: 14 }}><input style={{ maxWidth: 340 }} placeholder="Search name, email, city…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="meta">{users.length} of {data.users.length} users</span></div>
     {users.length === 0 ? <Empty text="No users found." /> : <div className="card tw"><table><thead><tr><th>User</th><th>Location</th><th>Sign-in</th><th>Membership</th><th>Posts</th><th>Reports</th><th>Joined</th><th></th></tr></thead><tbody>
       {users.map((u) => <tr key={u.id}>
