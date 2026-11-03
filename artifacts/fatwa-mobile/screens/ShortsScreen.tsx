@@ -99,6 +99,10 @@ export default function ShortsScreen({ initialPostId }: { initialPostId?: string
           onViewableItemsChanged={onViewableItemsChanged.current}
           viewabilityConfig={viewabilityConfig.current}
           getItemLayout={(_data, index) => ({ length: height, offset: height * index, index })}
+          onScrollToIndexFailed={({ index }) => {
+            // The target may not be laid out yet; retry once after the list settles.
+            setTimeout(() => listRef.current?.scrollToIndex({ index, animated: false }), 120);
+          }}
           initialNumToRender={1}
           maxToRenderPerBatch={2}
           windowSize={3}
