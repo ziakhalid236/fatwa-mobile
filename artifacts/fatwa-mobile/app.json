@@ -61,7 +61,7 @@
         "expo-notifications",
         {
           "color": "#0B6B53",
-          "defaultChannel": "adhan-alarms",
+          "defaultChannel": "fatwa-updates",
           "sounds": [
             "./assets/audio/adhan_drive.mp3",
             "./assets/audio/adhan_notification.wav"

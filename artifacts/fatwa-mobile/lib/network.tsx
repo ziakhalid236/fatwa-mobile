@@ -1,10 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { API_BASE_URL } from '@/lib/store';
 
 export type NetworkState = 'checking' | 'online' | 'slow' | 'offline';
 
 type NetworkContextValue = { state: NetworkState; retry: () => void };
 const NetworkContext = createContext<NetworkContextValue | null>(null);
-const HEALTH_URL = 'https://fatwa-api.ziakhalid236.workers.dev/api/health';
+const HEALTH_URL = `${API_BASE_URL}/api/health`;
 
 export function NetworkStatusProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<NetworkState>('checking');

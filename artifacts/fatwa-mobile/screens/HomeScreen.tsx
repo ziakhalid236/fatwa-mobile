@@ -49,7 +49,9 @@ function Hero() {
       const currentStart = beforeFajr ? yesterday.Isha : times[currentName];
       return {
         current: { name: currentName, start: currentStart, end: beforeFajr ? times.Fajr : prayerEnd(currentName, times, tomorrow), left: 0 },
-        next: { name: nextName, start: nextStart, end: nextEnd, left: currentName === 'Isha' ? minutesUntil(nextStart, now, prayerCity.timezone) + 1440 : minutesUntil(nextStart, now, prayerCity.timezone) },
+        // Only roll the countdown past midnight when Isha is current and Fajr is
+        // still ahead of us today; before Fajr the countdown is already positive.
+        next: { name: nextName, start: nextStart, end: nextEnd, left: minutesUntil(nextStart, now, prayerCity.timezone) + (currentName === 'Isha' && !beforeFajr ? 1440 : 0) },
       };
     }
     const nextIndex = ORDER.findIndex((name) => minutesUntil(times[name], now, prayerCity.timezone) > 0);

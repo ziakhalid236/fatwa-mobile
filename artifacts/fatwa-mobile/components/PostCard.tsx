@@ -1,9 +1,10 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/ui';
+import { InlineVideo, VideoPoster } from '@/components/InlineVideo';
 import { useColors } from '@/hooks/useColors';
 import { sharePost } from '@/lib/share';
 import { cleanPostBody, containsArabic } from '@/lib/post-text';
@@ -61,18 +62,24 @@ export function PostCard({
   const colors = useColors();
   const cardRef = useRef<View>(null);
   const reportedVisible = useRef(false);
+  const [onScreen, setOnScreen] = useState(false);
+  // Only video cards need scroll-position measurement; plain text and photo
+  // cards skip the work entirely.
+  const tracksVisibility = Boolean(post.videoUrl);
   const checkVisibility = useCallback(() => {
-    if (!onVisible || reportedVisible.current) return;
+    if (!tracksVisibility) return;
     requestAnimationFrame(() => {
       cardRef.current?.measureInWindow((_x, y, _width, height) => {
         const screenHeight = Dimensions.get('window').height;
-        if (y + height > 72 && y < screenHeight - 84) {
+        const visible = y + height > 72 && y < screenHeight - 84;
+        setOnScreen(visible);
+        if (visible && onVisible && !reportedVisible.current) {
           reportedVisible.current = true;
           onVisible();
         }
       });
     });
-  }, [onVisible]);
+  }, [onVisible, tracksVisibility]);
   useEffect(() => { checkVisibility(); }, [checkVisibility, visibilityTick]);
   const excerpt = cleanPostBody(post.title, post.body);
   const imageOnly = Boolean(post.imageUrl && !post.body.trim());
@@ -128,10 +135,9 @@ export function PostCard({
         ) : null}
 
         {post.videoUrl ? (
-          <Pressable onPress={onOpen} style={[styles.videoPreview, { backgroundColor: colors.forest }]} accessibilityRole="button" accessibilityLabel="Watch community video">
-            <View style={styles.videoPlay}><Feather name="play" size={18} color={colors.forest} /></View>
-            <View><Text style={styles.videoTitle}>Community video</Text><Text style={styles.videoHint}>{post.videoDurationMs ? `${Math.ceil(post.videoDurationMs / 1000)} sec · Tap to watch` : 'Tap to watch'}</Text></View>
-          </Pressable>
+          onScreen
+            ? <InlineVideo uri={post.videoUrl} active durationMs={post.videoDurationMs} onOpen={onOpen} />
+            : <VideoPoster durationMs={post.videoDurationMs} onOpen={onOpen} />
         ) : null}
 
         <View style={[styles.footer, { borderTopColor: colors.border }]}>
@@ -255,10 +261,6 @@ const styles = StyleSheet.create({
   nearby: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   nearbyText: { fontSize: 10.5, fontWeight: '800' },
   postImage: { width: '100%', height: 240, borderRadius: 20, marginTop: 2, marginBottom: 4 },
-  videoPreview: { minHeight: 104, borderRadius: 20, marginTop: 2, marginBottom: 4, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  videoPlay: { width: 43, height: 43, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  videoTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
-  videoHint: { color: '#D5E7DB', fontSize: 11, marginTop: 4 },
   rtlExcerpt: { fontSize: 16, lineHeight: 30, textAlign: 'right', writingDirection: 'rtl', includeFontPadding: true },
   author: { fontSize: 13, fontWeight: '700' },
   authorAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E5F2EC' },

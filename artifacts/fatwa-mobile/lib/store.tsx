@@ -46,7 +46,8 @@ const STORE_KEYS = {
   fatwas: '@fatwa/cached-fatwas',
 };
 
-export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'https://fatwa-api.ziakhalid236.workers.dev').replace(/\/$/, '');
+const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+export const API_BASE_URL = (configuredApiUrl || 'https://fatwa-api.ziakhalid236.workers.dev').replace(/\/$/, '');
 
 export type AppLanguage = 'en' | 'ur' | 'ar';
 type Settings = { notificationsEnabled: boolean; adhanSound: boolean; language: AppLanguage; autoLanguage: boolean; autoTranslate: boolean };

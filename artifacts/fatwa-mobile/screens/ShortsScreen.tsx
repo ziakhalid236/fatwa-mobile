@@ -1,46 +1,17 @@
 import { Feather } from '@expo/vector-icons';
-import { VideoView, useVideoPlayer } from 'expo-video';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View, type ViewToken } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type ViewToken } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { VideoStage } from '@/components/VideoStage';
 import { useColors } from '@/hooks/useColors';
 import { useNav } from '@/lib/nav';
 import { API_BASE_URL, useApp } from '@/lib/store';
-import { sharePost } from '@/lib/share';
 import type { Post } from '@/lib/types';
-
-function ShortVideo({ post, active, height, onLike, liked, onOpen }: { post: Post; active: boolean; height: number; onLike: () => void; liked: boolean; onOpen: () => void }) {
-  const colors = useColors();
-  const player = useVideoPlayer(post.videoUrl || '', (instance) => { instance.loop = true; });
-  useEffect(() => { if (active) void player.play(); else player.pause(); }, [active, player]);
-  const caption = post.body.trim() || post.title;
-  return (
-    <View style={[styles.page, { height, backgroundColor: '#061B15' }]}>
-      {post.videoUrl ? <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} fullscreenOptions={{ enable: false }} allowsPictureInPicture={false} /> : null}
-      <View pointerEvents="none" style={styles.scrim} />
-      <Pressable style={StyleSheet.absoluteFill} onPress={onOpen} accessibilityRole="button" accessibilityLabel={`Open video post by ${post.author}`} />
-      <View style={styles.copyBlock} pointerEvents="box-none">
-        <Text style={styles.author} numberOfLines={1}>{post.author}{post.city ? ` · ${post.city}` : ''}</Text>
-        {caption ? <Text style={styles.caption} numberOfLines={4}>{caption}</Text> : null}
-        <Text style={styles.hint}>Tap to read the full post</Text>
-      </View>
-      <View style={styles.actions}>
-        <Pressable onPress={onLike} style={styles.action} accessibilityRole="button" accessibilityLabel={liked ? 'Unlike video' : 'Like video'}>
-          <Feather name="heart" size={24} color={liked ? '#FF7E77' : '#FFFFFF'} />
-          <Text style={styles.actionLabel}>{post.likes + (liked ? 1 : 0)}</Text>
-        </Pressable>
-        <Pressable onPress={() => { void sharePost(post); }} style={styles.action} accessibilityRole="button" accessibilityLabel="Share video">
-          <Feather name="share-2" size={23} color="#FFFFFF" />
-          <Text style={styles.actionLabel}>Share</Text>
-        </Pressable>
-      </View>
-      {!active ? <View pointerEvents="none" style={styles.paused}><Feather name="play" size={22} color="#FFFFFF" /></View> : null}
-    </View>
-  );
-}
 
 export default function ShortsScreen() {
   const colors = useColors();
-  const { height: windowHeight } = useWindowDimensions();
+  // The feed is edge-to-edge, so the top bar pads itself around the status bar.
+  const insets = useSafeAreaInsets();
   const nav = useNav();
   const { authHeaders, likedPostIds, toggleLike } = useApp();
   const [videos, setVideos] = useState<Post[]>([]);
@@ -48,7 +19,8 @@ export default function ShortsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
-  const pageHeight = Math.max(320, windowHeight - 140);
+  const [muted, setMuted] = useState(true);
+  const [height, setHeight] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -76,44 +48,79 @@ export default function ShortsScreen() {
     const next = viewableItems.find((item) => item.isViewable)?.index;
     if (typeof next === 'number') setActiveIndex(next);
   });
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 75 });
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 });
   const renderItem = useCallback(({ item, index }: { item: Post; index: number }) => (
-    <ShortVideo post={item} height={pageHeight} active={index === activeIndex} liked={likedPostIds.includes(item.id)} onLike={() => toggleLike(item.id)} onOpen={() => nav.push({ name: 'post', postId: item.id })} />
-  ), [activeIndex, likedPostIds, nav, pageHeight, toggleLike]);
+    <VideoStage
+      post={item}
+      height={height}
+      active={index === activeIndex}
+      liked={likedPostIds.includes(item.id)}
+      muted={muted}
+      onToggleMute={() => setMuted((value) => !value)}
+      onToggleLike={() => toggleLike(item.id)}
+      onOpen={() => nav.push({ name: 'post', postId: item.id })}
+    />
+  ), [activeIndex, height, likedPostIds, muted, nav, toggleLike]);
 
-  if (loading) return <View style={[styles.center, { height: pageHeight }]}><ActivityIndicator color={colors.primary} /><Text style={{ color: colors.mutedForeground }}>Loading community videos…</Text></View>;
-  if (error) return <View style={[styles.center, { height: pageHeight }]}><Feather name="wifi-off" size={24} color={colors.coral} /><Text style={[styles.emptyTitle, { color: colors.foreground }]}>{error}</Text><Pressable onPress={() => setRetry((value) => value + 1)}><Text style={{ color: colors.primary, fontWeight: '800' }}>Try again</Text></Pressable></View>;
-  if (!videos.length) return <View style={[styles.center, { height: pageHeight }]}><Feather name="film" size={28} color={colors.primary} /><Text style={[styles.emptyTitle, { color: colors.foreground }]}>No community videos yet</Text><Text style={[styles.emptyCopy, { color: colors.mutedForeground }]}>Approved short reminders will appear here.</Text></View>;
+  const onLayout = (event: LayoutChangeEvent) => {
+    const next = event.nativeEvent.layout.height;
+    if (next > 0 && Math.abs(next - height) > 1) setHeight(next);
+  };
 
-  return <FlatList
-    data={videos}
-    keyExtractor={(item) => item.id}
-    renderItem={renderItem}
-    pagingEnabled
-    snapToInterval={pageHeight}
-    decelerationRate="fast"
-    showsVerticalScrollIndicator={false}
-    onViewableItemsChanged={onViewableItemsChanged.current}
-    viewabilityConfig={viewabilityConfig.current}
-    initialNumToRender={1}
-    maxToRenderPerBatch={2}
-    windowSize={3}
-    removeClippedSubviews
-  />;
+  const state = loading ? (
+    <View style={styles.center}><ActivityIndicator color={colors.primary} /><Text style={{ color: colors.mutedForeground }}>Loading community videos…</Text></View>
+  ) : error ? (
+    <View style={styles.center}><Feather name="wifi-off" size={24} color={colors.coral} /><Text style={[styles.emptyTitle, { color: colors.foreground }]}>{error}</Text><Pressable onPress={() => setRetry((value) => value + 1)}><Text style={{ color: colors.primary, fontWeight: '800' }}>Try again</Text></Pressable></View>
+  ) : !videos.length ? (
+    <View style={styles.center}><Feather name="film" size={28} color={colors.primary} /><Text style={[styles.emptyTitle, { color: colors.foreground }]}>No community videos yet</Text><Text style={[styles.emptyCopy, { color: colors.mutedForeground }]}>Approved short reminders will appear here.</Text></View>
+  ) : null;
+
+  return (
+    <View style={styles.container} onLayout={onLayout}>
+      {state ?? (height > 0 ? (
+        <FlatList
+          data={videos}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          pagingEnabled
+          decelerationRate="fast"
+          showsVerticalScrollIndicator={false}
+          onViewableItemsChanged={onViewableItemsChanged.current}
+          viewabilityConfig={viewabilityConfig.current}
+          getItemLayout={(_data, index) => ({ length: height, offset: height * index, index })}
+          initialNumToRender={1}
+          maxToRenderPerBatch={2}
+          windowSize={3}
+        />
+      ) : null)}
+      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
+        <Pressable
+          onPress={() => (nav.route.name === 'tabs' ? nav.goTab('home') : nav.back())}
+          style={styles.topButton}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Feather name="chevron-left" size={22} color="#FFFFFF" />
+        </Pressable>
+        <View style={styles.titlePill} pointerEvents="none">
+          <Feather name="play-circle" size={13} color="#FFFFFF" />
+          <Text style={styles.titleText}>Shorts</Text>
+        </View>
+        <Pressable onPress={() => setMuted((value) => !value)} style={styles.topButton} accessibilityRole="button" accessibilityLabel={muted ? 'Unmute videos' : 'Mute videos'}>
+          <Feather name={muted ? 'volume-x' : 'volume-2'} size={19} color="#FFFFFF" />
+        </Pressable>
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  page: { width: '100%', overflow: 'hidden', justifyContent: 'flex-end' },
-  scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.18)' },
-  copyBlock: { position: 'absolute', left: 20, right: 86, bottom: 25, gap: 8 },
-  author: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 8 },
-  caption: { color: '#FFFFFF', fontSize: 14, lineHeight: 20, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 8 },
-  hint: { color: '#E1E1E1', fontSize: 10.5 },
-  actions: { position: 'absolute', right: 16, bottom: 31, gap: 20, alignItems: 'center' },
-  action: { alignItems: 'center', gap: 5, minWidth: 44 },
-  actionLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
-  paused: { position: 'absolute', alignSelf: 'center', top: '48%', width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.42)', alignItems: 'center', justifyContent: 'center' },
-  center: { alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
+  container: { flex: 1, backgroundColor: '#04120D' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
   emptyTitle: { fontSize: 16, fontWeight: '800', textAlign: 'center' },
   emptyCopy: { fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.34)', alignItems: 'center', justifyContent: 'center' },
+  titlePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.34)', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 7 },
+  titleText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
 });

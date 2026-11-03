@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 import React, { useCallback, useMemo, useState } from 'react';
-import { BackHandler, Platform, Pressable, RefreshControl, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, BackHandler, Platform, Pressable, RefreshControl, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { LogoMark } from '@/components/ui';
@@ -13,7 +13,8 @@ import { useColors } from '@/hooks/useColors';
 import { NavProvider, type Nav, type Route } from '@/lib/nav';
 import { AppProvider, useApp } from '@/lib/store';
 import { postIdFromUrl } from '@/lib/share';
-import { syncAdhanAlarms } from '@/lib/adhan';
+import { initializeNotificationChannels, syncAdhanAlarms } from '@/lib/adhan';
+import { computePrayerTimes } from '@/lib/prayer';
 import { NetworkStatusProvider, useNetworkStatus } from '@/lib/network';
 import type { TabKey } from '@/lib/types';
 import AlarmScreen from '@/screens/AlarmScreen';
@@ -149,6 +150,9 @@ function Shell() {
     if (kind === 'adhan') {
       const prayer = data.prayer;
       if (prayer === 'Fajr' || prayer === 'Dhuhr' || prayer === 'Asr' || prayer === 'Maghrib' || prayer === 'Isha') {
+        // Anchor the detail screen to the home tab so it never lands inside the
+        // edge-to-edge shorts layout.
+        setTab('home');
         setStack([{ name: 'prayerDetail', prayer }]);
       }
       return;
@@ -310,8 +314,8 @@ function Shell() {
   return (
     <NavProvider value={nav}>
       <NetworkStatusProvider>
-      <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: colors.background }]}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <SafeAreaView edges={isShortsTab ? [] : ['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: isShortsTab ? '#04120D' : colors.background }]}>
+        <StatusBar barStyle={isShortsTab ? 'light-content' : 'dark-content'} backgroundColor={isShortsTab ? '#04120D' : colors.background} />
         <View style={[styles.app, { backgroundColor: colors.background }]}>
           <NetworkBanner />
           {isAskTab ? (
@@ -320,10 +324,7 @@ function Shell() {
               <View style={styles.chatContent}>{content}</View>
             </View>
           ) : isShortsTab ? (
-            <View style={styles.immersive}>
-              {header()}
-              <View style={styles.immersiveContent}>{content}</View>
-            </View>
+            <View style={styles.immersive}>{content}</View>
           ) : (
               <KeyboardAwareScrollViewCompat
                 style={styles.scroll}
@@ -348,12 +349,42 @@ function Shell() {
 }
 
 export default function AppShell() {
-  const { alarms, settings, prayerCity, hydrated } = useApp();
+  const { alarms, settings, prayerCity, hydrated, updateAlarm } = useApp();
+  const alarmsRef = React.useRef(alarms);
+  alarmsRef.current = alarms;
 
   React.useEffect(() => {
     if (!hydrated || !alarms.length) return;
-    void syncAdhanAlarms(alarms, { soundEnabled: settings.adhanSound, timezoneOffsetHours: prayerCity.timezone });
+    const sync = () => void syncAdhanAlarms(alarmsRef.current, { soundEnabled: settings.adhanSound, timezoneOffsetHours: prayerCity.timezone });
+    sync();
+    // Alarms are one-shot, so refresh them whenever the app returns to the
+    // foreground to keep the next occurrence queued.
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') sync(); });
+    return () => subscription.remove();
   }, [alarms, hydrated, prayerCity.timezone, settings.adhanSound]);
+
+  // Create the channels on launch so a push that arrives before any alarm is
+  // synced still has a channel to land on instead of being dropped.
+  React.useEffect(() => {
+    if (!hydrated) return;
+    void initializeNotificationChannels(settings.adhanSound);
+  }, [hydrated, settings.adhanSound]);
+
+  // Keep "auto" alarms aligned with the computed prayer times as the year moves.
+  // Alarms the user adjusted by hand have auto cleared and are left alone.
+  React.useEffect(() => {
+    if (!hydrated || !alarms.length) return;
+    const times = computePrayerTimes(new Date(), prayerCity.latitude, prayerCity.longitude, prayerCity.timezone);
+    for (const alarm of alarms) {
+      if (alarm.auto === true) {
+        if (alarm.time !== times[alarm.prayer]) updateAlarm(alarm.prayer, { time: times[alarm.prayer] });
+      } else if (alarm.auto === undefined) {
+        // Alarm saved before the auto flag existed: adopt tracking only when its
+        // time still matches the computation, otherwise keep it as customized.
+        updateAlarm(alarm.prayer, { auto: alarm.time === times[alarm.prayer] });
+      }
+    }
+  }, [alarms, hydrated, prayerCity.latitude, prayerCity.longitude, prayerCity.timezone, updateAlarm]);
 
   return <Shell />;
 }
@@ -366,7 +397,6 @@ const styles = StyleSheet.create({
   chatScrollContent: { flex: 1 },
   chatContent: { flex: 1, minHeight: 0 },
   immersive: { flex: 1, minHeight: 0 },
-  immersiveContent: { flex: 1, minHeight: 0 },
   topBar: {
     minHeight: 60,
     paddingHorizontal: 20,

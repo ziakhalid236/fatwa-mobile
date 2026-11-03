@@ -56,7 +56,8 @@ export function TabBar({ tab, badge, onSelect }: { tab: TabKey; badge: number; o
         {ITEMS.map((item, i) => {
           const selected = item.key === tab;
           const pop = pops[i];
-          const count = 0;
+          // Notifications live behind the Profile tab, so surface the unread count there.
+          const count = item.key === 'profile' ? badge : 0;
           return (
             <Pressable
               key={item.key}

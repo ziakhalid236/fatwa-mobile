@@ -4,7 +4,7 @@ Writes the in-app copy (artifacts/fatwa-mobile/data/legal.ts) and the hosted pag
 import json, html, os
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 UPDATED = 'October 30, 2026'
-CONTACT = 'the support email shown on the app store listing'
+CONTACT = 'our support email (contactfatwaapp@gmail.com)'
 
 PAGES = [
  ('terms', 'Terms of Use', 'terms.html', 'The rules for using the Fatwa app.', [

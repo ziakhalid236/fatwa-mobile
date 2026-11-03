@@ -148,6 +148,27 @@ export function localClockParts(now: Date, timezoneOffsetHours: number): { hour:
   return { hour, minute, totalMinutes: hour * 60 + minute };
 }
 
+/**
+ * Current wall-clock time in a city, re-anchored onto a date the device clock
+ * agrees on. Used to convert a computed local prayer time (HH:MM) into an
+ * absolute `Date` for one-shot scheduling, so the trigger stays correct even
+ * when the device clock timezone differs from the selected city.
+ */
+export function cityTimeOn(
+  reference: Date,
+  time: string,
+  timezoneOffsetHours: number,
+): Date {
+  const [hour, minute] = time.split(':').map(Number);
+  const cityNow = new Date(reference.getTime() + timezoneOffsetHours * 60 * 60 * 1000);
+  const year = cityNow.getUTCFullYear();
+  const month = cityNow.getUTCMonth();
+  const day = cityNow.getUTCDate();
+  // Interpret the target as UTC, then drop the city offset to get the absolute instant.
+  const wallClock = Date.UTC(year, month, day, hour, minute, 0, 0);
+  return new Date(wallClock - timezoneOffsetHours * 60 * 60 * 1000);
+}
+
 export function formatCountdown(totalMinutes: number): string {
   const mins = Math.max(0, totalMinutes);
   const hours = Math.floor(mins / 60);

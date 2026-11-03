@@ -63,7 +63,7 @@ export default function AlarmScreen() {
 
   const mergeAlarm = (prayer: PrayerName, patch: Partial<AdhanAlarm>): AdhanAlarm[] => {
     const existing = alarms.find((item) => item.prayer === prayer);
-    if (!existing) return [...alarms, { prayer, time: patch.time ?? times[prayer], enabled: false, ...patch }];
+    if (!existing) return [...alarms, { prayer, time: patch.time ?? times[prayer], enabled: false, auto: true, ...patch }];
     return alarms.map((item) => item.prayer === prayer ? { ...item, ...patch } : item);
   };
 
@@ -82,8 +82,9 @@ export default function AlarmScreen() {
     const [hour, minute] = current.split(':').map(Number);
     const total = (hour * 60 + minute + delta + 1440) % 1440;
     const time = `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-    updateAlarm(prayer, { time });
-    void syncAlarms(mergeAlarm(prayer, { time }));
+    // A hand-adjusted time stops following the computed prayer time.
+    updateAlarm(prayer, { time, auto: false });
+    void syncAlarms(mergeAlarm(prayer, { time, auto: false }));
   };
 
   const enableAll = async () => {
@@ -91,7 +92,10 @@ export default function AlarmScreen() {
       Alert.alert('Notifications are off', 'Allow notifications to receive adhan alarms.');
       return;
     }
-    const next = PRAYERS.map((prayer) => ({ prayer, time: alarms.find((item) => item.prayer === prayer)?.time ?? times[prayer], enabled: true }));
+    const next = PRAYERS.map((prayer) => {
+      const existing = alarms.find((item) => item.prayer === prayer);
+      return { prayer, time: existing?.time ?? times[prayer], enabled: true, auto: existing?.auto ?? true };
+    });
     next.forEach((item) => updateAlarm(item.prayer, item));
     const result = await syncAlarms(next);
     pushNotification({ kind: 'system', title: 'Adhan alarms enabled', body: `${result.scheduled} adhan alarms scheduled for ${prayerCity.name}.` });

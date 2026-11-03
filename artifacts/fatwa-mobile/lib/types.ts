@@ -116,6 +116,8 @@ export type AdhanAlarm = {
   prayer: PrayerName;
   time: string;
   enabled: boolean;
+  /** True while the time should follow the computed prayer time. Cleared when the user adjusts it by hand. */
+  auto?: boolean;
 };
 
 export type Profile = {

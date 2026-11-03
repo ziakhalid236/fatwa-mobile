@@ -21,5 +21,7 @@ pnpm monorepo (`pnpm@10`). The root `preinstall` rejects npm.
 
 - The Android and web workflows do NOT typecheck. The `Check (typecheck)` workflow does; look at it after every push.
 - Never use blind `sed` renames in `lib/store.tsx` (a doubled prefix crashed build 96 on launch).
+- Adhan alarms must use one-shot `date` triggers (`lib/adhan.ts`). expo-notifications on Android does not implement `calendar` triggers, and its `daily` trigger follows the device clock, not the selected city's timezone. The app re-syncs a rolling 5-day horizon on launch and on foreground; alarms with `auto: true` follow the computed prayer time and stop doing so once the user nudges the time by hand.
+- Android notification channels are created on launch (`initializeNotificationChannels`). `workers/fatwa-api/src/push.ts` sends remote pushes to the `broadcast` channel, so `lib/adhan.ts` must keep declaring that channel or Android drops the push. The app's `defaultChannel` is `fatwa-updates`, not the loud `adhan-alarms` channel, so routine pushes never blast the adhan sound.
 - Legal pages are generated: edit `tools/legal/build.py`, not the outputs.
 - Update this file when build commands, deploy paths or bindings change.
