@@ -202,6 +202,10 @@ export default function HomeScreen({ searchQuery = '', visibilityTick = 0 }: { s
           nearby={Boolean(myCity) && (post.city ?? '').trim().toLowerCase() === myCity}
           onShare={() => { void sharePost(post); }}
           onVisible={() => registerView(post.id)}
+          onOpenVideo={post.videoUrl ? () => {
+            registerView(post.id);
+            nav.push({ name: 'shorts', postId: post.id });
+          } : undefined}
           visibilityTick={visibilityTick}
           onAuthor={post.authorId ? () => nav.push({ name: 'user', userId: post.authorId as string }) : undefined}
         />

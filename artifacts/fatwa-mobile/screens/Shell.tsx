@@ -284,7 +284,7 @@ function Shell() {
   let content: React.ReactNode;
   if (route.name === 'post') content = <PostDetailScreen postId={route.postId} />;
   else if (route.name === 'postSubmit') content = <PostSubmissionScreen />;
-  else if (route.name === 'shorts') content = <ShortsScreen />;
+  else if (route.name === 'shorts') content = <ShortsScreen initialPostId={route.postId} />;
   else if (route.name === 'membership') content = <MembershipScreen />;
   else if (route.name === 'user') content = <UserProfileScreen userId={route.userId} />;
   else if (route.name === 'fatwa') content = <FatwaDetailScreen fatwaId={route.fatwaId} />;

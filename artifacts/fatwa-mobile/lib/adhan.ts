@@ -30,28 +30,66 @@ if (Platform.OS !== 'web') {
 
 async function ensureChannels(soundEnabled: boolean) {
   if (Platform.OS !== 'android') return;
-  await Notifications.setNotificationChannelAsync(ADHAN_CHANNEL_ID, {
-    name: 'Adhan alarms',
-    importance: Notifications.AndroidImportance.MAX,
-    sound: soundEnabled ? ADHAN_SOUND : null,
-    vibrationPattern: [0, 400, 200, 400],
-    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-    bypassDnd: true,
-    audioAttributes: {
-      usage: Notifications.AndroidAudioUsage.ALARM,
-      contentType: Notifications.AndroidAudioContentType.SONIFICATION,
-    },
-  });
-  await Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
-    name: 'Fatwa updates',
-    importance: Notifications.AndroidImportance.HIGH,
-    sound: UPDATE_SOUND,
-  });
-  await Notifications.setNotificationChannelAsync(BROADCAST_CHANNEL_ID, {
-    name: 'Announcements',
-    importance: Notifications.AndroidImportance.DEFAULT,
-    sound: UPDATE_SOUND,
-  });
+  // Android channel settings are immutable once created, so a channel that was
+  // first made silent (or with a stale sound file) stays silent forever. Drop
+  // and recreate it whenever the stored sound does not match what we want.
+  try {
+    const existing = await Notifications.getNotificationChannelAsync(ADHAN_CHANNEL_ID);
+    const wantsSound = soundEnabled;
+    const hasSound = Boolean(existing?.sound);
+    if (existing && wantsSound !== hasSound) {
+      await Notifications.deleteNotificationChannelAsync(ADHAN_CHANNEL_ID);
+    }
+  } catch {
+    // Reading or deleting a channel is best-effort.
+  }
+  // Channel creation must never throw: it runs before every alarm sync, and an
+  // exception here would abort the whole sync and leave the user with no alarms.
+  try {
+    await Notifications.setNotificationChannelAsync(ADHAN_CHANNEL_ID, {
+      name: 'Adhan alarms',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: soundEnabled ? ADHAN_SOUND : null,
+      vibrationPattern: [0, 400, 200, 400],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      bypassDnd: true,
+      audioAttributes: {
+        usage: Notifications.AndroidAudioUsage.ALARM,
+        contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+      },
+    });
+  } catch {
+    // Some OEM builds reject the alarm audio attributes or bypassDnd. Fall back
+    // to a plain max-importance channel so alarms still fire and sound.
+    try {
+      await Notifications.setNotificationChannelAsync(ADHAN_CHANNEL_ID, {
+        name: 'Adhan alarms',
+        importance: Notifications.AndroidImportance.MAX,
+        sound: soundEnabled ? ADHAN_SOUND : null,
+        vibrationPattern: [0, 400, 200, 400],
+      });
+    } catch {
+      // Channel setup is best-effort; notifications fall back to the default channel.
+    }
+  }
+  try {
+    await Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
+      name: 'Fatwa updates',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: UPDATE_SOUND,
+    });
+  } catch {
+    // Best-effort.
+  }
+  try {
+    await Notifications.setNotificationChannelAsync(BROADCAST_CHANNEL_ID, {
+      name: 'Announcements',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      sound: UPDATE_SOUND,
+    });
+  } catch {
+    // Best-effort.
+  }
 }
 
 export async function ensureNotificationPermissions(): Promise<boolean> {
@@ -81,14 +119,14 @@ export async function initializeNotificationChannels(soundEnabled = true) {
 const HORIZON_DAYS = 5;
 
 /**
- * Schedules the next occurrences of one adhan alarm as one-shot notifications.
+ * Schedules the occurrences of one adhan alarm.
  *
- * We deliberately avoid repeating triggers: Android's scheduler only supports
- * `daily`/`weekly`/`monthly`/`yearly` and its `daily` type fires on the device
- * clock, which drifts away from the city's prayer time whenever the device
- * timezone differs. Instead we queue a rolling horizon of one-shot date
- * triggers, and re-sync on every launch and foreground so the horizon stays
- * topped up even if the app is not opened for a few days.
+ * The trigger choice depends on the clocks: when the device timezone matches the
+ * selected city, a repeating `daily` trigger is used, which Android re-arms
+ * after every fire so the alarm survives without the app being reopened. When
+ * the two clocks differ, `daily` would fire at the wrong local time, so a
+ * rolling horizon of one-shot date triggers is queued instead and topped up on
+ * every launch and foreground.
  */
 async function scheduleAdhan(
   alarm: AdhanAlarm,
@@ -98,6 +136,24 @@ async function scheduleAdhan(
   const [hour, minute] = alarm.time.split(':').map(Number);
   if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return 0;
   const zone = options.timezoneOffsetHours ?? -now.getTimezoneOffset() / 60;
+  const content = {
+    title: `${alarm.prayer} adhan`,
+    body: `It is time for ${alarm.prayer} prayer.`,
+    sound: options.soundEnabled ? ADHAN_SOUND : false,
+    priority: Notifications.AndroidNotificationPriority.MAX,
+    data: { kind: 'adhan', prayer: alarm.prayer },
+  };
+  // When the device clock already matches the city clock, a repeating daily
+  // trigger is the best choice: Android re-arms it after every fire, so the
+  // alarm keeps working even if the app is never reopened. The device clock is
+  // what `daily` fires on, so this is only safe when the two clocks agree.
+  if (Math.abs(-now.getTimezoneOffset() / 60 - zone) < 1 / 60) {
+    await Notifications.scheduleNotificationAsync({
+      content,
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute, channelId: ADHAN_CHANNEL_ID },
+    });
+    return 1;
+  }
   let count = 0;
   // Walk whole days from today; skip today's slot once it has passed so the
   // next day's iteration supplies that occurrence instead of duplicating it.
@@ -106,12 +162,7 @@ async function scheduleAdhan(
     const when = cityTimeOn(reference, alarm.time, zone);
     if (when.getTime() <= now.getTime()) continue;
     await Notifications.scheduleNotificationAsync({
-      content: {
-        title: `${alarm.prayer} adhan`,
-        body: `It is time for ${alarm.prayer} prayer.`,
-        sound: options.soundEnabled ? ADHAN_SOUND : false,
-        data: { kind: 'adhan', prayer: alarm.prayer },
-      },
+      content,
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: when, channelId: ADHAN_CHANNEL_ID },
     });
     count += 1;
@@ -167,4 +218,41 @@ export async function notifyNow(title: string, body: string, data?: Record<strin
     // unless we name one, and the default is the loud adhan-alarm channel.
     trigger: Platform.OS === 'android' ? { channelId: NOTIFICATION_CHANNEL_ID } : null,
   });
+}
+
+/** How many adhan alarms are currently queued on the device. */
+export async function countScheduledAdhan(): Promise<number> {
+  if (Platform.OS === 'web') return 0;
+  try {
+    const existing = await Notifications.getAllScheduledNotificationsAsync();
+    return existing.filter((item) => (item.content.data as { kind?: string } | null)?.kind === 'adhan').length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Fires a real adhan notification after a short delay so the user can confirm
+ * that notifications, the alarm channel and the adhan sound all work on their
+ * device without waiting for the next prayer.
+ */
+export async function sendTestAdhan(seconds = 10): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+  const permitted = await ensureNotificationPermissions();
+  if (!permitted) return false;
+  await ensureChannels(true);
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'Test adhan',
+      body: 'This is a test. Your adhan alarm is working.',
+      sound: ADHAN_SOUND,
+      data: { kind: 'adhan', prayer: 'Fajr', test: '1' },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: new Date(Date.now() + Math.max(1, seconds) * 1000),
+      channelId: ADHAN_CHANNEL_ID,
+    },
+  });
+  return true;
 }

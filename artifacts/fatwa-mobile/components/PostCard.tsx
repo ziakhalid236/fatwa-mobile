@@ -40,6 +40,7 @@ export function PostCard({
   onToggleLike,
   onToggleSave,
   onOpen,
+  onOpenVideo,
   onShare,
   onAuthor,
   onVisible,
@@ -53,6 +54,7 @@ export function PostCard({
   onToggleLike: () => void;
   onToggleSave: () => void;
   onOpen: () => void;
+  onOpenVideo?: () => void;
   onShare: () => void;
   onAuthor?: () => void;
   onVisible?: () => void;
@@ -136,8 +138,8 @@ export function PostCard({
 
         {post.videoUrl ? (
           onScreen
-            ? <InlineVideo uri={post.videoUrl} active durationMs={post.videoDurationMs} onOpen={onOpen} />
-            : <VideoPoster durationMs={post.videoDurationMs} onOpen={onOpen} />
+            ? <InlineVideo uri={post.videoUrl} active durationMs={post.videoDurationMs} onOpen={onOpenVideo ?? onOpen} />
+            : <VideoPoster durationMs={post.videoDurationMs} onOpen={onOpenVideo ?? onOpen} />
         ) : null}
 
         <View style={[styles.footer, { borderTopColor: colors.border }]}>

@@ -11,21 +11,19 @@ export type VideoStageProps = {
   post: Post;
   active: boolean;
   liked: boolean;
-  muted: boolean;
   height: number;
   onToggleLike: () => void;
-  onToggleMute: () => void;
   onOpen: () => void;
 };
 
 /**
- * One full-screen page of the shorts feed: looping video, double-tap to like,
- * tap to pause, progress bar and a right-hand action rail.
+ * One full-screen page of the shorts feed: looping video with sound, double-tap
+ * to like, tap to pause, progress bar and a right-hand action rail.
  */
-export function VideoStage({ post, active, liked, muted, height, onToggleLike, onToggleMute, onOpen }: VideoStageProps) {
+export function VideoStage({ post, active, liked, height, onToggleLike, onOpen }: VideoStageProps) {
   const player = useVideoPlayer(post.videoUrl || '', (instance) => {
     instance.loop = true;
-    instance.muted = muted;
+    instance.muted = false;
   });
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -33,10 +31,6 @@ export function VideoStage({ post, active, liked, muted, height, onToggleLike, o
 
   const { status } = useEvent(player, 'statusChange', { status: player.status });
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
-
-  useEffect(() => {
-    player.muted = muted;
-  }, [muted, player]);
 
   useEffect(() => {
     player.timeUpdateEventInterval = 0.25;
@@ -136,12 +130,8 @@ export function VideoStage({ post, active, liked, muted, height, onToggleLike, o
           <Text style={styles.railLabel}>{formatCount(post.likes + (liked ? 1 : 0))}</Text>
         </Pressable>
         <Pressable onPress={onOpen} style={styles.railButton} accessibilityRole="button" accessibilityLabel="Read the full post">
-          <View style={styles.railIcon}><Feather name="message-circle" size={24} color="#FFFFFF" /></View>
+          <View style={styles.railIcon}><Feather name="file-text" size={22} color="#FFFFFF" /></View>
           <Text style={styles.railLabel}>Post</Text>
-        </Pressable>
-        <Pressable onPress={onToggleMute} style={styles.railButton} accessibilityRole="button" accessibilityLabel={muted ? 'Unmute video' : 'Mute video'}>
-          <View style={styles.railIcon}><Feather name={muted ? 'volume-x' : 'volume-2'} size={23} color="#FFFFFF" /></View>
-          <Text style={styles.railLabel}>{muted ? 'Muted' : 'Sound'}</Text>
         </Pressable>
       </View>
 

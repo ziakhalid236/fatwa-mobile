@@ -8,7 +8,7 @@ import { useNav } from '@/lib/nav';
 import { API_BASE_URL, useApp } from '@/lib/store';
 import type { Post } from '@/lib/types';
 
-export default function ShortsScreen() {
+export default function ShortsScreen({ initialPostId }: { initialPostId?: string } = {}) {
   const colors = useColors();
   // The feed is edge-to-edge, so the top bar pads itself around the status bar.
   const insets = useSafeAreaInsets();
@@ -19,8 +19,9 @@ export default function ShortsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
-  const [muted, setMuted] = useState(true);
   const [height, setHeight] = useState(0);
+  const listRef = useRef<FlatList<Post>>(null);
+  const scrolledToInitial = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -55,17 +56,26 @@ export default function ShortsScreen() {
       height={height}
       active={index === activeIndex}
       liked={likedPostIds.includes(item.id)}
-      muted={muted}
-      onToggleMute={() => setMuted((value) => !value)}
       onToggleLike={() => toggleLike(item.id)}
       onOpen={() => nav.push({ name: 'post', postId: item.id })}
     />
-  ), [activeIndex, height, likedPostIds, muted, nav, toggleLike]);
+  ), [activeIndex, height, likedPostIds, nav, toggleLike]);
 
   const onLayout = (event: LayoutChangeEvent) => {
     const next = event.nativeEvent.layout.height;
     if (next > 0 && Math.abs(next - height) > 1) setHeight(next);
   };
+
+  // When the feed is opened from a home-feed video, jump straight to that clip.
+  useEffect(() => {
+    if (!initialPostId || scrolledToInitial.current || !height || !videos.length) return;
+    const index = videos.findIndex((item) => item.id === initialPostId);
+    scrolledToInitial.current = true;
+    if (index <= 0) return;
+    setActiveIndex(index);
+    const timer = setTimeout(() => listRef.current?.scrollToIndex({ index, animated: false }), 0);
+    return () => clearTimeout(timer);
+  }, [height, initialPostId, videos]);
 
   const state = loading ? (
     <View style={styles.center}><ActivityIndicator color={colors.primary} /><Text style={{ color: colors.mutedForeground }}>Loading community videos…</Text></View>
@@ -79,6 +89,7 @@ export default function ShortsScreen() {
     <View style={styles.container} onLayout={onLayout}>
       {state ?? (height > 0 ? (
         <FlatList
+          ref={listRef}
           data={videos}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
@@ -106,9 +117,7 @@ export default function ShortsScreen() {
           <Feather name="play-circle" size={13} color="#FFFFFF" />
           <Text style={styles.titleText}>Shorts</Text>
         </View>
-        <Pressable onPress={() => setMuted((value) => !value)} style={styles.topButton} accessibilityRole="button" accessibilityLabel={muted ? 'Unmute videos' : 'Mute videos'}>
-          <Feather name={muted ? 'volume-x' : 'volume-2'} size={19} color="#FFFFFF" />
-        </Pressable>
+        <View style={styles.topButton} />
       </View>
     </View>
   );
